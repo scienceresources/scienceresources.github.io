@@ -188,6 +188,30 @@
       }
     }));
 
+    // ── STRAND COUNTER ─────────────────────────────────────────────────────
+    Alpine.data('counter', () => ({
+      seqs: [{ id: 1, label: 'Strand 1', val: '' }],
+      nextId: 2,
+
+      addSeq() { this.seqs.push({ id: this.nextId++, label: 'Strand ' + this.nextId, val: '' }); },
+      removeSeq(id) { this.seqs = this.seqs.filter(s => s.id !== id); },
+
+      stats(val) {
+        const raw   = val;
+        const clean = val.replace(/[\s\-]/g, '').toUpperCase().replace(/U/g, 'T');
+        const a = (clean.match(/A/g)||[]).length;
+        const t = (clean.match(/T/g)||[]).length;
+        const c = (clean.match(/C/g)||[]).length;
+        const g = (clean.match(/G/g)||[]).length;
+        const n = (clean.match(/N/g)||[]).length;
+        const other = clean.length - a - t - c - g - n;
+        const atgc  = a + t + c + g;
+        const gc    = atgc > 0 ? (((g + c) / atgc) * 100).toFixed(1) : '—';
+        const codons = Math.floor(clean.length / 3);
+        return { raw: raw.length, clean: clean.length, a, t, c, g, n, other, gc, codons };
+      }
+    }));
+
   });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
@@ -230,7 +254,11 @@
   </div>
 
   <!-- Tab row -->
-  <div class="max-w-5xl mx-auto px-4 flex gap-1">
+  <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap">
+    <button onclick="showTab('counter')" id="tab-counter"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-ruler-horizontal mr-2 opacity-70"></i>Strand Length
+    </button>
     <button onclick="showTab('align')" id="tab-align"
       class="tab-active text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
       <i class="fa-solid fa-arrows-left-right mr-2 opacity-70"></i>Fragment Aligner
@@ -530,10 +558,144 @@
 
   </div><!-- /comparator -->
 
+  <!-- ══ STRAND LENGTH COUNTER PANEL ════════════════════════════════════════ -->
+  <div id="panel-counter" class="hidden" x-data="counter">
+
+    <p class="text-sm text-slate-500 leading-relaxed mb-6">
+      Paste one or more DNA strands to get an instant character count and nucleotide breakdown.
+      Dashes and whitespace are stripped for the <span class="font-semibold text-slate-700">clean length</span>; the raw character count is also shown.
+      Results update live as you type.
+    </p>
+
+    <div class="space-y-5">
+      <template x-for="(seq, idx) in seqs" :key="seq.id">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+
+          <!-- Card header -->
+          <div class="flex justify-between items-center mb-3">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              <i class="fa-solid fa-ruler-horizontal mr-1 text-blue-400"></i>
+              Strand <span x-text="idx + 1"></span>
+            </label>
+            <button x-show="seqs.length > 1" @click="removeSeq(seq.id)"
+              class="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition-all">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
+
+          <!-- Textarea -->
+          <textarea x-model="seq.val" rows="3" placeholder="ATCGATCG…"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all mb-4"></textarea>
+
+          <!-- Live stats — only shown when there's input -->
+          <template x-if="seq.val.trim()">
+            <div>
+              <!-- Primary counts row -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Clean Length</p>
+                  <p class="text-2xl font-black text-blue-700 font-mono" x-text="stats(seq.val).clean"></p>
+                  <p class="text-[10px] text-blue-400 mt-0.5">bp (no gaps)</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Raw Length</p>
+                  <p class="text-2xl font-black text-slate-600 font-mono" x-text="stats(seq.val).raw"></p>
+                  <p class="text-[10px] text-slate-400 mt-0.5">chars (with gaps)</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Codons</p>
+                  <p class="text-2xl font-black text-slate-600 font-mono" x-text="stats(seq.val).codons"></p>
+                  <p class="text-[10px] text-slate-400 mt-0.5">complete triplets</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">GC Content</p>
+                  <p class="text-2xl font-black text-slate-600 font-mono" x-text="stats(seq.val).gc + '%'"></p>
+                  <p class="text-[10px] text-slate-400 mt-0.5">of A/T/G/C bases</p>
+                </div>
+              </div>
+
+              <!-- Nucleotide breakdown -->
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Nucleotide Breakdown</p>
+                <div class="flex flex-wrap gap-3">
+                  <!-- A -->
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded bg-emerald-500 text-white text-xs font-black flex items-center justify-center">A</span>
+                    <span class="font-mono text-sm font-bold text-slate-700" x-text="stats(seq.val).a"></span>
+                    <span class="text-[10px] text-slate-400 font-mono"
+                      x-text="stats(seq.val).clean > 0 ? '(' + ((stats(seq.val).a / stats(seq.val).clean) * 100).toFixed(1) + '%)' : ''">
+                    </span>
+                  </div>
+                  <!-- T -->
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded bg-sky-500 text-white text-xs font-black flex items-center justify-center">T</span>
+                    <span class="font-mono text-sm font-bold text-slate-700" x-text="stats(seq.val).t"></span>
+                    <span class="text-[10px] text-slate-400 font-mono"
+                      x-text="stats(seq.val).clean > 0 ? '(' + ((stats(seq.val).t / stats(seq.val).clean) * 100).toFixed(1) + '%)' : ''">
+                    </span>
+                  </div>
+                  <!-- C -->
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded bg-violet-500 text-white text-xs font-black flex items-center justify-center">C</span>
+                    <span class="font-mono text-sm font-bold text-slate-700" x-text="stats(seq.val).c"></span>
+                    <span class="text-[10px] text-slate-400 font-mono"
+                      x-text="stats(seq.val).clean > 0 ? '(' + ((stats(seq.val).c / stats(seq.val).clean) * 100).toFixed(1) + '%)' : ''">
+                    </span>
+                  </div>
+                  <!-- G -->
+                  <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded bg-amber-500 text-white text-xs font-black flex items-center justify-center">G</span>
+                    <span class="font-mono text-sm font-bold text-slate-700" x-text="stats(seq.val).g"></span>
+                    <span class="text-[10px] text-slate-400 font-mono"
+                      x-text="stats(seq.val).clean > 0 ? '(' + ((stats(seq.val).g / stats(seq.val).clean) * 100).toFixed(1) + '%)' : ''">
+                    </span>
+                  </div>
+                  <!-- N -->
+                  <template x-if="stats(seq.val).n > 0">
+                    <div class="flex items-center gap-2">
+                      <span class="w-6 h-6 rounded bg-slate-400 text-white text-xs font-black flex items-center justify-center">N</span>
+                      <span class="font-mono text-sm font-bold text-slate-500" x-text="stats(seq.val).n"></span>
+                      <span class="text-[10px] text-slate-400 font-mono">(ambiguous)</span>
+                    </div>
+                  </template>
+                  <!-- Other -->
+                  <template x-if="stats(seq.val).other > 0">
+                    <div class="flex items-center gap-2">
+                      <span class="w-6 h-6 rounded bg-red-300 text-white text-xs font-black flex items-center justify-center">?</span>
+                      <span class="font-mono text-sm font-bold text-red-400" x-text="stats(seq.val).other"></span>
+                      <span class="text-[10px] text-slate-400 font-mono">(unrecognised)</span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Empty state hint -->
+          <template x-if="!seq.val.trim()">
+            <div class="text-center py-4 text-slate-300 text-xs font-mono">
+              <i class="fa-solid fa-keyboard mr-1"></i>Start typing to see stats…
+            </div>
+          </template>
+
+        </div>
+      </template>
+    </div>
+
+    <!-- Add strand button -->
+    <div class="mt-4">
+      <button @click="addSeq()"
+        class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+        <i class="fa-solid fa-plus text-xs"></i>Add Strand
+      </button>
+    </div>
+
+  </div><!-- /counter -->
+
 </main>
 
 <script>
-  const PANELS = ['align','translate','compare'];
+  const PANELS = ['align','translate','compare','counter'];
   function showTab(name) {
     PANELS.forEach(id => {
       const panel = document.getElementById('panel-'+id);
