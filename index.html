@@ -1,717 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BioKey Builder</title>
-     <link rel="icon" type="image/png" href="favicon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Science Resources</title>
+<link rel="icon" type="image/png" href="favicon.png">
      <link rel="apple-touch-icon" href="favicon.png">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Alpine.js Logic -->
-    <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('keyBuilder', () => ({
-                couplets: [],
-                outputStyle: 'numbered', // 'numbered', 'standard', 'lettered', 'botanical'
-                copyButtonState: 'idle', // 'idle' or 'copied'
-                
-                // History for undo/redo
-                history: [],
-                historyIndex: -1,
-                isUndoRedoing: false,
-                textInputTimer: null,
-                
-                // Modal State
-                modal: {
-                    show: false,
-                    title: '',
-                    message: '',
-                    onConfirm: null,
-                    confirmText: 'Confirm',
-                    isDanger: false
-                },
 
-                init() {
-                    // Persistence disabled: Start fresh on every load
-                    this.addCouplet(false);
-                    this.saveHistory();
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-                    // Browser warning before closing/reloading (native browser dialog - cannot be customized)
-                    window.addEventListener('beforeunload', (e) => {
-                        if (this.couplets.length > 0) {
-                            const msg = "You have unsaved changes. If you leave, your key will be deleted.";
-                            e.preventDefault();
-                            e.returnValue = msg;
-                            return msg;
-                        }
-                    });
+<style>
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
-                    // Keyboard shortcuts for undo/redo
-                    window.addEventListener('keydown', (e) => {
-                        const key = e.key.toLowerCase();
-                        
-                        // Ctrl+Z or Cmd+Z for undo
-                        if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
-                            e.preventDefault();
-                            this.undo();
-                        }
-                        // Ctrl+Shift+Z or Cmd+Shift+Z for redo
-                        else if ((e.ctrlKey || e.metaKey) && key === 'z' && e.shiftKey) {
-                            e.preventDefault();
-                            this.redo();
-                        }
-                        // Ctrl+Y or Cmd+Y for redo (alternative)
-                        else if ((e.ctrlKey || e.metaKey) && key === 'y') {
-                            e.preventDefault();
-                            this.redo();
-                        }
-                    });
-                },
+  .tool-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .tool-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 32px -8px rgba(0,0,0,0.1);
+  }
+  .tool-card-blue:hover  { border-color: #93c5fd; }
+  .tool-card-green:hover { border-color: #86efac; }
 
-                generateId() {
-                    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 9);
-                },
-
-                createCouplet() {
-                    return {
-                        id: this.generateId(),
-                        leadA: { text: '', targetId: 'result', resultText: '' },
-                        leadB: { text: '', targetId: 'result', resultText: '' }
-                    };
-                },
-
-                saveHistory() {
-                    if (this.isUndoRedoing) return;
-                    
-                    // Deep clone the current state
-                    const snapshot = JSON.parse(JSON.stringify(this.couplets));
-                    
-                    // Remove any future history if we're not at the end
-                    if (this.historyIndex < this.history.length - 1) {
-                        this.history = this.history.slice(0, this.historyIndex + 1);
-                    }
-                    
-                    // Add new snapshot
-                    this.history.push(snapshot);
-                    this.historyIndex = this.history.length - 1;
-                    
-                    // Keep history size manageable (max 50 states)
-                    if (this.history.length > 50) {
-                        this.history.shift();
-                        this.historyIndex--;
-                    }
-                },
-
-                onTextInput() {
-                    // Debounce text input changes so each keystroke isn't a separate undo step
-                    clearTimeout(this.textInputTimer);
-                    this.textInputTimer = setTimeout(() => {
-                        this.saveHistory();
-                    }, 500); // Save after 500ms of no typing
-                },
-
-                undo() {
-                    if (this.historyIndex > 0) {
-                        this.isUndoRedoing = true;
-                        this.historyIndex--;
-                        this.restoreFromHistory();
-                        this.isUndoRedoing = false;
-                    }
-                },
-
-                redo() {
-                    if (this.historyIndex < this.history.length - 1) {
-                        this.isUndoRedoing = true;
-                        this.historyIndex++;
-                        this.restoreFromHistory();
-                        this.isUndoRedoing = false;
-                    }
-                },
-
-                restoreFromHistory() {
-                    const snapshot = this.history[this.historyIndex];
-                    this.couplets = JSON.parse(JSON.stringify(snapshot));
-                },
-
-                canUndo() {
-                    return this.historyIndex > 0;
-                },
-
-                canRedo() {
-                    return this.historyIndex < this.history.length - 1;
-                },
-
-                addCouplet(silent = true) {
-                    this.couplets.push(this.createCouplet());
-                    this.saveHistory();
-                },
-
-                insertCouplet(index) {
-                    this.couplets.splice(index, 0, this.createCouplet());
-                    this.saveHistory();
-                },
-
-                confirmDelete(index) {
-                    this.modal = {
-                        show: true,
-                        title: 'Delete Couplet',
-                        message: `Are you sure you want to delete Couplet ${index + 1}? This might break any existing links pointing to this step.`,
-                        confirmText: 'Delete Couplet',
-                        isDanger: true,
-                        onConfirm: () => {
-                            this.couplets.splice(index, 1);
-                            if (this.couplets.length === 0) this.addCouplet(false);
-                            this.saveHistory();
-                            this.modal.show = false;
-                        }
-                    };
-                },
-
-                confirmReset() {
-                    this.modal = {
-                        show: true,
-                        title: 'Reset Entire Project',
-                        message: 'This will permanently delete all couplets and descriptors. This action cannot be undone.',
-                        confirmText: 'Clear Everything',
-                        isDanger: true,
-                        onConfirm: () => {
-                            this.couplets = [];
-                            this.addCouplet(false);
-                            this.saveHistory();
-                            this.modal.show = false;
-                        }
-                    };
-                },
-
-                getDisplayIndex(id) {
-                    const idx = this.couplets.findIndex(c => c.id === id);
-                    return idx === -1 ? '?' : (idx + 1);
-                },
-
-                // Logic to find which couplets point to the current one
-                getParentRef(currentId, format = 'bracket') {
-                    if (this.couplets.length > 0 && this.couplets[0].id === currentId) {
-                        return ''; 
-                    }
-
-                    const parents = [];
-                    this.couplets.forEach((c, index) => {
-                        if (c.leadA.targetId === currentId || c.leadB.targetId === currentId) {
-                            parents.push(index + 1);
-                        }
-                    });
-
-                    if (parents.length === 0) return '';
-                    return format === 'bracket' ? `(${parents.join(', ')}) ` : `(${parents.join(', ')})`;
-                },
-
-                exportJSON() {
-                    // We export the raw couplets array which contains the unique IDs
-                    const dataStr = JSON.stringify(this.couplets, null, 2);
-                    const blob = new Blob([dataStr], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    
-                    const linkElement = document.createElement('a');
-                    linkElement.setAttribute('href', url);
-                    linkElement.setAttribute('download', 'my_dichotomous_key.json');
-                    linkElement.click();
-                    
-                    // Cleanup
-                    setTimeout(() => URL.revokeObjectURL(url), 100);
-                },
-
-                importJSON(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const importedData = JSON.parse(e.target.result);
-                            if (Array.isArray(importedData)) {
-                                // Clear the current couplets
-                                this.couplets = [];
-                                
-                                // Wait a moment for Alpine to clear the DOM
-                                setTimeout(() => {
-                                    // Add all couplets at once with their proper data
-                                    this.couplets = importedData.map(c => ({
-                                        id: c.id,
-                                        leadA: { 
-                                            text: c.leadA.text || '', 
-                                            targetId: c.leadA.targetId || 'result', 
-                                            resultText: c.leadA.resultText || '' 
-                                        },
-                                        leadB: { 
-                                            text: c.leadB.text || '', 
-                                            targetId: c.leadB.targetId || 'result', 
-                                            resultText: c.leadB.resultText || '' 
-                                        }
-                                    }));
-                                    
-                                    // Force Alpine to re-evaluate the bindings
-                                    setTimeout(() => {
-                                        // Trigger a re-render by touching each targetId
-                                        this.couplets.forEach((couplet, idx) => {
-                                            const leadATarget = couplet.leadA.targetId;
-                                            const leadBTarget = couplet.leadB.targetId;
-                                            this.couplets[idx].leadA.targetId = 'result';
-                                            this.couplets[idx].leadB.targetId = 'result';
-                                            setTimeout(() => {
-                                                this.couplets[idx].leadA.targetId = leadATarget;
-                                                this.couplets[idx].leadB.targetId = leadBTarget;
-                                            }, 50);
-                                        });
-                                        
-                                        // Save to history after import is complete
-                                        setTimeout(() => {
-                                            this.saveHistory();
-                                        }, 200);
-                                    }, 100);
-                                }, 50);
-                            } else {
-                                throw new Error('Invalid format');
-                            }
-                        } catch (err) {
-                            this.modal = {
-                                show: true,
-                                title: 'Import Error',
-                                message: 'The file provided is not a valid BioKey JSON structure.',
-                                confirmText: 'Close',
-                                isDanger: true,
-                                onConfirm: () => { this.modal.show = false; }
-                            };
-                        }
-                        event.target.value = '';
-                    };
-                    reader.readAsText(file);
-                },
-
-                generateTextOutput() {
-                    if (this.couplets.length === 0) return '';
-
-                    if (this.outputStyle === 'numbered') {
-                        return this.generateNumberedOutput();
-                    } else if (this.outputStyle === 'standard') {
-                        return this.generateStandardOutput();
-                    } else if (this.outputStyle === 'lettered') {
-                        return this.generateLetteredOutput();
-                    } else if (this.outputStyle === 'botanical') {
-                        return this.generateBotanicalOutput();
-                    }
-                },
-
-               generateNumberedOutput() {
-    let textOutput = "DICHOTOMOUS KEY\nGenerated by BioKey Builder\n---------------------------\n\n";
-
-    this.couplets.forEach((c, index) => {
-        const num = index + 1;
-
-        // Get parent reference like (1)
-        const parentRef = this.getParentRef(c.id, 'bracket');
-        const parentString = parentRef ? `${parentRef} ` : '';
-
-        let destA = c.leadA.targetId === 'result'
-            ? (c.leadA.resultText || "[RESULT]")
-            : `Go to ${this.getDisplayIndex(c.leadA.targetId)}`;
-
-        let destB = c.leadB.targetId === 'result'
-            ? (c.leadB.resultText || "[RESULT]")
-            : `Go to ${this.getDisplayIndex(c.leadB.targetId)}`;
-
-        // Traditional formatting:
-        // Only the FIRST line gets the number and parent reference
-        textOutput += `${num}. ${parentString}${c.leadA.text || "[Description]"} ${destA}\n\n`;
-        textOutput += `${c.leadB.text || "[Description]"} ${destB}\n\n`;
-    });
-
-    return textOutput;
-},
-
-                generateStandardOutput() {
-                    let textOutput = "DICHOTOMOUS KEY\nGenerated by BioKey Builder\n---------------------------\n\n";
-
-                    this.couplets.forEach((c, index) => {
-                        const num = index + 1;
-                        const parentRef = this.getParentRef(c.id, 'space'); 
-                        const prefix = `${num}. `;
-                        const parentString = parentRef ? `${parentRef} ` : "";
-                        
-                        let destA = c.leadA.targetId === 'result' 
-                            ? (c.leadA.resultText || "[RESULT]") 
-                            : `Go to ${this.getDisplayIndex(c.leadA.targetId)}`;
-                        
-                        let destB = c.leadB.targetId === 'result' 
-                            ? (c.leadB.resultText || "[RESULT]") 
-                            : `Go to ${this.getDisplayIndex(c.leadB.targetId)}`;
-
-                        textOutput += `${prefix}${parentString}${c.leadA.text || "[Description]"} — ${destA}\n`;
-                        textOutput += `${prefix}${parentString}${c.leadB.text || "[Description]"} — ${destB}\n\n`;
-                    });
-
-                    return textOutput;
-                },
-
-                generateLetteredOutput() {
-                    let textOutput = "DICHOTOMOUS KEY\nGenerated by BioKey Builder\n---------------------------\n\n";
-
-                    this.couplets.forEach((c, index) => {
-                        const num = index + 1;
-                        
-                        let destA = c.leadA.targetId === 'result' 
-                            ? (c.leadA.resultText || "[RESULT]") 
-                            : `Go to ${this.getDisplayIndex(c.leadA.targetId)}`;
-                        
-                        let destB = c.leadB.targetId === 'result' 
-                            ? (c.leadB.resultText || "[RESULT]") 
-                            : `Go to ${this.getDisplayIndex(c.leadB.targetId)}`;
-
-                        textOutput += `${num}a. ${c.leadA.text || "[Description]"}. ${destA}\n`;
-                        textOutput += `${num}b. ${c.leadB.text || "[Description]"}. ${destB}\n\n`;
-                    });
-
-                    return textOutput;
-                },
-
-                generateBotanicalOutput() {
-                    let textOutput = "DICHOTOMOUS KEY\nGenerated by BioKey Builder\n---------------------------\n\n";
-
-                    this.couplets.forEach((c, index) => {
-                        const num = index + 1;
-                        
-                        let destA = c.leadA.targetId === 'result' 
-                            ? (c.leadA.resultText || "[RESULT]") 
-                            : this.getDisplayIndex(c.leadA.targetId);
-                        
-                        let destB = c.leadB.targetId === 'result' 
-                            ? (c.leadB.resultText || "[RESULT]") 
-                            : this.getDisplayIndex(c.leadB.targetId);
-
-                        // Add dots for padding (approximation for text)
-                        const maxLength = 80;
-                        const textA = c.leadA.text || "[Description]";
-                        const textB = c.leadB.text || "[Description]";
-                        
-                        const dotsA = '.'.repeat(Math.max(2, maxLength - textA.length - destA.toString().length));
-                        const dotsB = '.'.repeat(Math.max(2, maxLength - textB.length - destB.toString().length));
-
-                        textOutput += `${num}  ${textA} ${dotsA} ${destA}\n`;
-                        textOutput += `–  ${textB} ${dotsB} ${destB}\n\n`;
-                    });
-
-                    return textOutput;
-                },
-
-                copyToClipboard() {
-                    const textOutput = this.generateTextOutput();
-                    if (!textOutput) return;
-
-                    const el = document.createElement('textarea');
-                    el.value = textOutput;
-                    document.body.appendChild(el);
-                    el.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(el);
-
-                    // Change button state
-                    this.copyButtonState = 'copied';
-                    setTimeout(() => {
-                        this.copyButtonState = 'idle';
-                    }, 2000);
-                }
-            }));
-        });
-    </script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        [x-cloak] { display: none !important; }
-        
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        .couplet-card {
-            transition: all 0.2s ease-in-out;
-            border-left: 4px solid transparent;
-        }
-        .couplet-card:hover {
-            border-left: 4px solid #3b82f6;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
-        }
-        
-        .add-couplet-btn {
-            opacity: 0;
-            transition: opacity 0.2s ease-in-out;
-        }
-        
-        .divider-container:hover .add-couplet-btn {
-            opacity: 1;
-        }
-
-        .divider-line {
-            height: 2px;
-            flex-grow: 1;
-            background: #e2e8f0;
-        }
-
-        /* Optimized modal overlay - no backdrop blur for performance */
-        .modal-overlay {
-            background-color: rgba(15, 23, 42, 0.5);
-            will-change: opacity;
-        }
-
-        /* Smooth GPU-accelerated animations */
-        .modal-content {
-            will-change: transform, opacity;
-            backface-visibility: hidden;
-            transform: translateZ(0);
-        }
-    </style>
+  .feature-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #f1f5f9;
+    color: #64748b;
+    border-radius: 9999px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+</style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-20" x-data="keyBuilder()">
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
 
-    <!-- Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="bg-green-100 p-2 rounded-lg">
-                    <i class="fa-solid fa-leaf text-green-600 text-xl"></i>
-                </div>
-                <div>
-                    <h1 class="text-lg font-bold text-slate-900 leading-tight">BioKey Builder</h1>
-                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Dichotomous Constructor</p>
-                </div>
-            </div>
-            
-            <div class="flex flex-wrap gap-2 items-center">
-                <!-- Undo/Redo buttons -->
-                <button 
-                    @click="undo()" 
-                    :disabled="!canUndo()"
-                    :class="canUndo() ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed'"
-                    class="p-2 rounded-lg transition-colors"
-                    title="Undo (Ctrl+Z)"
-                >
-                    <i class="fa-solid fa-rotate-left"></i>
-                </button>
-                
-                <button 
-                    @click="redo()" 
-                    :disabled="!canRedo()"
-                    :class="canRedo() ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed'"
-                    class="p-2 rounded-lg transition-colors"
-                    title="Redo (Ctrl+Shift+Z)"
-                >
-                    <i class="fa-solid fa-rotate-right"></i>
-                </button>
-
-                <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
-                
-                <label class="cursor-pointer bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
-                    <i class="fa-solid fa-file-import"></i> Import
-                    <input type="file" accept=".json" @change="importJSON($event)" class="hidden">
-                </label>
-                
-                <button @click="exportJSON()" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
-                    <i class="fa-solid fa-file-arrow-down"></i> Save File
-                </button>
-
-                <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
-
-                <button @click="confirmReset()" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Clear All">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
-                
-                <div class="flex items-center gap-2">
-                    <select x-model="outputStyle" class="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="numbered">Numbered (Traditional)</option>
-                        <option value="standard">Standard (with parentheses)</option>
-                        <option value="lettered">Lettered (1a/1b)</option>
-                        <option value="botanical">Botanical (dots)</option>
-                    </select>
-                    
-                    <button 
-                        @click="copyToClipboard()" 
-                        :class="copyButtonState === 'copied' ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-800 hover:bg-slate-900'"
-                        class="px-4 py-2 text-white rounded-lg shadow-sm transition-all flex items-center gap-2 text-sm font-bold"
-                    >
-                        <i :class="copyButtonState === 'copied' ? 'fa-solid fa-circle-check' : 'fa-solid fa-copy'"></i>
-                        <span x-text="copyButtonState === 'copied' ? 'Copied!' : 'Copy Text'"></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="max-w-5xl mx-auto px-4 py-8">
-        
-        <div class="space-y-0" x-show="couplets.length > 0">
-            <template x-for="(couplet, index) in couplets" :key="couplet.id">
-                <div>
-                    <!-- Add couplet divider (between couplets) -->
-                    <div x-show="index > 0" class="divider-container flex items-center gap-4 py-3">
-                        <div class="divider-line"></div>
-                        <button @click="insertCouplet(index)" class="add-couplet-btn bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-all hover:scale-110">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                        <div class="divider-line"></div>
-                    </div>
-
-                    <!-- Couplet card -->
-                    <div class="couplet-card bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                        <div class="flex justify-between items-start mb-4 border-b border-slate-100 pb-3">
-                            <div class="flex items-center gap-3">
-                                <span class="bg-slate-100 text-slate-800 font-black rounded-lg w-10 h-10 flex items-center justify-center text-xl shadow-inner border border-slate-200" x-text="index + 1"></span>
-                                <div class="flex flex-col">
-                                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Couplet</span>
-                                    <span class="text-xs font-mono text-blue-500 font-bold" x-text="getParentRef(couplet.id)"></span>
-                                </div>
-                            </div>
-                            <button @click="confirmDelete(index)" class="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
-                        </div>
-
-                        <div class="grid md:grid-cols-2 gap-8">
-                            <!-- Lead A -->
-                            <div class="space-y-3">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-black italic">a</span>
-                                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descriptor</span>
-                                </div>
-                                <textarea 
-                                    x-model="couplet.leadA.text" 
-                                    @input="onTextInput()"
-                                    placeholder="Characteristic of first path..." 
-                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24 transition-all"
-                                ></textarea>
-                                
-                                <div class="space-y-2">
-                                    <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1">
-                                        <select 
-                                            x-model="couplet.leadA.targetId" 
-                                            @change="saveHistory()"
-                                            class="w-full bg-transparent border-none text-xs font-bold text-slate-600 focus:ring-0 cursor-pointer py-2 px-2"
-                                        >
-                                            <option value="result" class="text-green-600">➜ Identifies as...</option>
-                                            <optgroup label="Directs to Couplet:">
-                                                <template x-for="(c, i) in couplets" :key="'target-a-' + c.id">
-                                                    <option :value="c.id" x-text="'Go to ' + (i + 1)" :disabled="c.id === couplet.id"></option>
-                                                </template>
-                                            </optgroup>
-                                        </select>
-                                    </div>
-                                    <div x-show="couplet.leadA.targetId === 'result'" x-transition>
-                                        <input 
-                                            type="text" 
-                                            x-model="couplet.leadA.resultText" 
-                                            @input="onTextInput()"
-                                            placeholder="Taxon/Species Name" 
-                                            class="w-full px-3 py-2 text-sm border-2 border-green-100 rounded-lg bg-green-50 text-green-700 font-serif italic font-bold outline-none"
-                                        >
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Lead B -->
-                            <div class="space-y-3">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-black italic">b</span>
-                                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Descriptor</span>
-                                </div>
-                                <textarea 
-                                    x-model="couplet.leadB.text" 
-                                    @input="onTextInput()"
-                                    placeholder="Alternative characteristic..." 
-                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24 transition-all"
-                                ></textarea>
-
-                                <div class="space-y-2">
-                                    <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1">
-                                        <select 
-                                            x-model="couplet.leadB.targetId" 
-                                            @change="saveHistory()"
-                                            class="w-full bg-transparent border-none text-xs font-bold text-slate-600 focus:ring-0 cursor-pointer py-2 px-2"
-                                        >
-                                            <option value="result" class="text-green-600">➜ Identifies as...</option>
-                                            <optgroup label="Directs to Couplet:">
-                                                <template x-for="(c, i) in couplets" :key="'target-b-' + c.id">
-                                                    <option :value="c.id" x-text="'Go to ' + (i + 1)" :disabled="c.id === couplet.id"></option>
-                                                </template>
-                                            </optgroup>
-                                        </select>
-                                    </div>
-                                    <div x-show="couplet.leadB.targetId === 'result'" x-transition>
-                                        <input 
-                                            type="text" 
-                                            x-model="couplet.leadB.resultText" 
-                                            @input="onTextInput()"
-                                            placeholder="Taxon/Species Name" 
-                                            class="w-full px-3 py-2 text-sm border-2 border-green-100 rounded-lg bg-green-50 text-green-700 font-serif italic font-bold outline-none"
-                                        >
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </template>
-
-            <!-- Add button at the bottom (after last couplet) -->
-            <div class="divider-container flex items-center gap-4 py-3">
-                <div class="divider-line"></div>
-                <button @click="addCouplet()" class="add-couplet-btn bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-all hover:scale-110">
-                    <i class="fa-solid fa-plus"></i>
-                </button>
-                <div class="divider-line"></div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Optimized Custom UI Modal -->
-    <div 
-        x-show="modal.show" 
-        class="fixed inset-0 z-[100] flex items-center justify-center p-4 modal-overlay"
-        x-cloak
-        x-transition:enter="transition ease-out duration-150"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-100"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        @click.self="modal.show = false"
-    >
-        <div 
-            class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden modal-content"
-            x-transition:enter="transition ease-out duration-150"
-            x-transition:enter-start="opacity-0 scale-95"
-            x-transition:enter-end="opacity-100 scale-100"
-            x-transition:leave="transition ease-in duration-100"
-            x-transition:leave-start="opacity-100 scale-100"
-            x-transition:leave-end="opacity-0 scale-95"
-        >
-            <div class="p-6">
-                <div class="flex items-center gap-4 mb-4">
-                    <div :class="modal.isDanger ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0">
-                        <i :class="modal.isDanger ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-question'"></i>
-                    </div>
-                    <h3 class="text-xl font-bold text-slate-900" x-text="modal.title"></h3>
-                </div>
-                <p class="text-slate-600 leading-relaxed mb-6" x-text="modal.message"></p>
-                <div class="flex gap-3 justify-end">
-                    <button @click="modal.show = false" class="px-4 py-2 rounded-lg font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
-                    <button @click="modal.onConfirm" :class="modal.isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'" class="px-6 py-2 rounded-lg font-bold text-white shadow-lg transition-all" x-text="modal.confirmText"></button>
-                </div>
-            </div>
-        </div>
+<!-- ── HEADER ────────────────────────────────────────────────────────────── -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+    <div class="bg-slate-800 p-2 rounded-lg">
+      <i class="fa-solid fa-flask-vial text-white text-xl"></i>
     </div>
+    <div>
+      <h1 class="text-lg font-bold text-slate-900 leading-tight">Science Resources</h1>
+      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Toolkits for Science</p>
+    </div>
+  </div>
+</header>
+
+<!-- ── HERO ──────────────────────────────────────────────────────────────── -->
+<section class="bg-white border-b border-slate-200">
+  <div class="max-w-5xl mx-auto px-4 py-12 text-center">
+    <h2 class="text-3xl font-black text-slate-900 tracking-tight mb-3">
+      Tools for Biology
+    </h2>
+    <p class="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
+      Browser-based tools for DNA analysis and taxonomic keying.
+      No installation, no account — your data stays on your device.
+    </p>
+  </div>
+</section>
+
+<!-- ── TOOL CARDS ────────────────────────────────────────────────────────── -->
+<main class="max-w-5xl mx-auto px-4 py-12 flex-1 w-full">
+
+  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Select a Tool</p>
+
+  <div class="grid md:grid-cols-2 gap-5">
+
+    <!-- SeqLab -->
+    <a href="invertebrate-dna-sequencer.html"
+      class="tool-card tool-card-blue bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
+      <div class="flex items-start justify-between mb-5">
+        <div class="bg-blue-100 p-3.5 rounded-xl">
+          <i class="fa-solid fa-dna text-blue-600 text-2xl"></i>
+        </div>
+        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-blue-400 transition-colors mt-1"></i>
+      </div>
+
+      <h2 class="text-xl font-black text-slate-900 mb-1">Invertebrate DNA Sequencer</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">DNA · RNA · Protein Analysis</p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
+        Align overlapping DNA fragments, translate sequences using The Invertebrate Mitochondrial Code (transl_table=5),
+        and compare amino acid sequences with mismatch highlighting.
+      </p>
+
+      <div class="flex flex-wrap gap-2">
+        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-blue-400 text-[9px]"></i>Fragment Aligner</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-blue-400 text-[9px]"></i>DNA → Amino Acid</span>
+        <span class="feature-pill"><i class="fa-solid fa-code-compare text-blue-400 text-[9px]"></i>Protein Comparator</span>
+      </div>
+    </a>
+
+    <!-- BioKey Builder -->
+    <a href="biokey.html"
+      class="tool-card tool-card-green bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
+      <div class="flex items-start justify-between mb-5">
+        <div class="bg-green-100 p-3.5 rounded-xl">
+          <i class="fa-solid fa-leaf text-green-600 text-2xl"></i>
+        </div>
+        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-green-400 transition-colors mt-1"></i>
+      </div>
+
+      <h2 class="text-xl font-black text-slate-900 mb-1">BioKey Builder</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Dichotomous Key Constructor</p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
+        Build and export professional dichotomous identification keys. Link couplets,
+        define descriptors, and export in multiple standard formats.
+      </p>
+
+      <div class="flex flex-wrap gap-2">
+        <span class="feature-pill"><i class="fa-solid fa-code-branch text-green-400 text-[9px]"></i>Couplet Builder</span>
+        <span class="feature-pill"><i class="fa-solid fa-file-arrow-down text-green-400 text-[9px]"></i>Export / Import</span>
+        <span class="feature-pill"><i class="fa-solid fa-rotate-left text-green-400 text-[9px]"></i>Undo / Redo</span>
+      </div>
+    </a>
+
+  </div>
+</main>
+
+<footer class="border-t border-slate-200 bg-white">
+  <div class="max-w-5xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-flask-vial text-slate-300"></i>
+      <span class="text-sm font-semibold text-slate-400">Science Resources</span>
+    </div>
+    <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
+      <a href="seqlab.html"  class="hover:text-blue-500  transition-colors flex items-center gap-1.5"><i class="fa-solid fa-dna  text-slate-300"></i>Invertebrate DNA Sequencer</a>
+      <a href="biokey.html" class="hover:text-green-500 transition-colors flex items-center gap-1.5"><i class="fa-solid fa-leaf text-slate-300"></i>BioKey Builder</a>
+    </div>
+  </div>
+</footer>
 
 </body>
 </html>
