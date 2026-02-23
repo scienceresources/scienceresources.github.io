@@ -23,7 +23,7 @@
     box-shadow: 0 16px 32px -8px rgba(0,0,0,0.1);
   }
   .tool-card-blue:hover  { border-color: #93c5fd; }
-  .tool-card-green:hover { border-color: #86efac; }
+  .tool-card-purple:hover { border-color: rgb(183, 106, 255); }
 
   .feature-pill {
     display: inline-flex;
@@ -60,10 +60,10 @@
 <section class="bg-white border-b border-slate-200">
   <div class="max-w-5xl mx-auto px-4 py-12 text-center">
     <h2 class="text-3xl font-black text-slate-900 tracking-tight mb-3">
-      Tools for Biology
+      DNA Sequencer tools
     </h2>
     <p class="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-      Browser-based tools for DNA analysis and taxonomic keying.
+      Tools for doing DNA seuqnece analysis.<br>
       No installation, no account — your data stays on your device.
     </p>
   </div>
@@ -77,7 +77,7 @@
   <div class="grid md:grid-cols-2 gap-5">
 
     <!-- SeqLab -->
-    <a href="dna-index.html"
+    <a href="invertebrate-dna-sequencer.html"
       class="tool-card tool-card-blue bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-blue-100 p-3.5 rounded-xl">
@@ -86,7 +86,7 @@
         <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-blue-400 transition-colors mt-1"></i>
       </div>
 
-      <h2 class="text-xl font-black text-slate-900 mb-1">DNA Sequencers</h2>
+      <h2 class="text-xl font-black text-slate-900 mb-1">Invertebrate DNA Sequencer</h2>
       <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">DNA · RNA · Protein Analysis</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
         Align overlapping DNA fragments, translate sequences using The Invertebrate Mitochondrial Code (transl_table=5),
@@ -100,30 +100,30 @@
       </div>
     </a>
 
-
-    <!-- BioKey Builder -->
-    <a href="biokey.html"
-      class="tool-card tool-card-green bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
+        <!-- SeqLab -->
+    <a href="bear-dna-sequencer.html"
+      class="tool-card tool-card-purple bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
-        <div class="bg-green-100 p-3.5 rounded-xl">
-          <i class="fa-solid fa-leaf text-green-600 text-2xl"></i>
+        <div class="bg-purple-100 p-3.5 rounded-xl">
+          <i class="fa-solid fa-dna text-purple-600 text-2xl"></i>
         </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-green-400 transition-colors mt-1"></i>
+        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-purple-400 transition-colors mt-1"></i>
       </div>
 
-      <h2 class="text-xl font-black text-slate-900 mb-1">BioKey Builder</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Dichotomous Key Constructor</p>
+      <h2 class="text-xl font-black text-slate-900 mb-1">Bear DNA Sequencer</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">DNA · RNA · Protein Analysis</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Build and export professional dichotomous identification keys. Link couplets,
-        define descriptors, and export in multiple standard formats.
+        Align overlapping DNA fragments, translate sequences using The Vertebrate Mitochondrial Code (transl_table=2),
+        and compare amino acid sequences with mismatch highlighting.
       </p>
 
       <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-code-branch text-green-400 text-[9px]"></i>Couplet Builder</span>
-        <span class="feature-pill"><i class="fa-solid fa-file-arrow-down text-green-400 text-[9px]"></i>Export / Import</span>
-        <span class="feature-pill"><i class="fa-solid fa-rotate-left text-green-400 text-[9px]"></i>Undo / Redo</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-purple-400 text-[9px]"></i>Fragment Aligner</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-purple-400 text-[9px]"></i>DNA → Amino Acid</span>
+        <span class="feature-pill"><i class="fa-solid fa-code-compare text-purple-400 text-[9px]"></i>Protein Comparator</span>
       </div>
     </a>
+
 
   </div>
 </main>
@@ -135,10 +135,9 @@
       <span class="text-sm font-semibold text-slate-400">Science Resources</span>
     </div>
     <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
-      <a href="dna-index.html"  class="hover:text-blue-500  transition-colors flex items-center gap-1.5"><i class="fa-solid fa-dna  text-slate-300"></i>DNA Sequencers</a>
-      <a href="biokey.html" class="hover:text-green-500 transition-colors flex items-center gap-1.5"><i class="fa-solid fa-leaf text-slate-300"></i>BioKey Builder</a>
+      <a href="invertebrate-dna-sequencer.html"  class="hover:text-blue-500  transition-colors flex items-center gap-1.5"><i class="fa-solid fa-dna  text-slate-300"></i>Invertebrate DNA Sequencer</a>
+      <a href="bear-dna-sequencer.html" class="hover:text-purple-500 transition-colors flex items-center gap-1.5"><i class="fa-solid fa-dna text-slate-300"></i>Bear DNA Sequencer</a>
     </div>
-  </div>
 </footer>
 
 </body>
