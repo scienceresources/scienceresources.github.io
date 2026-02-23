@@ -1,0 +1,1907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invertebrate COI 5P DNA Sequence Comparison and Protein Extraction</title>
+<link rel="icon" type="image/png" href="favicon2.png">
+     <link rel="apple-touch-icon" href="favicon2.png">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  document.addEventListener('alpine:init', () => {
+
+    // ── CODON TABLE 5 ──────────────────────────────────────────────────────
+    const AAS   = "FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSS**VVVVAAAADDEEGGGG";
+    const BASE1 = "TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG";
+    const BASE2 = "TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG";
+    const BASE3 = "TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG";
+    const CODON_MAP = {};
+    for (let i = 0; i < 64; i++) CODON_MAP[BASE1[i]+BASE2[i]+BASE3[i]] = AAS[i];
+
+    function translateFrame(dna, frame) {
+      const seq = dna.replace(/[\s-]/g,'').toUpperCase().replace(/U/g,'T').slice(frame);
+      let out = '';
+      for (let i = 0; i <= seq.length - 3; i += 3) {
+        const c = seq.slice(i, i+3);
+        out += c.includes('N') ? '?' : (CODON_MAP[c] || '?');
+      }
+      return out;
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function reverseComplementSimple(seq) {
+      const m = {A:'T',T:'A',C:'G',G:'C',N:'N'};
+      return seq.split('').reverse().map(b => m[b]||b).join('');
+    }
+
+    // ── SEMI-GLOBAL OVERLAP ALIGNER ─────────────────────────────────────────
+    function alignOverlap(s1, s2) {
+      const MATCH = 2, MISMATCH = -1, GAP = -2;
+      const m = s1.length, n = s2.length;
+      if (m > 1400 || n > 1400) return alignOverlapFast(s1, s2);
+      const H   = Array.from({length: m+1}, () => new Int32Array(n+1));
+      const ptr = Array.from({length: m+1}, () => new Uint8Array(n+1));
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const diag = H[i-1][j-1] + (s1[i-1] === s2[j-1] ? MATCH : MISMATCH);
+          const up   = H[i-1][j] + GAP;
+          const left = H[i][j-1] + GAP;
+          if (diag >= up && diag >= left) { H[i][j] = diag; ptr[i][j] = 1; }
+          else if (up >= left)            { H[i][j] = up;   ptr[i][j] = 2; }
+          else                            { H[i][j] = left;  ptr[i][j] = 3; }
+        }
+      }
+      let best = -Infinity, ei = m, ej = n;
+      for (let j = 0; j <= n; j++) if (H[m][j] > best) { best = H[m][j]; ei = m; ej = j; }
+      for (let i = 0; i <= m; i++) if (H[i][n] > best) { best = H[i][n]; ei = i; ej = n; }
+      let al1='', al2='', mLine='';
+      let i = ei, j = ej;
+      while (i > 0 && j > 0) {
+        const p = ptr[i][j];
+        if (p===1) { al1=s1[i-1]+al1; al2=s2[j-1]+al2; mLine=(s1[i-1]===s2[j-1]?'|':'.')+mLine; i--; j--; }
+        else if (p===2) { al1=s1[i-1]+al1; al2='-'+al2; mLine=' '+mLine; i--; }
+        else            { al1='-'+al1; al2=s2[j-1]+al2; mLine=' '+mLine; j--; }
+      }
+      const lead1 = s1.slice(0,i), lead2 = s2.slice(0,j);
+      const ll = Math.max(lead1.length, lead2.length);
+      const trail1 = s1.slice(ei), trail2 = s2.slice(ej);
+      const tl = Math.max(trail1.length, trail2.length);
+      const full1 = lead1.padStart(ll) + al1 + trail1.padEnd(tl);
+      const full2 = lead2.padStart(ll) + al2 + trail2.padEnd(tl);
+      const fullM = ' '.repeat(ll) + mLine + ' '.repeat(tl);
+      const matches  = (mLine.match(/\|/g)||[]).length;
+      const compared = mLine.replace(/ /g,'').length;
+      return {
+        a1: full1, a2: full2, matchLine: fullM,
+        ov1: al1.replace(/^-+|-+$/g,''),
+        ov2: al2.replace(/^-+|-+$/g,''),
+        alSeq1: al1, alSeq2: al2,
+        identity: compared>0 ? ((matches/compared)*100).toFixed(1) : '0.0',
+        frac: `${matches}/${compared}`,
+        ovLen: al1.length,
+        direction: 'Forward'
+      };
+    }
+
+    function alignOverlapFast(s1, s2) {
+      let bestShift=0, maxMatches=-1;
+      for (let shift=-(s2.length-10); shift<s1.length-10; shift++) {
+        let matches=0, ov=0;
+        const st=Math.max(0,shift), en=Math.min(s1.length, s2.length+shift);
+        for (let i=st; i<en; i++) { ov++; if (s1[i]===s2[i-shift]) matches++; }
+        if (ov>=20 && matches>maxMatches) { maxMatches=matches; bestShift=shift; }
+      }
+      const shift=bestShift;
+      const pad1=Math.max(0,-shift), pad2=Math.max(0,shift);
+      const a1=' '.repeat(pad1)+s1, a2=' '.repeat(pad2)+s2;
+      const maxL=Math.max(a1.length,a2.length);
+      let matchLine='', perfect=0, totalOv=0;
+      for (let j=0;j<maxL;j++) {
+        const c1=j<a1.length?a1[j]:' ', c2=j<a2.length?a2[j]:' ';
+        if (c1!==' '&&c2!==' ') { totalOv++; if(c1===c2){matchLine+='|';perfect++;}else matchLine+='.'; } else matchLine+=' ';
+      }
+      const ovStart=Math.max(pad1,pad2), ovEnd=Math.min(s1.length+pad1,s2.length+pad2);
+      return { a1, a2, matchLine, ov1:a1.slice(ovStart,ovEnd).trim(), ov2:a2.slice(ovStart,ovEnd).trim(),
+               alSeq1:a1.slice(ovStart,ovEnd).trim(), alSeq2:a2.slice(ovStart,ovEnd).trim(),
+               identity:totalOv>0?((perfect/totalOv)*100).toFixed(1):'0.0',
+               frac:`${perfect}/${totalOv}`, ovLen:ovEnd-ovStart, direction:'Forward' };
+    }
+
+    // ── KIMURA 2-PARAMETER (K2P) MODEL ──────────────────────────────────────
+    function k2pDistance(al1, al2) {
+      const purines = new Set(['A','G']);
+      let P=0, Q=0, N=0;
+      const len = Math.min(al1.length, al2.length);
+      for (let i=0; i<len; i++) {
+        const a=al1[i], b=al2[i];
+        if (a==='-'||b==='-'||a==='N'||b==='N'||a===' '||b===' ') continue;
+        N++;
+        if (a===b) continue;
+        if (purines.has(a)===purines.has(b)) P++;
+        else Q++;
+      }
+      if (N < 10) return null;
+      const p=P/N, q=Q/N;
+      const w1=1-2*p-q, w2=1-2*q;
+      if (w1<=0||w2<=0) return { d:null, P, Q, N, p, q, saturated:true };
+      const d = -0.5*Math.log(w1) - 0.25*Math.log(w2);
+      return { d, P, Q, N, p, q, saturated:false };
+    }
+
+    function interpretK2P(k2p) {
+      if (!k2p || k2p.saturated) return {
+        level:'Saturated / Uncertain',
+        colorBg:'bg-slate-100', colorBorder:'border-slate-300', colorText:'text-slate-700',
+        icon:'fa-circle-question',
+        desc:'The K2P model is saturated at this divergence level — multiple substitutions per site make the estimate unreliable. Sequences are from clearly different higher taxa.'
+      };
+      const d = k2p.d;
+      const pct = (d*100).toFixed(2);
+      if (d < 0.02) return {
+        level:'Likely Same Species',
+        colorBg:'bg-green-50', colorBorder:'border-green-300', colorText:'text-green-800',
+        icon:'fa-circle-check',
+        desc:`K2P distance ${pct}% is below the 2% intraspecific threshold (Hebert et al. 2003). These sequences very likely represent the same species or population.`
+      };
+      if (d < 0.05) return {
+        level:'Same Species / Sister Species',
+        colorBg:'bg-emerald-50', colorBorder:'border-emerald-300', colorText:'text-emerald-800',
+        icon:'fa-angles-up',
+        desc:`K2P distance ${pct}% is low but above 2%. Could be cryptic species, sister species, or intraspecific variation with incomplete lineage sorting.`
+      };
+      if (d < 0.15) return {
+        level:'Same Genus — Different Species',
+        colorBg:'bg-blue-50', colorBorder:'border-blue-300', colorText:'text-blue-800',
+        icon:'fa-layer-group',
+        desc:`K2P distance ${pct}% is in the interspecific range (5–15%). Sequences are likely from different species within the same genus.`
+      };
+      if (d < 0.25) return {
+        level:'Same Family — Different Genera',
+        colorBg:'bg-amber-50', colorBorder:'border-amber-300', colorText:'text-amber-800',
+        icon:'fa-sitemap',
+        desc:`K2P distance ${pct}% (15–25%) is typical of species in the same family but different genera.`
+      };
+      return {
+        level:'Distant — Different Families or Higher',
+        colorBg:'bg-red-50', colorBorder:'border-red-300', colorText:'text-red-800',
+        icon:'fa-circle-xmark',
+        desc:`K2P distance ${pct}% exceeds typical family-level divergence. These sequences are from distantly related taxa.`
+      };
+    }
+
+    // ── ALIGNER ────────────────────────────────────────────────────────────
+    Alpine.data('aligner', () => ({
+      fragA: '', fragB: '',
+      result: null,
+      running: false,
+      copyStates: { ov1: false, ov2: false },
+
+      run() {
+        if (!this.fragA.trim() || !this.fragB.trim()) return;
+        this.running = true;
+        setTimeout(() => {
+          const s1     = this.fragA.replace(/[-\s]/g,'').toUpperCase();
+          const s2orig = this.fragB.replace(/[-\s]/g,'').toUpperCase();
+          const s2rc   = reverseComplementSimple(s2orig);
+          const fwdRes = alignOverlap(s1, s2orig);
+          const revRes = alignOverlap(s1, s2rc);
+          const useFwd = parseFloat(fwdRes.identity) >= parseFloat(revRes.identity);
+          const res    = useFwd ? fwdRes : { ...revRes, direction: 'Reverse Complement' };
+          const k2p    = k2pDistance(res.alSeq1, res.alSeq2);
+          const interp = interpretK2P(k2p);
+          this.result = { ...res, direction: useFwd ? 'Forward' : 'Reverse Complement', k2p, interp };
+          this.running = false;
+        }, 30);
+      },
+
+      copyText(key, text) {
+        navigator.clipboard.writeText(text).then(() => {
+          this.copyStates[key] = true;
+          setTimeout(() => this.copyStates[key] = false, 1800);
+        });
+      }
+    }));
+
+    // ── TRANSLATOR ─────────────────────────────────────────────────────────
+    Alpine.data('translator', () => ({
+      seqs: [{ id: 1, val: '' }],
+      nextId: 2,
+      results: [],
+      frameCopyStates: {},
+
+      addSeq()      { this.seqs.push({ id: this.nextId++, val: '' }); },
+      removeSeq(id) { this.seqs = this.seqs.filter(s => s.id !== id); },
+
+      translate() {
+        this.results = this.seqs
+          .filter(s => s.val.trim())
+          .map((s, idx) => ({
+            index: idx+1,
+            frames: [0,1,2].map(f => {
+              const prot  = translateFrame(s.val, f);
+              const stops = (prot.match(/\*/g)||[]).length;
+              const internalStops = (prot.slice(0, -3).match(/\*/g)||[]).length;
+              return { frame:f+1, prot, stops, internalStops };
+            })
+          }));
+      },
+
+      copyFrame(seqIdx, frame, text) {
+        const key = `${seqIdx}-${frame}`;
+        navigator.clipboard.writeText(text).then(() => {
+          this.frameCopyStates = {...this.frameCopyStates, [key]: true};
+          setTimeout(() => {
+            this.frameCopyStates = {...this.frameCopyStates, [key]: false};
+          }, 1800);
+        });
+      },
+
+      renderProt(prot) {
+        return prot.split('').map(aa =>
+          aa==='*' ? `<span class="text-red-500 font-bold">*</span>` : esc(aa)
+        ).join('');
+      }
+    }));
+
+    // ── COMPARATOR ─────────────────────────────────────────────────────────
+    Alpine.data('comparator', () => ({
+      p1: '', p2: '',
+      result: null,
+
+      compare() {
+        const s1 = this.p1.trim().toUpperCase();
+        const s2 = this.p2.trim().toUpperCase();
+        if (!s1||!s2) return;
+        const len = Math.min(s1.length, s2.length);
+        let matches=0, mismatches=0, ambiguous=0, h1='', h2='';
+        for (let i=0; i<len; i++) {
+          const c1=s1[i], c2=s2[i];
+          if (c1==='?'||c2==='?') {
+            h1+=`<span class="text-slate-400">${esc(c1)}</span>`;
+            h2+=`<span class="text-slate-400">${esc(c2)}</span>`;
+            ambiguous++;
+          } else if (c1===c2) {
+            h1+=esc(c1); h2+=esc(c2); matches++;
+          } else {
+            h1+=`<span class="bg-amber-100 text-amber-700 rounded px-px font-semibold">${esc(c1)}</span>`;
+            h2+=`<span class="bg-amber-100 text-amber-700 rounded px-px font-semibold">${esc(c2)}</span>`;
+            mismatches++;
+          }
+        }
+        if (s1.length>len) h1+=`<span class="text-slate-300">${esc(s1.slice(len))}</span>`;
+        if (s2.length>len) h2+=`<span class="text-slate-300">${esc(s2.slice(len))}</span>`;
+        const tv=matches+mismatches;
+        this.result = {
+          h1, h2, matches, mismatches, ambiguous,
+          pct: tv>0 ? ((matches/tv)*100).toFixed(2) : '0.00',
+          len1: s1.length, len2: s2.length
+        };
+      }
+    }));
+
+    // ── STRAND COUNTER ─────────────────────────────────────────────────────
+    Alpine.data('counter', () => ({
+      seqs: [{ id: 1, label: 'Strand 1', val: '' }],
+      nextId: 2,
+
+      addSeq() { this.seqs.push({ id: this.nextId++, label: 'Strand ' + this.nextId, val: '' }); },
+      removeSeq(id) { this.seqs = this.seqs.filter(s => s.id !== id); },
+
+      stats(val) {
+        const raw   = val;
+        const clean = val.replace(/[\s\-]/g, '').toUpperCase().replace(/U/g, 'T');
+        const a = (clean.match(/A/g)||[]).length;
+        const t = (clean.match(/T/g)||[]).length;
+        const c = (clean.match(/C/g)||[]).length;
+        const g = (clean.match(/G/g)||[]).length;
+        const n = (clean.match(/N/g)||[]).length;
+        const other = clean.length - a - t - c - g - n;
+        const atgc  = a + t + c + g;
+        const gcNum = atgc > 0 ? ((g + c) / atgc) * 100 : null;
+        const gc    = gcNum !== null ? gcNum.toFixed(1) : '—';
+        const codons = Math.floor(clean.length / 3);
+        let gcBias = null;
+        if (gcNum !== null) {
+          if      (gcNum < 25)  gcBias = { label:'Very AT-rich',   note:'Extremely low GC (<25%) — may indicate NUMT or non-standard region.', color:'bg-orange-50 border-orange-200 text-orange-800' };
+          else if (gcNum < 32)  gcBias = { label:'AT-rich',        note:'GC content is low (25–32%), consistent with invertebrate mitochondrial DNA.', color:'bg-green-50 border-green-200 text-green-800' };
+          else if (gcNum <= 42) gcBias = { label:'Typical',        note:'GC content is in the normal range (32–42%) for invertebrate mitochondrial DNA.', color:'bg-green-50 border-green-200 text-green-800' };
+          else if (gcNum <= 55) gcBias = { label:'GC-elevated',    note:'GC content (42–55%) is higher than typical for invertebrate mt DNA. May be nuclear or unusual sequence.', color:'bg-amber-50 border-amber-200 text-amber-800' };
+          else                  gcBias = { label:'Highly GC-rich', note:'GC content >55% is atypical for invertebrate mt DNA. Likely nuclear, bacterial contamination, or GC-biased gene.', color:'bg-red-50 border-red-200 text-red-800' };
+        }
+        return { raw: raw.length, clean: clean.length, a, t, c, g, n, other, gc, codons, gcBias };
+      }
+    }));
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // BOLD LOCAL SPECIES IDENTIFIER
+    // Matches query sequences against a local ursus-dna.json BOLD dataset
+    // using sliding-window identity scan + full DP alignment for top hits.
+    // ══════════════════════════════════════════════════════════════════════════
+    Alpine.data('identifier', () => ({
+      sequence: '',
+      results:  null,
+      topHit:   null,
+      loading:  false,
+      error:    null,
+      expanded: {},
+      boldData: null,   // cached parsed NDJSON records
+
+      get cleanSeq() {
+        return this.sequence.split('\n').filter(l => !l.startsWith('>')).join('')
+          .replace(/[\s\-]/g,'').toUpperCase().replace(/U/g,'T').replace(/[^ATCGN]/g,'');
+      },
+      get seqLen()     { return this.cleanSeq.length; },
+      get seqQuality() { return this.seqLen >= 500 ? 'good' : this.seqLen >= 100 ? 'ok' : 'short'; },
+
+      sc(pct) {
+        if (pct >= 99) return { label:'Species Match',       pill:'bg-green-100 text-green-800',    bar:'bg-green-500',  text:'text-green-800',  hero:'bg-green-50 border-green-300'   };
+        if (pct >= 97) return { label:'Likely Same Species', pill:'bg-emerald-100 text-emerald-800',bar:'bg-emerald-500',text:'text-emerald-800', hero:'bg-emerald-50 border-emerald-300'};
+        if (pct >= 95) return { label:'Same Genus',          pill:'bg-blue-100 text-blue-800',      bar:'bg-blue-500',   text:'text-blue-800',   hero:'bg-blue-50 border-blue-300'     };
+        if (pct >= 90) return { label:'Same Family',         pill:'bg-amber-100 text-amber-800',    bar:'bg-amber-500',  text:'text-amber-800',  hero:'bg-amber-50 border-amber-300'   };
+        if (pct >= 85) return { label:'Same Order',          pill:'bg-orange-100 text-orange-800',  bar:'bg-orange-400', text:'text-orange-800', hero:'bg-orange-50 border-orange-300'  };
+        return           { label:'Distant / Unresolved',     pill:'bg-red-100 text-red-800',        bar:'bg-red-400',    text:'text-red-800',    hero:'bg-red-50 border-red-300'       };
+      },
+
+      fmt(pct)  { return pct.toFixed(2) + '%'; },
+      barW(pct) { return Math.max(2, pct).toFixed(1) + '%'; },
+
+      // Build midline string from two aligned sequences
+      getMidline(s1, s2) {
+        let m = '';
+        const len = Math.min(s1.length, s2.length);
+        for (let i = 0; i < len; i++) {
+          const a = s1[i], b = s2[i];
+          if (a === '-' || b === '-') m += ' ';
+          else if (a === b)           m += '|';
+          else                        m += '+';
+        }
+        return m;
+      },
+
+      renderAlignment(qseq, midline, hseq) {
+        const CHUNK = 60;
+        let html = '';
+        for (let i = 0; i < qseq.length; i += CHUNK) {
+          const q  = qseq.slice(i, i+CHUNK);
+          const m  = midline.slice(i, i+CHUNK);
+          const h  = hseq.slice(i, i+CHUNK);
+          const pos = i+1;
+          html += `<div class="mb-1">`;
+          html += `<span class="text-slate-400 select-none mr-2 text-[10px]">${String(pos).padStart(5)}</span>`;
+          html += `<span class="text-blue-700">`;
+          for (let j = 0; j < q.length; j++) html += q[j]==='-' ? `<span class="text-slate-300">-</span>` : q[j];
+          html += `</span>`;
+          html += `<br><span class="text-slate-400 select-none mr-2 text-[10px]">     </span>`;
+          html += `<span class="text-slate-400">`;
+          for (let j = 0; j < m.length; j++) {
+            if (m[j]==='|')      html += `<span class="text-green-600">|</span>`;
+            else if (m[j]===' ') html += ' ';
+            else                 html += `<span class="text-red-400">${m[j]}</span>`;
+          }
+          html += `</span>`;
+          html += `<br><span class="text-slate-400 select-none mr-2 text-[10px]">     </span>`;
+          html += `<span class="text-emerald-700">`;
+          for (let j = 0; j < h.length; j++) html += h[j]==='-' ? `<span class="text-slate-300">-</span>` : h[j];
+          html += `</span></div>`;
+        }
+        return html;
+      },
+
+      // Phase 1 — fast sliding-window identity (no gap alignment)
+      // Tries offsets ±maxOff to handle length differences between query and reference.
+      _slideIdentity(query, ref) {
+        const maxOff = Math.min(80, Math.abs(query.length - ref.length) + 30);
+        let bestId = -1, bestQs = 0, bestRs = 0, bestLen = 0;
+        for (let off = -maxOff; off <= maxOff; off++) {
+          let matches = 0, total = 0;
+          const qs = Math.max(0, off), rs = Math.max(0, -off);
+          const len = Math.min(query.length - qs, ref.length - rs);
+          if (len < 50) continue;
+          for (let i = 0; i < len; i++) {
+            const q = query[qs+i], r = ref[rs+i];
+            if (q !== 'N' && r !== 'N') { total++; if (q === r) matches++; }
+          }
+          const id = total > 0 ? matches / total : 0;
+          if (id > bestId) { bestId = id; bestQs = qs; bestRs = rs; bestLen = len; }
+        }
+        return { identity: bestId * 100, qstart: bestQs, rstart: bestRs, ovLen: bestLen };
+      },
+
+      // Load and cache the BOLD NDJSON file
+      async loadBoldData() {
+        if (this.boldData) return this.boldData;
+        const resp = await fetch('ursus-dna.json');
+        if (!resp.ok) throw new Error(
+          `Could not load ursus-dna.json (HTTP ${resp.status}).\n` +
+          `Make sure the file is hosted in the same directory as this HTML file.`
+        );
+        const text = await resp.text();
+        this.boldData = text.trim().split('\n')
+          .filter(l => l.trim())
+          .map(l => JSON.parse(l))
+          .filter(r => r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+        return this.boldData;
+      },
+
+      async search() {
+        const query = this.cleanSeq;
+        if (query.length < 80) {
+          this.error = 'Sequence too short — minimum 100 bp needed. COI-5P barcodes are typically 658 bp.';
+          return;
+        }
+        this.loading = true;
+        this.results = null;
+        this.topHit  = null;
+        this.error   = null;
+        this.expanded = {};
+
+        // Yield to DOM so loading spinner renders
+        await new Promise(r => setTimeout(r, 30));
+
+        try {
+          const records = await this.loadBoldData();
+          const rc = reverseComplementSimple(query);
+
+          // ── Phase 1: fast scan of all 1,400+ records ──────────────────────
+          const scored = [];
+          for (const rec of records) {
+            const ref = rec.nuc.replace(/[-\s]/g,'').toUpperCase();
+            if (ref.length < 100) continue;
+            const fwd = this._slideIdentity(query, ref);
+            const rev = this._slideIdentity(rc,    ref);
+            const best = fwd.identity >= rev.identity
+              ? { ...fwd, direction: 'Forward' }
+              : { ...rev, direction: 'Reverse Complement' };
+            scored.push({ rec, ...best });
+          }
+
+          // ── Deduplicate: one entry per species (best identity wins) ───────
+          const seen = new Map();
+          for (const s of scored) {
+            const sp = (s.rec.identification && s.rec.identification.trim() !== s.rec.genus)
+              ? s.rec.identification.trim()
+              : (s.rec.species || s.rec.genus || 'Unknown');
+            if (!seen.has(sp) || seen.get(sp).identity < s.identity) seen.set(sp, s);
+          }
+
+          // Top 20 unique species
+          const top20 = [...seen.values()]
+            .sort((a, b) => b.identity - a.identity)
+            .slice(0, 20);
+
+          // ── Phase 2: full DP alignment for display on top candidates ──────
+          const results = top20.map(s => {
+            const ref = s.rec.nuc.replace(/[-\s]/g,'').toUpperCase();
+            const refUsed = s.direction === 'Reverse Complement'
+              ? reverseComplementSimple(ref)
+              : ref;
+            const full    = alignOverlap(query, refUsed);
+            const k2p     = k2pDistance(full.alSeq1, full.alSeq2);
+            const midline = this.getMidline(full.alSeq1, full.alSeq2);
+
+            const sp  = (s.rec.identification && s.rec.identification.trim() !== s.rec.genus)
+              ? s.rec.identification.trim()
+              : (s.rec.species || s.rec.genus || 'Unknown');
+            const loc = [s.rec['province/state'], s.rec['country/ocean']]
+              .filter(Boolean).join(', ');
+
+            return {
+              taxon:           sp,
+              processid:       s.rec.processid || '—',
+              bin_uri:         s.rec.bin_uri || '—',
+              location:        loc || '—',
+              collectors:      s.rec.collectors || '—',
+              collection_date: s.rec.collection_date_start || '—',
+              pct:             parseFloat(full.identity),
+              frac:            full.frac,
+              ovLen:           full.ovLen,
+              direction:       s.direction,
+              k2p,
+              alSeq1:   full.alSeq1,
+              alSeq2:   full.alSeq2,
+              midline,
+              boldUrl: s.rec.processid
+                ? `https://boldsystems.org/index.php/Public_RecordView?processid=${s.rec.processid}`
+                : null,
+              binUrl: s.rec.bin_uri
+                ? `https://boldsystems.org/index.php/Public_BarcodeCluster?clusteruri=${s.rec.bin_uri}`
+                : null,
+            };
+          });
+
+          if (!results.length) {
+            this.error = 'No matches found in the BOLD Melissodes dataset.';
+            return;
+          }
+          this.results = results;
+          this.topHit  = results[0];
+
+        } catch(e) {
+          this.error = 'Error: ' + e.message;
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      toggleExpand(i) { this.expanded = { ...this.expanded, [i]: !this.expanded[i] }; },
+
+      clear() {
+        this.sequence = ''; this.results = null; this.topHit = null;
+        this.error = null; this.expanded = {};
+      }
+    }));
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MULTI-SAMPLE BATCH IDENTIFIER + DOT GRAPH
+    // Accepts 2–20 FASTA sequences, identifies each against BOLD, then computes
+    // an all-vs-all K2P distance matrix and renders a force-directed dot graph.
+    // ══════════════════════════════════════════════════════════════════════════
+    Alpine.data('multiId', () => ({
+      input: '',
+      results: null,
+      loading: false,
+      loadingStep: '',
+      error: null,
+      boldData: null,
+
+      get parsedSeqs() {
+        const lines = this.input.split('\n');
+        const seqs = [];
+        let name = null, buf = '';
+        for (const raw of lines) {
+          const l = raw.trim();
+          if (l.startsWith('>')) {
+            if (name !== null && buf.replace(/[^ATCGN]/gi,'').length > 0)
+              seqs.push({ name, seq: buf.replace(/[\s\-]/g,'').toUpperCase() });
+            name = l.slice(1).trim() || `Sample ${seqs.length + 1}`;
+            buf  = '';
+          } else { buf += l.replace(/\s/g,''); }
+        }
+        if (name !== null && buf.replace(/[^ATCGN]/gi,'').length > 0)
+          seqs.push({ name, seq: buf.replace(/[\s\-]/g,'').toUpperCase() });
+        return seqs;
+      },
+
+      get seqCount() { return this.parsedSeqs.length; },
+
+      async _loadBold() {
+        if (this.boldData) return this.boldData;
+        const r = await fetch('ursus-dna.json');
+        if (!r.ok) throw new Error(`Cannot load ursus-dna.json (HTTP ${r.status})`);
+        const text = await r.text();
+        this.boldData = text.trim().split('\n').filter(l => l.trim())
+          .map(l => JSON.parse(l))
+          .filter(r => r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+        return this.boldData;
+      },
+
+      _slideId(query, ref) {
+        const maxOff = Math.min(80, Math.abs(query.length - ref.length) + 30);
+        let best = 0;
+        for (let off = -maxOff; off <= maxOff; off++) {
+          let m = 0, t = 0;
+          const qs = Math.max(0, off), rs = Math.max(0, -off);
+          const len = Math.min(query.length - qs, ref.length - rs);
+          if (len < 50) continue;
+          for (let i = 0; i < len; i++) {
+            const q = query[qs+i], r = ref[rs+i];
+            if (q !== 'N' && r !== 'N') { t++; if (q === r) m++; }
+          }
+          if (t > 0) best = Math.max(best, m / t);
+        }
+        return best * 100;
+      },
+
+      async _identifyOne(seq) {
+        const records = await this._loadBold();
+        const rc = reverseComplementSimple(seq);
+        let best = null;
+        for (const rec of records) {
+          const ref = rec.nuc.replace(/[-\s]/g,'').toUpperCase();
+          const id  = Math.max(this._slideId(seq, ref), this._slideId(rc, ref));
+          if (!best || id > best.id) best = { id, rec };
+        }
+        if (!best) return { species: 'Unknown', pct: 0, bin_uri: '—' };
+        const sp = (best.rec.identification && best.rec.identification.trim() !== best.rec.genus)
+          ? best.rec.identification.trim()
+          : (best.rec.species || best.rec.genus || 'Unknown');
+        return { species: sp, pct: best.id, bin_uri: best.rec.bin_uri || '—' };
+      },
+
+      _forceLayout(n, distMatrix) {
+        const W = 740, H = 480;
+        if (n === 1) return [{ x: W/2, y: H/2 }];
+        let pos = Array.from({ length: n }, (_, i) => ({
+          x: W/2 + Math.cos(2 * Math.PI * i / n) * (n < 5 ? 130 : 170),
+          y: H/2 + Math.sin(2 * Math.PI * i / n) * (n < 5 ? 110 : 150)
+        }));
+        const valids = [];
+        for (let i = 0; i < n; i++)
+          for (let j = i+1; j < n; j++)
+            if (distMatrix[i][j] !== null) valids.push(distMatrix[i][j]);
+        const maxD = Math.max(...valids, 0.02);
+        const minD = Math.min(...valids, 0);
+        const SPREAD = Math.min(W, H) * 0.38;
+
+        for (let iter = 0; iter < 600; iter++) {
+          const cool = Math.pow(1 - iter / 600, 0.6);
+          const forces = pos.map(() => ({ x: 0, y: 0 }));
+          for (let i = 0; i < n; i++) {
+            for (let j = i+1; j < n; j++) {
+              const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+              const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+              const d    = distMatrix[i][j] ?? maxD;
+              const norm = (d - minD) / (maxD - minD || 1);
+              const target = 65 + norm * SPREAD;
+              const f = (dist - target) * 0.28 * cool / dist;
+              forces[i].x += dx * f; forces[i].y += dy * f;
+              forces[j].x -= dx * f; forces[j].y -= dy * f;
+            }
+          }
+          for (let i = 0; i < n; i++) {
+            pos[i].x = Math.max(64, Math.min(W - 64, pos[i].x + forces[i].x));
+            pos[i].y = Math.max(54, Math.min(H - 54, pos[i].y + forces[i].y));
+          }
+        }
+        return pos;
+      },
+
+      _buildSvg(pos, names, speciesArr, matrix) {
+        const W = 740, H = 480;
+        const palette = [
+          '#3b82f6','#10b981','#f59e0b','#8b5cf6',
+          '#ef4444','#ec4899','#0891b2','#65a30d',
+          '#dc2626','#c026d3','#ea580c','#0d9488'
+        ];
+        const spMap = {};
+        let ci = 0;
+        speciesArr.forEach(sp => { if (!spMap[sp]) spMap[sp] = palette[ci++ % palette.length]; });
+        const n = pos.length;
+
+        const _e = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+        // Find 7 shortest-distance pairs for labelling
+        const pairs = [];
+        for (let i = 0; i < n; i++)
+          for (let j = i+1; j < n; j++)
+            if (matrix[i][j] !== null) pairs.push({ i, j, d: matrix[i][j] });
+        pairs.sort((a,b) => a.d - b.d);
+        const labelSet = new Set(pairs.slice(0, Math.min(7, pairs.length)).map(p => `${p.i}-${p.j}`));
+
+        let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">`;
+        svg += `<defs>
+          <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stop-color="#f0f9ff"/>
+            <stop offset="100%" stop-color="#f8fafc"/>
+          </radialGradient>
+          <filter id="nd"><feDropShadow dx="0" dy="1.5" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.12"/></filter>
+          <filter id="glow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>`;
+        svg += `<rect width="${W}" height="${H}" fill="url(#bg)" rx="12"/>`;
+
+        // Grid dots (subtle background texture)
+        for (let gx = 40; gx < W; gx += 40)
+          for (let gy = 30; gy < H; gy += 40)
+            svg += `<circle cx="${gx}" cy="${gy}" r="1" fill="#e2e8f0" fill-opacity="0.5"/>`;
+
+        // Edges
+        for (const { i, j, d } of pairs) {
+          const sameSp  = speciesArr[i] === speciesArr[j];
+          const opacity = Math.max(0.07, 0.9 - d * 7);
+          const sw      = sameSp ? 2.5 : 1;
+          const dash    = sameSp ? '' : 'stroke-dasharray="6 4"';
+          const stroke  = sameSp ? spMap[speciesArr[i]] : '#94a3b8';
+          svg += `<line x1="${pos[i].x.toFixed(1)}" y1="${pos[i].y.toFixed(1)}" x2="${pos[j].x.toFixed(1)}" y2="${pos[j].y.toFixed(1)}" stroke="${stroke}" stroke-width="${sw}" stroke-opacity="${opacity}" ${dash}/>`;
+
+          if (labelSet.has(`${i}-${j}`)) {
+            const mx = (pos[i].x + pos[j].x) / 2;
+            const my = (pos[i].y + pos[j].y) / 2;
+            const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+            const len = Math.sqrt(dx*dx + dy*dy) || 1;
+            const ox = -dy / len * 10, oy = dx / len * 10;
+            const pct = (d * 100).toFixed(2) + '%';
+            svg += `<rect x="${(mx+ox-15).toFixed(1)}" y="${(my+oy-7).toFixed(1)}" width="30" height="13" rx="4" fill="white" fill-opacity="0.9" stroke="#e2e8f0"/>`;
+            svg += `<text x="${(mx+ox).toFixed(1)}" y="${(my+oy+3.5).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#475569" font-family="monospace" font-weight="600">${_e(pct)}</text>`;
+          }
+        }
+
+        // Nodes
+        for (let i = 0; i < n; i++) {
+          const { x, y } = pos[i];
+          const color = spMap[speciesArr[i]];
+          const label = names[i];
+          const sp2   = speciesArr[i].split(' ').slice(0,2).join(' ');
+          svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="30" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="0" filter="url(#glow)"/>`;
+          svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="24" fill="${color}" fill-opacity="0.16" stroke="${color}" stroke-width="2.5" filter="url(#nd)"/>`;
+          svg += `<text x="${x.toFixed(1)}" y="${(y-1).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="800" fill="${color}" font-family="system-ui,-apple-system,sans-serif">${_e(label)}</text>`;
+          svg += `<text x="${x.toFixed(1)}" y="${(y+13).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#64748b" font-family="system-ui" font-style="italic">${_e(sp2)}</text>`;
+        }
+
+        // Legend
+        const uniqueSp  = [...new Set(speciesArr)];
+        const legendH   = uniqueSp.length * 18 + 16;
+        const lx = 10, ly = H - legendH - 10;
+        svg += `<rect x="${lx}" y="${ly}" width="195" height="${legendH}" rx="8" fill="white" fill-opacity="0.9" stroke="#e2e8f0" stroke-width="1"/>`;
+        svg += `<text x="${lx+10}" y="${ly+11}" font-size="8" font-weight="800" fill="#94a3b8" font-family="system-ui" letter-spacing="0.08em">SPECIES</text>`;
+        uniqueSp.forEach((sp, idx) => {
+          const c = spMap[sp];
+          const ty = ly + 22 + idx * 18;
+          svg += `<circle cx="${lx+14}" cy="${ty}" r="5" fill="${c}" fill-opacity="0.25" stroke="${c}" stroke-width="1.8"/>`;
+          svg += `<text x="${lx+25}" y="${ty+4}" font-size="9.5" fill="#475569" font-family="system-ui" font-style="italic">${_e(sp)}</text>`;
+        });
+
+        // Title watermark top-right
+        svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · MELISSODES BOLD</text>`;
+
+        svg += `</svg>`;
+        return svg;
+      },
+
+      downloadSvg() {
+        if (!this.results) return;
+        const blob = new Blob([this.results.svgHtml], { type:'image/svg+xml' });
+        const a = Object.assign(document.createElement('a'), {
+          href: URL.createObjectURL(blob), download: 'melissodes-similarity.svg'
+        });
+        a.click(); URL.revokeObjectURL(a.href);
+      },
+
+      async run() {
+        const seqs = this.parsedSeqs;
+        if (seqs.length < 2) { this.error = 'Paste at least 2 sequences in FASTA format.'; return; }
+        if (seqs.length > 20) { this.error = 'Maximum 20 sequences per run.'; return; }
+
+        this.loading = true; this.results = null; this.error = null;
+        await new Promise(r => setTimeout(r, 30));
+
+        try {
+          // ── Phase 1: identify each against BOLD ────────────────────────────
+          const identified = [];
+          for (let i = 0; i < seqs.length; i++) {
+            this.loadingStep = `Identifying ${i+1}/${seqs.length}: ${seqs[i].name}…`;
+            await new Promise(r => setTimeout(r, 0));
+            const clean = seqs[i].seq.replace(/[^ATCGN]/g,'');
+            if (clean.length < 80) {
+              identified.push({ name: seqs[i].name, seq: clean, species: 'Too short', pct: 0, bin_uri: '—' });
+              continue;
+            }
+            const match = await this._identifyOne(clean);
+            identified.push({ name: seqs[i].name, seq: clean, ...match });
+          }
+
+          // ── Phase 2: all-vs-all K2P distance matrix ─────────────────────────
+          const n   = identified.length;
+          const mat = Array.from({ length: n }, () => new Array(n).fill(null));
+          for (let i = 0; i < n; i++) mat[i][i] = 0;
+          let pairNum = 0, totalPairs = n * (n - 1) / 2;
+          for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+              this.loadingStep = `Pairwise distances: ${++pairNum}/${totalPairs}`;
+              await new Promise(r => setTimeout(r, 0));
+              const res = alignOverlap(identified[i].seq, identified[j].seq);
+              const kp  = k2pDistance(res.alSeq1, res.alSeq2);
+              const d   = kp && !kp.saturated && kp.d !== null ? kp.d : null;
+              mat[i][j] = d; mat[j][i] = d;
+            }
+          }
+
+          // ── Phase 3: force layout + SVG ──────────────────────────────────────
+          this.loadingStep = 'Calculating graph layout…';
+          await new Promise(r => setTimeout(r, 0));
+          const pos    = this._forceLayout(n, mat);
+          const labels = identified.map(s => s.name.length > 12 ? s.name.slice(0,11)+'…' : s.name);
+          const svgHtml = this._buildSvg(pos, labels, identified.map(s => s.species), mat);
+
+          this.results = { samples: identified, matrix: mat, svgHtml, n };
+          this.loadingStep = '';
+
+        } catch (e) {
+          this.error = 'Error: ' + e.message;
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      cellVal(i, j) {
+        if (!this.results) return '—';
+        if (i === j) return '·';
+        const d = this.results.matrix[i][j];
+        return d === null ? '?' : (d * 100).toFixed(3) + '%';
+      },
+
+      cellCls(i, j) {
+        if (!this.results || i === j) return 'text-slate-200 text-center';
+        const d = this.results.matrix[i][j];
+        if (d === null) return 'text-slate-300 text-center';
+        if (d < 0.02) return 'bg-green-50  text-green-700  font-bold  text-center';
+        if (d < 0.05) return 'bg-emerald-50 text-emerald-700 font-semibold text-center';
+        if (d < 0.15) return 'bg-blue-50   text-blue-700   text-center';
+        if (d < 0.25) return 'bg-amber-50  text-amber-700  text-center';
+        return                'bg-red-50    text-red-600    text-center';
+      },
+
+      spBadge(pct) {
+        if (pct >= 99) return 'bg-green-100 text-green-800';
+        if (pct >= 97) return 'bg-emerald-100 text-emerald-800';
+        if (pct >= 95) return 'bg-blue-100 text-blue-800';
+        if (pct >= 90) return 'bg-amber-100 text-amber-800';
+        return 'bg-red-100 text-red-800';
+      }
+    }));
+
+  });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+  [x-cloak] { display: none !important; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .seq-mono {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    white-space: pre;
+    letter-spacing: 0.04em;
+  }
+  .tab-active   { border-bottom: 2px solid #2563eb; color: #1d4ed8 !important; background: #eff6ff; }
+  .tab-inactive { border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #334155; background: #f8fafc; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-24">
+
+<!-- ── HEADER ──────────────────────────────────────────────────────────────── -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+    <div class="flex items-center gap-3">
+      <div class="bg-blue-100 p-2 rounded-lg">
+        <i class="fa-solid fa-dna text-blue-600 text-xl"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold text-slate-900 leading-tight">Invertebrate DNA Sequencer</h1>
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DNA · Protein Analysis</p>
+      </div>
+    </div>
+    <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+      The Invertebrate Mitochondrial Code (transl_table=5)
+    </p>
+  </div>
+
+  <!-- Tab row -->
+  <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap">
+    <button onclick="showTab('align')" id="tab-align"
+      class="tab-active text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-arrows-left-right mr-2 opacity-70"></i>Fragment Aligner
+    </button>
+    <button onclick="showTab('translate')" id="tab-translate"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-arrow-right-to-bracket mr-2 opacity-70"></i>DNA → Amino Acid
+    </button>
+    <button onclick="showTab('compare')" id="tab-compare"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-code-compare mr-2 opacity-70"></i>Protein Comparator
+    </button>
+    <button onclick="showTab('counter')" id="tab-counter"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-ruler-horizontal mr-2 opacity-70"></i>Strand Length
+    </button>
+    <button onclick="showTab('identify')" id="tab-identify"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-magnifying-glass-chart mr-2 opacity-70"></i>Species ID
+    </button>
+  </div>
+</header>
+
+<!-- ── MAIN ────────────────────────────────────────────────────────────────── -->
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-5">
+
+  <!-- ══ ALIGNER PANEL ══════════════════════════════════════════════════════ -->
+  <div id="panel-align" x-data="aligner">
+
+    <p class="text-sm text-slate-500 leading-relaxed mb-6">
+      Paste two DNA fragments. The tool slides Fragment 2 — and its reverse complement — across Fragment 1
+      to find the highest-identity overlap. Dashes and whitespace are stripped automatically.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <i class="fa-solid fa-1 mr-1 text-blue-400"></i>Fragment 1
+        </label>
+        <textarea x-model="fragA" rows="5" placeholder="ATCGATCG…"
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <i class="fa-solid fa-2 mr-1 text-blue-400"></i>Fragment 2
+        </label>
+        <textarea x-model="fragB" rows="5" placeholder="ATCGATCG…"
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+      </div>
+    </div>
+
+    <button @click="run()"
+      :disabled="running || !fragA.trim() || !fragB.trim()"
+      :class="(running||!fragA.trim()||!fragB.trim()) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-900'"
+      class="bg-slate-800 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+      <i class="fa-solid fa-play text-xs"></i>
+      <span x-text="running ? 'Aligning…' : 'Run Alignment'"></span>
+    </button>
+
+    <!-- Results -->
+    <template x-if="result">
+      <div class="space-y-4 mt-6">
+
+        <!-- Stats -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Alignment Summary</p>
+          <div class="flex flex-wrap gap-6">
+            <div>
+              <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Direction</p>
+              <p class="font-bold text-slate-700 font-mono text-sm" x-text="result.direction"></p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">DNA Identity</p>
+              <p class="font-bold text-green-600 font-mono text-sm">
+                <span x-text="result.frac"></span>
+                <span class="text-slate-400 font-normal"> (<span x-text="result.identity"></span>%)</span>
+              </p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Overlap Length</p>
+              <p class="font-bold text-slate-700 font-mono text-sm"><span x-text="result.ovLen"></span> bp</p>
+            </div>
+            <template x-if="result.k2p && !result.k2p.saturated && result.k2p.d !== null">
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">K2P Distance</p>
+                <p class="font-bold text-blue-600 font-mono text-sm" x-text="(result.k2p.d * 100).toFixed(2) + '%'"></p>
+              </div>
+            </template>
+            <template x-if="result.k2p && !result.k2p.saturated && result.k2p.d !== null">
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Transitions / Tv</p>
+                <p class="font-bold text-slate-600 font-mono text-sm"><span x-text="result.k2p.P"></span> ts / <span x-text="result.k2p.Q"></span> tv</p>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Taxonomic Interpretation -->
+        <template x-if="result.interp">
+          <div class="rounded-xl border p-5" :class="[result.interp.colorBg, result.interp.colorBorder]">
+            <div class="flex items-start gap-3">
+              <div class="mt-0.5 shrink-0">
+                <i class="fa-solid text-lg" :class="[result.interp.icon, result.interp.colorText]"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Taxonomic Interpretation</p>
+                  <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-white"
+                    :class="{'bg-green-600':result.interp.colorBg.includes('green'), 'bg-emerald-600':result.interp.colorBg.includes('emerald'), 'bg-blue-600':result.interp.colorBg.includes('blue'), 'bg-amber-500':result.interp.colorBg.includes('amber'), 'bg-red-600':result.interp.colorBg.includes('red'), 'bg-slate-400':result.interp.colorBg.includes('slate')}">
+                    Hebert et al. 2003
+                  </span>
+                </div>
+                <p class="font-bold text-base" :class="result.interp.colorText" x-text="result.interp.level"></p>
+                <p class="text-xs text-slate-600 mt-1" x-text="result.interp.desc"></p>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Full alignment -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Full Alignment</p>
+          <div class="bg-slate-50 rounded-lg border border-slate-200 p-4 overflow-x-auto">
+            <div class="seq-mono text-slate-700 mb-1">
+              <span class="text-slate-400 select-none inline-block w-16">FRAG 1</span><span x-text="result.a1"></span>
+            </div>
+            <div class="seq-mono text-blue-400 mb-1">
+              <span class="text-slate-300 select-none inline-block w-16">MATCH</span><span x-text="result.matchLine"></span>
+            </div>
+            <div class="seq-mono text-slate-700">
+              <span class="text-slate-400 select-none inline-block w-16">FRAG 2</span><span x-text="result.a2"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Overlap cards -->
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div class="flex justify-between items-center mb-3">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Overlap — Fragment 1</p>
+              <button @click="copyText('ov1', result.ov1)"
+                :class="copyStates.ov1 ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-800 hover:bg-slate-900'"
+                class="text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
+                <i :class="copyStates.ov1 ? 'fa-solid fa-circle-check' : 'fa-solid fa-copy'"></i>
+                <span x-text="copyStates.ov1 ? 'Copied!' : 'Copy'"></span>
+              </button>
+            </div>
+            <div class="bg-slate-50 rounded-lg border border-slate-200 p-3 overflow-x-auto">
+              <div class="seq-mono text-slate-700" x-text="result.ov1"></div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div class="flex justify-between items-center mb-3">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Overlap — Fragment 2</p>
+              <button @click="copyText('ov2', result.ov2)"
+                :class="copyStates.ov2 ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-800 hover:bg-slate-900'"
+                class="text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
+                <i :class="copyStates.ov2 ? 'fa-solid fa-circle-check' : 'fa-solid fa-copy'"></i>
+                <span x-text="copyStates.ov2 ? 'Copied!' : 'Copy'"></span>
+              </button>
+            </div>
+            <div class="bg-slate-50 rounded-lg border border-slate-200 p-3 overflow-x-auto">
+              <div class="seq-mono text-slate-700" x-text="result.ov2"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </template>
+  </div><!-- /aligner -->
+
+  <!-- ══ TRANSLATOR PANEL ════════════════════════════════════════════════════ -->
+  <div id="panel-translate" class="hidden" x-data="translator">
+
+    <p class="text-sm text-slate-500 leading-relaxed mb-6">
+      Translates DNA using <span class="font-semibold text-slate-700">NCBI Genetic Code Table 5</span>
+      (Invertebrate Mitochondrial). All three reading frames are shown with stop codon counts.
+    </p>
+
+    <div class="space-y-4 mb-4">
+      <template x-for="(seq, idx) in seqs" :key="seq.id">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex justify-between items-center mb-3">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Sequence <span x-text="idx+1"></span>
+            </label>
+            <button x-show="seqs.length > 1" @click="removeSeq(seq.id)"
+              class="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition-all">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
+          <textarea x-model="seq.val" rows="3" placeholder="ATCGATCG…"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+        </div>
+      </template>
+    </div>
+
+    <div class="flex gap-3 mb-6">
+      <button @click="translate()"
+        :disabled="seqs.every(s => !s.val.trim())"
+        :class="seqs.every(s=>!s.val.trim()) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-900'"
+        class="bg-slate-800 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+        <i class="fa-solid fa-play text-xs"></i>Translate All
+      </button>
+      <button @click="addSeq()"
+        class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+        <i class="fa-solid fa-plus text-xs"></i>Add Sequence
+      </button>
+    </div>
+
+    <div class="space-y-5" x-show="results.length > 0" x-cloak>
+      <template x-for="res in results" :key="res.index">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
+            <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Sequence <span x-text="res.index"></span>
+          </p>
+          <div class="space-y-3">
+            <template x-for="fr in res.frames" :key="fr.frame">
+              <div class="rounded-xl border border-slate-200 overflow-hidden">
+                <div class="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex justify-between items-center">
+                  <div class="flex items-center gap-3">
+                    <span class="bg-slate-800 text-white text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest">
+                      FRAME <span x-text="fr.frame"></span>
+                    </span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider"
+                      :class="{
+                        'bg-green-100 text-green-700': fr.stops === 0,
+                        'bg-amber-100 text-amber-700': fr.stops > 0 && fr.stops <= 2,
+                        'bg-red-100 text-red-600': fr.stops > 2
+                      }">
+                      <span x-text="fr.stops"></span> stop<span x-text="fr.stops !== 1 ? 's' : ''"></span>
+                    </span>
+                  </div>
+                  <button
+                    @click="copyFrame(res.index, fr.frame, fr.prot)"
+                    :class="frameCopyStates[res.index+'-'+fr.frame] ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-800 hover:bg-slate-900'"
+                    class="text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm">
+                    <i :class="frameCopyStates[res.index+'-'+fr.frame] ? 'fa-solid fa-circle-check' : 'fa-solid fa-copy'"></i>
+                    <span x-text="frameCopyStates[res.index+'-'+fr.frame] ? 'Copied!' : 'Copy Frame '+fr.frame"></span>
+                  </button>
+                </div>
+                <div class="p-4 overflow-x-auto">
+                  <template x-if="fr.internalStops > 0">
+                    <div class="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 mb-3">
+                      <i class="fa-solid fa-triangle-exclamation text-red-500 mt-px shrink-0"></i>
+                      <div>
+                        <p class="text-xs font-bold text-red-700">⚠ Potential Pseudogene or Frame-shift Detected</p>
+                        <p class="text-[11px] text-red-600 mt-0.5">
+                          <span x-text="fr.internalStops"></span> internal stop codon<span x-text="fr.internalStops > 1 ? 's' : ''"></span> found before the sequence end.
+                          This is characteristic of a NUMT (nuclear mitochondrial DNA insert) or a sequencing frame-shift error.
+                          A functional coding gene should have at most one terminal stop codon.
+                        </p>
+                      </div>
+                    </div>
+                  </template>
+                  <div class="seq-mono text-slate-700 break-all" x-html="renderProt(fr.prot)"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+
+  </div><!-- /translator -->
+
+  <!-- ══ COMPARATOR PANEL ════════════════════════════════════════════════════ -->
+  <div id="panel-compare" class="hidden" x-data="comparator">
+
+    <p class="text-sm text-slate-500 leading-relaxed mb-6">
+      Compare two amino acid sequences position-by-position.
+      <span class="font-semibold text-amber-600">Amber highlights</span> mark mismatches;
+      extra residues beyond the shorter sequence appear dimmed.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <i class="fa-solid fa-p mr-1 text-blue-400"></i>Protein 1
+        </label>
+        <textarea x-model="p1" rows="4" placeholder="MLLFFNSK…"
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <i class="fa-solid fa-p mr-1 text-blue-400"></i>Protein 2
+        </label>
+        <textarea x-model="p2" rows="4" placeholder="MLLFFNSK…"
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+      </div>
+    </div>
+
+    <button @click="compare()"
+      :disabled="!p1.trim() || !p2.trim()"
+      :class="(!p1.trim()||!p2.trim()) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-900'"
+      class="bg-slate-800 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2 mb-6">
+      <i class="fa-solid fa-play text-xs"></i>Compare Sequences
+    </button>
+
+    <template x-if="result">
+      <div class="space-y-4">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Comparison Summary</p>
+          <div class="flex flex-wrap gap-6">
+            <div><p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Identity</p><p class="font-bold text-green-600 font-mono text-sm" x-text="result.pct + '%'"></p></div>
+            <div><p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Matches</p><p class="font-bold text-slate-700 font-mono text-sm" x-text="result.matches"></p></div>
+            <div><p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Mismatches</p><p class="font-bold text-amber-600 font-mono text-sm" x-text="result.mismatches"></p></div>
+            <div><p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Ambiguous</p><p class="font-bold text-slate-400 font-mono text-sm" x-text="result.ambiguous"></p></div>
+            <div><p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Length 1</p><p class="font-bold text-slate-700 font-mono text-sm"><span x-text="result.len1"></span> aa</p></div>
+            <div><p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Length 2</p><p class="font-bold text-slate-700 font-mono text-sm"><span x-text="result.len2"></span> aa</p></div>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Protein 1</p>
+          <div class="bg-slate-50 rounded-lg border border-slate-200 p-4 overflow-x-auto">
+            <div class="seq-mono text-slate-700 break-all" x-html="result.h1"></div>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Protein 2</p>
+          <div class="bg-slate-50 rounded-lg border border-slate-200 p-4 overflow-x-auto">
+            <div class="seq-mono text-slate-700 break-all" x-html="result.h2"></div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+  </div><!-- /comparator -->
+
+  <!-- ══ STRAND LENGTH COUNTER PANEL ════════════════════════════════════════ -->
+  <div id="panel-counter" class="hidden" x-data="counter">
+
+    <p class="text-sm text-slate-500 leading-relaxed mb-6">
+      Paste one or more DNA strands for an instant character count and nucleotide breakdown.
+      Dashes and whitespace are stripped for the <span class="font-semibold text-slate-700">clean length</span>.
+      GC content is evaluated against typical invertebrate mitochondrial DNA composition. Results update live as you type.
+    </p>
+
+    <div class="space-y-5">
+      <template x-for="(seq, idx) in seqs" :key="seq.id">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex justify-between items-center mb-3">
+            <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              <i class="fa-solid fa-ruler-horizontal mr-1 text-blue-400"></i>
+              Strand <span x-text="idx + 1"></span>
+            </label>
+            <button x-show="seqs.length > 1" @click="removeSeq(seq.id)"
+              class="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition-all">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
+          <textarea x-model="seq.val" rows="3" placeholder="ATCGATCG…"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all mb-4"></textarea>
+
+          <template x-if="seq.val.trim()">
+            <div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Clean Length</p>
+                  <p class="text-2xl font-black text-blue-700 font-mono" x-text="stats(seq.val).clean"></p>
+                  <p class="text-[10px] text-blue-400 mt-0.5">bp (no gaps)</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Raw Length</p>
+                  <p class="text-2xl font-black text-slate-600 font-mono" x-text="stats(seq.val).raw"></p>
+                  <p class="text-[10px] text-slate-400 mt-0.5">chars (with gaps)</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Codons</p>
+                  <p class="text-2xl font-black text-slate-600 font-mono" x-text="stats(seq.val).codons"></p>
+                  <p class="text-[10px] text-slate-400 mt-0.5">complete triplets</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">GC Content</p>
+                  <p class="text-2xl font-black text-slate-600 font-mono" x-text="stats(seq.val).gc + '%'"></p>
+                  <p class="text-[10px] text-slate-400 mt-0.5">of A/T/G/C bases</p>
+                </div>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Nucleotide Breakdown</p>
+                <div class="flex flex-wrap gap-3">
+                  <div class="flex items-center gap-2"><span class="w-6 h-6 rounded bg-emerald-500 text-white text-xs font-black flex items-center justify-center">A</span><span class="font-mono text-sm font-bold text-slate-700" x-text="stats(seq.val).a"></span><span class="text-[10px] text-slate-400 font-mono" x-text="stats(seq.val).clean > 0 ? '(' + ((stats(seq.val).a / stats(seq.val).clean) * 100).toFixed(1) + '%)' : ''"></span></div>
+                  <div class="flex items-center gap-2"><span class="w-6 h-6 rounded bg-sky-500 text-white text-xs font-black flex items-center justify-center">T</span><span class="font-mono text-sm font-bold text-slate-700" x-text="stats(seq.val).t"></span><span class="text-[10px] text-slate-400 font-mono" x-text="stats(seq.val).clean > 0 ? '(' + ((stats(seq.val).t / stats(seq.val).clean) * 100).toFixed(1) + '%)' : ''"></span></div>
+                  <div class="flex items-center gap-2"><span class="w-6 h-6 rounded bg-violet-500 text-white text-xs font-black flex items-center justify-center">C</span><span class="font-mono text-sm font-bold text-slate-700" x-text="stats(seq.val).c"></span><span class="text-[10px] text-slate-400 font-mono" x-text="stats(seq.val).clean > 0 ? '(' + ((stats(seq.val).c / stats(seq.val).clean) * 100).toFixed(1) + '%)' : ''"></span></div>
+                  <div class="flex items-center gap-2"><span class="w-6 h-6 rounded bg-amber-500 text-white text-xs font-black flex items-center justify-center">G</span><span class="font-mono text-sm font-bold text-slate-700" x-text="stats(seq.val).g"></span><span class="text-[10px] text-slate-400 font-mono" x-text="stats(seq.val).clean > 0 ? '(' + ((stats(seq.val).g / stats(seq.val).clean) * 100).toFixed(1) + '%)' : ''"></span></div>
+                  <template x-if="stats(seq.val).n > 0"><div class="flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-400 text-white text-xs font-black flex items-center justify-center">N</span><span class="font-mono text-sm font-bold text-slate-500" x-text="stats(seq.val).n"></span><span class="text-[10px] text-slate-400 font-mono">(ambiguous)</span></div></template>
+                  <template x-if="stats(seq.val).other > 0"><div class="flex items-center gap-2"><span class="w-6 h-6 rounded bg-red-300 text-white text-xs font-black flex items-center justify-center">?</span><span class="font-mono text-sm font-bold text-red-400" x-text="stats(seq.val).other"></span><span class="text-[10px] text-slate-400 font-mono">(unrecognised)</span></div></template>
+                </div>
+              </div>
+              <template x-if="stats(seq.val).gcBias">
+                <div class="rounded-lg border p-4 mt-3" :class="stats(seq.val).gcBias.color">
+                  <div class="flex items-start gap-3">
+                    <i class="fa-solid fa-flask mt-0.5 shrink-0 opacity-60"></i>
+                    <div>
+                      <div class="flex items-center gap-2 mb-1 flex-wrap">
+                        <p class="text-[10px] font-bold uppercase tracking-widest opacity-60">GC Content Assessment</p>
+                        <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white bg-opacity-60" x-text="stats(seq.val).gcBias.label"></span>
+                      </div>
+                      <p class="text-xs font-medium" x-text="stats(seq.val).gcBias.note"></p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <template x-if="!seq.val.trim()">
+            <div class="text-center py-4 text-slate-300 text-xs font-mono">
+              <i class="fa-solid fa-keyboard mr-1"></i>Start typing to see stats…
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <div class="mt-4">
+      <button @click="addSeq()"
+        class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+        <i class="fa-solid fa-plus text-xs"></i>Add Strand
+      </button>
+    </div>
+
+  </div><!-- /counter -->
+
+  <!-- ══ SPECIES IDENTIFIER PANEL ═══════════════════════════════════════════ -->
+  <div id="panel-identify" class="hidden">
+  <div x-data="{ spMode: 'single' }">
+
+    <!-- Mode toggle header -->
+    <div class="flex items-start justify-between gap-4 mb-5 flex-wrap">
+      <div>
+        <h2 class="text-base font-bold text-slate-800">Species Identification Engine</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Local BOLD reference library · <span class="font-semibold text-slate-600">Melissodes</span> COI-5P barcodes · Pairwise alignments + K2P distances</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0 flex-wrap">
+        <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-[10px] text-amber-700 font-medium">
+          <i class="fa-solid fa-database"></i>1,435 BOLD records · offline
+        </div>
+        <div class="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+          <button @click="spMode='single'"
+            :class="spMode==='single' ? 'bg-white shadow text-slate-800 font-bold' : 'text-slate-500 hover:text-slate-700'"
+            class="px-3 py-1.5 rounded-md text-xs transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-magnifying-glass text-[10px]"></i>Single
+          </button>
+          <button @click="spMode='multi'"
+            :class="spMode==='multi' ? 'bg-white shadow text-slate-800 font-bold' : 'text-slate-500 hover:text-slate-700'"
+            class="px-3 py-1.5 rounded-md text-xs transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-nodes text-[10px]"></i>Multi-Sample
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SINGLE SAMPLE MODE ─────────────────────────────────────────────── -->
+    <div x-show="spMode==='single'" x-data="identifier">
+
+    <!-- Sequence input -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+        <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Query Sequence
+        <span class="normal-case font-normal ml-2 text-slate-300">FASTA or raw DNA — gaps, spaces, headers stripped automatically</span>
+      </label>
+      <textarea x-model="sequence" rows="5"
+        placeholder=">my_sample&#10;AACTTTATTTTATTTTTGGGGCCTGAGCAGGAATAGTAGGAACTTCTTTA…"
+        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+
+      <div class="flex items-center justify-between mt-2 flex-wrap gap-2">
+        <div class="flex items-center gap-3" x-show="seqLen > 0">
+          <div class="flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full"
+              :class="seqQuality==='good' ? 'bg-green-500' : seqQuality==='ok' ? 'bg-amber-400' : 'bg-red-400'"></div>
+            <span class="text-[11px] font-mono font-bold"
+              :class="seqQuality==='good' ? 'text-green-700' : seqQuality==='ok' ? 'text-amber-700' : 'text-red-600'"
+              x-text="seqLen + ' bp'"></span>
+          </div>
+          <span class="text-[10px] text-slate-400"
+            x-text="seqQuality==='good' ? '✓ Good length for matching' : seqQuality==='ok' ? 'Acceptable — 500+ bp gives better results' : 'Too short — minimum 100 bp'"></span>
+          <span class="text-[10px] text-slate-400 font-mono" x-show="seqLen >= 20">
+            GC: <span x-text="(()=>{const s=cleanSeq;const gc=(s.split('').filter(c=>c==='G'||c==='C').length/s.length*100);return gc.toFixed(1)+'%';})()"></span>
+          </span>
+        </div>
+        <button x-show="sequence.trim()" @click="clear()"
+          class="text-[11px] text-slate-400 hover:text-red-500 transition-colors font-medium ml-auto flex items-center gap-1">
+          <i class="fa-solid fa-xmark"></i> Clear all
+        </button>
+      </div>
+    </div>
+
+    <!-- Search button -->
+    <div class="flex flex-wrap gap-3 items-center mb-6">
+      <button @click="search()"
+        :disabled="loading || seqLen < 80"
+        :class="(loading || seqLen < 80) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 active:scale-95'"
+        class="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+        <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-dna'"></i>
+        <span x-text="loading ? 'Scanning 1,436 records…' : 'Identify Species'"></span>
+      </button>
+      <template x-if="loading">
+        <p class="text-xs text-slate-500 italic">Aligning against local BOLD dataset — usually completes in 1–3 seconds…</p>
+      </template>
+    </div>
+
+    <!-- Error state -->
+    <template x-if="error">
+      <div class="bg-red-50 border border-red-200 rounded-xl p-5 mb-5 flex items-start gap-3">
+        <i class="fa-solid fa-triangle-exclamation text-red-500 mt-0.5 shrink-0"></i>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-bold text-red-700 mb-1">Identification Failed</p>
+          <pre class="text-xs text-red-600 whitespace-pre-wrap font-sans leading-relaxed" x-text="error"></pre>
+          <div class="flex gap-4 mt-3">
+            <a href="https://id.boldsystems.org" target="_blank" rel="noopener"
+              class="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+              <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>BOLD v5 ID Engine
+            </a>
+            <a href="https://blast.ncbi.nlm.nih.gov/Blast.cgi" target="_blank" rel="noopener"
+              class="text-xs font-bold text-slate-500 hover:underline flex items-center gap-1">
+              <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>NCBI BLAST (online)
+            </a>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── RESULTS ─────────────────────────────────────────────────────────── -->
+    <template x-if="results && results.length">
+      <div class="space-y-5">
+
+        <!-- TOP HIT HERO -->
+        <div class="rounded-xl border-2 p-5 shadow-md" :class="sc(topHit.pct).hero">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-2 flex-wrap">
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Best Match</span>
+                <span class="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">
+                  BOLD · Melissodes library
+                </span>
+              </div>
+              <p class="text-3xl font-black italic leading-tight" :class="sc(topHit.pct).text" x-text="topHit.taxon"></p>
+              <div class="flex items-center gap-3 mt-3 flex-wrap">
+                <span class="text-sm font-bold px-3 py-1.5 rounded-full" :class="sc(topHit.pct).pill" x-text="sc(topHit.pct).label"></span>
+                <span class="text-2xl font-black font-mono" :class="sc(topHit.pct).text" x-text="fmt(topHit.pct)"></span>
+                <span class="text-xs text-slate-500">identity</span>
+                <span class="text-xs font-mono text-slate-500"><span x-text="topHit.frac"></span> bp matched</span>
+                <span class="text-xs font-mono text-slate-400" x-text="topHit.direction"></span>
+              </div>
+              <template x-if="topHit.k2p && !topHit.k2p.saturated && topHit.k2p.d !== null">
+                <div class="mt-3 inline-flex items-center gap-2 bg-white bg-opacity-70 rounded-lg px-3 py-1.5 border border-slate-200">
+                  <i class="fa-solid fa-ruler-horizontal text-slate-400 text-xs"></i>
+                  <span class="text-[11px] text-slate-600">K2P distance: <strong x-text="(topHit.k2p.d*100).toFixed(2)+'%'"></strong></span>
+                  <span class="text-[10px] text-slate-400">(<span x-text="topHit.k2p.P"></span> ts, <span x-text="topHit.k2p.Q"></span> tv, n=<span x-text="topHit.k2p.N"></span>)</span>
+                </div>
+              </template>
+            </div>
+            <div class="text-right shrink-0 space-y-1 min-w-[140px]">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">BOLD Record</p>
+              <p class="font-mono text-sm font-bold text-slate-800" x-text="topHit.processid"></p>
+              <template x-if="topHit.bin_uri && topHit.bin_uri !== '—'">
+                <p class="text-[11px] font-mono text-slate-500" x-text="topHit.bin_uri"></p>
+              </template>
+              <div class="flex flex-col items-end gap-1 mt-2">
+                <template x-if="topHit.boldUrl">
+                  <a :href="topHit.boldUrl" target="_blank" rel="noopener"
+                    class="text-xs font-bold text-amber-600 hover:underline flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>View on BOLD
+                  </a>
+                </template>
+                <template x-if="topHit.binUrl && topHit.bin_uri !== '—'">
+                  <a :href="topHit.binUrl" target="_blank" rel="noopener"
+                    class="text-xs font-bold text-slate-500 hover:underline flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>BIN cluster
+                  </a>
+                </template>
+              </div>
+              <div class="text-[10px] text-slate-400 font-mono mt-2 space-y-0.5">
+                <div x-show="topHit.location !== '—'">
+                  <i class="fa-solid fa-location-dot mr-0.5"></i>
+                  <span x-text="topHit.location"></span>
+                </div>
+                <div x-show="topHit.collection_date !== '—'">
+                  <i class="fa-solid fa-calendar mr-0.5"></i>
+                  <span x-text="topHit.collection_date"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RANKED HITS TABLE -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                All Hits — <span x-text="results.length"></span> unique species
+              </p>
+              <p class="text-[10px] text-slate-400 mt-0.5">
+                BOLD Melissodes · COI-5P · Local alignment (semi-global DP + K2P)
+              </p>
+            </div>
+            <p class="text-[10px] text-slate-400">Click any row to expand pairwise alignment ↓</p>
+          </div>
+
+          <!-- Table header -->
+          <div class="px-5 py-2 bg-slate-50 border-b border-slate-100 grid gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400"
+            style="grid-template-columns: 1.5rem 1fr 7rem 5rem 5rem 9rem">
+            <span>#</span>
+            <span>Species / Process ID</span>
+            <span class="text-right">Identity</span>
+            <span class="text-right">Overlap</span>
+            <span class="text-right">K2P dist</span>
+            <span class="text-right">Location</span>
+          </div>
+
+          <div class="divide-y divide-slate-100">
+            <template x-for="(hit, i) in results" :key="hit.processid + '-' + i">
+              <div>
+                <div class="px-5 py-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                  :class="expanded[i] ? 'bg-slate-50' : ''"
+                  @click="toggleExpand(i)">
+                  <div class="grid gap-2 items-center"
+                    style="grid-template-columns: 1.5rem 1fr 7rem 5rem 5rem 9rem">
+                    <!-- Rank -->
+                    <span class="text-xs font-black font-mono text-center"
+                      :class="i===0 ? 'text-blue-600' : 'text-slate-300'" x-text="i+1"></span>
+
+                    <!-- Species + processid -->
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-sm italic text-slate-800 leading-snug" x-text="hit.taxon"></span>
+                        <span class="text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0"
+                          :class="sc(hit.pct).pill" x-text="sc(hit.pct).label"></span>
+                      </div>
+                      <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span class="text-[10px] font-mono text-slate-400" x-text="hit.processid"></span>
+                        <template x-if="hit.bin_uri !== '—'">
+                          <span class="text-[10px] font-mono text-amber-600" x-text="hit.bin_uri"></span>
+                        </template>
+                        <template x-if="hit.boldUrl">
+                          <a :href="hit.boldUrl" target="_blank" rel="noopener" @click.stop
+                            class="text-[10px] text-amber-500 hover:underline flex items-center gap-0.5">
+                            <i class="fa-solid fa-arrow-up-right-from-square text-[8px]"></i>BOLD
+                          </a>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- Identity bar -->
+                    <div class="flex items-center gap-1.5">
+                      <div class="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                        <div class="h-2 rounded-full transition-all" :class="sc(hit.pct).bar" :style="'width:'+barW(hit.pct)"></div>
+                      </div>
+                      <span class="text-xs font-bold font-mono w-12 text-right shrink-0" :class="sc(hit.pct).text" x-text="fmt(hit.pct)"></span>
+                    </div>
+
+                    <!-- Overlap length -->
+                    <span class="text-xs font-mono text-slate-600 text-right" x-text="hit.ovLen + ' bp'"></span>
+
+                    <!-- K2P -->
+                    <span class="text-xs font-mono text-right"
+                      :class="hit.k2p && !hit.k2p.saturated ? 'text-slate-600' : 'text-slate-300'"
+                      x-text="hit.k2p ? (hit.k2p.saturated ? 'sat.' : (hit.k2p.d*100).toFixed(2)+'%') : '—'"></span>
+
+                    <!-- Location -->
+                    <span class="text-[10px] text-slate-500 text-right truncate" x-text="hit.location"></span>
+                  </div>
+                </div>
+
+                <!-- EXPANDED DETAIL PANEL -->
+                <template x-if="expanded[i]">
+                  <div class="border-t border-slate-100 bg-slate-50 px-5 py-4 space-y-4">
+
+                    <!-- Stats row -->
+                    <div class="flex flex-wrap gap-x-6 gap-y-2">
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Identity</p>
+                        <p class="text-sm font-black" :class="sc(hit.pct).text">
+                          <span x-text="hit.frac"></span> (<span x-text="fmt(hit.pct)"></span>)
+                        </p>
+                      </div>
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Direction</p>
+                        <p class="text-sm font-bold text-slate-700" x-text="hit.direction"></p>
+                      </div>
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Overlap</p>
+                        <p class="text-sm font-bold text-slate-700" x-text="hit.ovLen + ' bp'"></p>
+                      </div>
+                      <template x-if="hit.k2p && !hit.k2p.saturated && hit.k2p.d !== null">
+                        <div>
+                          <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">K2P Distance</p>
+                          <p class="text-sm font-bold text-slate-700">
+                            <span x-text="(hit.k2p.d*100).toFixed(3) + '%'"></span>
+                            <span class="text-[10px] font-normal text-slate-400 ml-1">
+                              (<span x-text="hit.k2p.P"></span> ts / <span x-text="hit.k2p.Q"></span> tv, n=<span x-text="hit.k2p.N"></span>)
+                            </span>
+                          </p>
+                        </div>
+                      </template>
+                      <template x-if="hit.k2p && hit.k2p.saturated">
+                        <div>
+                          <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">K2P Distance</p>
+                          <p class="text-sm font-bold text-orange-600">Saturated (model invalid)</p>
+                        </div>
+                      </template>
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Process ID</p>
+                        <p class="text-sm font-mono text-slate-700" x-text="hit.processid"></p>
+                      </div>
+                      <template x-if="hit.bin_uri !== '—'">
+                        <div>
+                          <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">BIN</p>
+                          <p class="text-sm font-mono text-amber-600" x-text="hit.bin_uri"></p>
+                        </div>
+                      </template>
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Location</p>
+                        <p class="text-sm font-mono text-slate-600" x-text="hit.location"></p>
+                      </div>
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Collected</p>
+                        <p class="text-sm font-mono text-slate-600" x-text="hit.collection_date"></p>
+                      </div>
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Collectors</p>
+                        <p class="text-sm font-mono text-slate-600" x-text="hit.collectors"></p>
+                      </div>
+                    </div>
+
+                    <!-- Pairwise alignment -->
+                    <template x-if="hit.alSeq1 && hit.alSeq1.length > 0">
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2">
+                          Pairwise Alignment
+                          <span class="flex items-center gap-2 font-normal normal-case">
+                            <span class="text-blue-700 font-bold">■</span> query (your sequence)
+                            <span class="text-emerald-700 font-bold">■</span> BOLD reference
+                            <span class="text-green-600 font-bold">|</span> match
+                            <span class="text-red-400 font-bold">+</span> mismatch
+                          </span>
+                        </p>
+                        <div class="bg-white border border-slate-200 rounded-lg p-3 overflow-x-auto">
+                          <div class="text-[11px] font-mono leading-relaxed"
+                            x-html="renderAlignment(hit.alSeq1, hit.midline, hit.alSeq2)"></div>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Reference sequence -->
+                    <template x-if="hit.alSeq2 && hit.alSeq2.length > 0">
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center justify-between">
+                          <span>BOLD Reference (aligned region, gaps shown as –)</span>
+                          <button @click.stop="navigator.clipboard.writeText(hit.alSeq2.replace(/-/g,''))"
+                            class="text-[9px] font-bold text-slate-400 hover:text-amber-600 flex items-center gap-0.5">
+                            <i class="fa-regular fa-copy"></i> Copy (no gaps)
+                          </button>
+                        </p>
+                        <div class="bg-slate-900 rounded-lg p-3 overflow-x-auto">
+                          <p class="text-[11px] font-mono text-emerald-400 break-all leading-relaxed" x-text="hit.alSeq2"></p>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Your query sequence -->
+                    <template x-if="hit.alSeq1 && hit.alSeq1.length > 0">
+                      <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center justify-between">
+                          <span>Your Query (aligned region)</span>
+                          <button @click.stop="navigator.clipboard.writeText(hit.alSeq1.replace(/-/g,''))"
+                            class="text-[9px] font-bold text-slate-400 hover:text-blue-600 flex items-center gap-0.5">
+                            <i class="fa-regular fa-copy"></i> Copy (no gaps)
+                          </button>
+                        </p>
+                        <div class="bg-slate-900 rounded-lg p-3 overflow-x-auto">
+                          <p class="text-[11px] font-mono text-blue-400 break-all leading-relaxed" x-text="hit.alSeq1"></p>
+                        </div>
+                      </div>
+                    </template>
+
+                  </div>
+                </template>
+
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- IDENTITY DISTRIBUTION CHART -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Identity Distribution Across All Hits</p>
+          <div class="space-y-1.5">
+            <template x-for="(hit, i) in results" :key="'chart-'+i">
+              <div class="flex items-center gap-3">
+                <div class="w-36 shrink-0 text-right">
+                  <span class="text-[10px] font-semibold italic text-slate-600 leading-tight truncate block" x-text="hit.taxon"></span>
+                </div>
+                <div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
+                  <div class="h-3 rounded-full flex items-center transition-all" :class="sc(hit.pct).bar" :style="'width:'+barW(hit.pct)"></div>
+                </div>
+                <span class="w-14 text-right text-xs font-bold font-mono shrink-0" :class="sc(hit.pct).text" x-text="fmt(hit.pct)"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- LEGEND + ATTRIBUTION -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Similarity Thresholds — Hebert et al. (2003)</p>
+          <div class="flex flex-wrap gap-1.5 mb-3">
+            <template x-for="t in [
+              {l:'≥99% Species Match',         c:'bg-green-100 text-green-800'},
+              {l:'97–99% Likely Same Species',  c:'bg-emerald-100 text-emerald-800'},
+              {l:'95–97% Same Genus',           c:'bg-blue-100 text-blue-800'},
+              {l:'90–95% Same Family',          c:'bg-amber-100 text-amber-800'},
+              {l:'85–90% Same Order',           c:'bg-orange-100 text-orange-800'},
+              {l:'<85% Distant',                c:'bg-red-100 text-red-800'}
+            ]" :key="t.l">
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full" :class="t.c" x-text="t.l"></span>
+            </template>
+          </div>
+          <p class="text-[10px] text-slate-400 leading-relaxed">
+            Reference sequences sourced from <a href="https://www.boldsystems.org" target="_blank" class="text-amber-600 hover:underline">BOLD Systems</a>
+            (Barcode of Life Data System). Alignment: semi-global overlap DP (Smith–Waterman style).
+            K2P distance formula: Kimura (1980). Thresholds: Hebert et al. (2003).
+            Both forward and reverse-complement orientations tested for each reference.
+          </p>
+        </div>
+
+      </div>
+    </template>
+
+    </div><!-- /single mode -->
+
+    <!-- ── MULTI-SAMPLE MODE ──────────────────────────────────────────────── -->
+    <div x-show="spMode==='multi'" x-data="multiId" x-cloak>
+
+      <!-- Multi-FASTA input -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Multi-FASTA Input
+          <span class="normal-case font-normal ml-2 text-slate-300">2–20 sequences · FASTA format required</span>
+        </label>
+        <textarea x-model="input" rows="10"
+          placeholder=">Sample_1&#10;AACTTTATTTTATTTTTGGGGCCTGAGCAGGAATAGTAGGAACTTCTTTAAGCTTACT…&#10;&#10;>Sample_2&#10;AACTTTATTTTATTTTCGGGGCCTGAGCAGGAATAGTAGGAACTACTTTATCACTTAC…&#10;&#10;>Sample_3&#10;AACATTATATTTAATCTGAGGAGCATGAGCAGGAATAGTAGGAACTTCT…"
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+        <div class="flex items-center justify-between mt-2">
+          <div class="flex items-center gap-3">
+            <template x-if="seqCount > 0">
+              <div class="flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full" :class="seqCount >= 2 ? 'bg-green-500' : 'bg-amber-400'"></div>
+                <span class="text-[11px] font-mono font-bold" :class="seqCount >= 2 ? 'text-green-700' : 'text-amber-700'"
+                  x-text="seqCount + ' sequence' + (seqCount===1?'':'s') + ' detected'"></span>
+              </div>
+            </template>
+            <template x-if="seqCount === 0 && input.trim()">
+              <span class="text-[11px] text-red-500">No FASTA sequences found — add <span class="font-mono font-bold">&gt;Name</span> headers</span>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Run button -->
+      <div class="flex items-center gap-3 mb-6 flex-wrap">
+        <button @click="run()"
+          :disabled="loading || seqCount < 2"
+          :class="(loading || seqCount < 2) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 active:scale-95'"
+          class="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-circle-nodes'"></i>
+          <span x-text="loading ? 'Running…' : 'Run Multi-Sample ID'"></span>
+        </button>
+        <p class="text-xs text-slate-500 italic" x-show="loadingStep" x-text="loadingStep"></p>
+      </div>
+
+      <!-- Error -->
+      <template x-if="error">
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 flex items-start gap-3">
+          <i class="fa-solid fa-triangle-exclamation text-red-400 mt-0.5 shrink-0"></i>
+          <p class="text-sm text-red-600" x-text="error"></p>
+        </div>
+      </template>
+
+      <!-- Results -->
+      <template x-if="results">
+        <div class="space-y-5">
+
+          <!-- ── DOT GRAPH ─────────────────────────────────────────────────── -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Pairwise Similarity Dot Graph</p>
+                <p class="text-[10px] text-slate-400 mt-0.5">
+                  Node proximity = sequence similarity · K2P distance labelled on closest pairs ·
+                  <span class="font-semibold text-slate-500">Solid lines</span> = same species ·
+                  <span class="font-semibold text-slate-400">Dashed</span> = different
+                </p>
+              </div>
+              <button @click="downloadSvg()"
+                class="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition-all bg-white">
+                <i class="fa-solid fa-download text-[10px]"></i>Download SVG
+              </button>
+            </div>
+            <div x-html="results.svgHtml" class="overflow-hidden rounded-lg border border-slate-100 bg-slate-50"></div>
+
+            <!-- Interpretation note -->
+            <div class="mt-3 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-[11px] text-blue-700 flex items-start gap-2">
+              <i class="fa-solid fa-circle-info mt-0.5 shrink-0"></i>
+              <span>
+                <strong>Reading this graph:</strong> Nodes that are <em>close together</em> have low K2P divergence (high similarity).
+                Nodes coloured the same were matched to the same species.
+                Solid coloured edges connect same-species pairs; dashed grey edges connect inter-species pairs.
+                Only the 7 closest pairwise distances are labelled to avoid clutter.
+              </span>
+            </div>
+          </div>
+
+          <!-- ── SPECIES SUMMARY TABLE ──────────────────────────────────────── -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Species Identification Summary — <span x-text="results.n"></span> samples
+              </p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-100 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                    <th class="px-4 py-2.5 text-left w-7">#</th>
+                    <th class="px-4 py-2.5 text-left">Sample Name</th>
+                    <th class="px-4 py-2.5 text-left">Best BOLD Match</th>
+                    <th class="px-4 py-2.5 text-right">Identity</th>
+                    <th class="px-4 py-2.5 text-left">BIN</th>
+                    <th class="px-4 py-2.5 text-right">Seq length</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  <template x-for="(s, i) in results.samples" :key="i">
+                    <tr class="hover:bg-slate-50">
+                      <td class="px-4 py-2.5 font-mono text-slate-300 font-black text-center" x-text="i+1"></td>
+                      <td class="px-4 py-2.5 font-mono font-bold text-slate-700" x-text="s.name"></td>
+                      <td class="px-4 py-2.5 italic text-slate-800 font-semibold" x-text="s.species"></td>
+                      <td class="px-4 py-2.5 text-right">
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :class="spBadge(s.pct)"
+                          x-text="s.pct.toFixed(2)+'%'"></span>
+                      </td>
+                      <td class="px-4 py-2.5 font-mono text-amber-600 text-[11px]" x-text="s.bin_uri || '—'"></td>
+                      <td class="px-4 py-2.5 font-mono text-slate-400 text-right" x-text="s.seq.length + ' bp'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ── K2P DISTANCE MATRIX ────────────────────────────────────────── -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">All-vs-All K2P Distance Matrix</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">Kimura 2-parameter distances · color-coded by taxonomic threshold</p>
+            </div>
+            <div class="overflow-x-auto p-4">
+              <table class="text-[10px] font-mono border-separate border-spacing-0.5">
+                <thead>
+                  <tr>
+                    <th class="w-24 pr-2"></th>
+                    <template x-for="(s, j) in results.samples" :key="'mh-'+j">
+                      <th class="text-center text-[9px] text-slate-400 font-bold pb-1 max-w-[72px]">
+                        <div class="truncate max-w-[72px]" x-text="s.name.length>9?s.name.slice(0,8)+'…':s.name"></div>
+                      </th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(si, i) in results.samples" :key="'mr-'+i">
+                    <tr>
+                      <td class="pr-3 text-right text-[9px] text-slate-500 font-bold max-w-[96px]">
+                        <div class="truncate max-w-[96px]" x-text="si.name.length>11?si.name.slice(0,10)+'…':si.name"></div>
+                      </td>
+                      <template x-for="(sj, j) in results.samples" :key="'mc-'+i+'-'+j">
+                        <td class="px-1.5 py-1 rounded text-center text-[10px] min-w-[72px]"
+                          :class="cellCls(i,j)" x-text="cellVal(i,j)"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div class="flex flex-wrap gap-1.5 mt-3">
+                <template x-for="t in [
+                  {c:'bg-green-50 text-green-700 border border-green-200',l:'<2% Same species'},
+                  {c:'bg-emerald-50 text-emerald-700 border border-emerald-200',l:'2–5% Sister'},
+                  {c:'bg-blue-50 text-blue-700 border border-blue-200',l:'5–15% Same genus'},
+                  {c:'bg-amber-50 text-amber-700 border border-amber-200',l:'15–25% Same family'},
+                  {c:'bg-red-50 text-red-700 border border-red-200',l:'>25% Distant'}
+                ]" :key="t.l">
+                  <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded" :class="t.c" x-text="t.l"></span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </template>
+
+    </div><!-- /multi mode -->
+
+  </div><!-- /spMode wrapper -->
+  </div><!-- /panel-identify -->
+
+</main>
+
+<script>
+  const PANELS = ['align','translate','compare','counter','identify'];
+  function showTab(name) {
+    PANELS.forEach(id => {
+      const panel = document.getElementById('panel-'+id);
+      const tab   = document.getElementById('tab-'+id);
+      if (id === name) {
+        panel.classList.remove('hidden');
+        tab.classList.remove('tab-inactive');
+        tab.classList.add('tab-active');
+      } else {
+        panel.classList.add('hidden');
+        tab.classList.remove('tab-active');
+        tab.classList.add('tab-inactive');
+      }
+    });
+  }
+</script>
+</body>
+</html>
