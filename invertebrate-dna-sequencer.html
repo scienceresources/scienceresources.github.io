@@ -185,6 +185,41 @@ function getSpeciesName(rec) {
     : (rec.species || rec.genus || 'Unknown');
 }
 
+// ── Shared scan: k-mer ranking then slide ALL records (no cutoff) ────────────
+// K-mers are used ONLY to sort records so likely matches run first.
+// Every record is scanned — nothing is filtered out.
+function scanRecords(query, rc, records, topN) {
+  const qKmers  = kmerSet(query);
+  const rcKmers = kmerSet(rc);
+
+  const withKmer = [];
+  for (const rec of records) {
+    const ref = rec.nuc.replace(/[-\\s]/g,'').toUpperCase();
+    if (ref.length < 100) continue;
+    const ks = Math.max(kmerScore(qKmers, ref), kmerScore(rcKmers, ref));
+    withKmer.push({ rec, ref, ks });
+  }
+  // Sort by k-mer score so best matches run first (pure optimisation, NOT a filter)
+  withKmer.sort((a,b) => b.ks - a.ks);
+
+  // Slide every single record
+  const scored = withKmer.map(({ rec, ref }) => {
+    const fwd = slideIdentity(query, ref);
+    const rev = slideIdentity(rc, ref);
+    return fwd.identity >= rev.identity
+      ? { rec, ...fwd, direction:'Forward' }
+      : { rec, ...rev, direction:'Reverse Complement' };
+  });
+
+  // Deduplicate: best score per species
+  const seen = new Map();
+  for (const s of scored) {
+    const sp = getSpeciesName(s.rec);
+    if (!seen.has(sp) || seen.get(sp).identity < s.identity) seen.set(sp, s);
+  }
+  return [...seen.values()].sort((a,b) => b.identity - a.identity).slice(0, topN);
+}
+
 // ── Main message handler ──────────────────────────────────────────────────────
 self.onmessage = function(e) {
   const { type, id, payload } = e.data;
@@ -193,53 +228,14 @@ self.onmessage = function(e) {
     const { query, records } = payload;
     const rc = reverseComplement(query);
 
-    // Build k-mer sets for query and its RC
-    const qKmers  = kmerSet(query);
-    const rcKmers = kmerSet(rc);
-
-    // ── Phase 1a: k-mer pre-filter (very fast) ─────────────────────────────
-    self.postMessage({ id, type:'progress', msg:'Running k-mer pre-filter…' });
-    const KMER_THRESHOLD = 3; // must share at least this many 8-mers
-    const TOP_SLIDE = 400;    // run full slide scan on top N k-mer scorers
-
-    const kscored = [];
-    for (const rec of records) {
-      const ref = rec.nuc.replace(/[-\\s]/g,'').toUpperCase();
-      if (ref.length < 100) continue;
-      const fwdK = kmerScore(qKmers, ref);
-      const revK = kmerScore(rcKmers, ref);
-      const ks   = Math.max(fwdK, revK);
-      if (ks >= KMER_THRESHOLD) kscored.push({ rec, ref, ks, useFwd: fwdK >= revK });
-    }
-    kscored.sort((a,b) => b.ks - a.ks);
-    const candidates = kscored.slice(0, TOP_SLIDE);
-
     self.postMessage({ id, type:'progress',
-      msg: 'Sliding-window scan on ' + candidates.length + ' candidates…' });
+      msg: 'Scanning all ' + records.length + ' records…' });
 
-    // ── Phase 1b: sliding-window identity on candidates ────────────────────
-    const scored = [];
-    for (const { rec, ref, useFwd } of candidates) {
-      const fwd = slideIdentity(query, ref);
-      const rev = slideIdentity(rc, ref);
-      const best = fwd.identity >= rev.identity
-        ? { ...fwd, direction:'Forward' }
-        : { ...rev, direction:'Reverse Complement' };
-      scored.push({ rec, ...best });
-    }
-
-    // Deduplicate by species
-    const seen = new Map();
-    for (const s of scored) {
-      const sp = getSpeciesName(s.rec);
-      if (!seen.has(sp) || seen.get(sp).identity < s.identity) seen.set(sp, s);
-    }
-    const top20 = [...seen.values()].sort((a,b)=>b.identity-a.identity).slice(0,20);
+    const top20 = scanRecords(query, rc, records, 20);
 
     self.postMessage({ id, type:'progress',
       msg: 'Full DP alignment on top ' + top20.length + ' candidates…' });
 
-    // ── Phase 2: full DP alignment on top 20 ──────────────────────────────
     const results = top20.map(s => {
       const ref = s.rec.nuc.replace(/[-\\s]/g,'').toUpperCase();
       const refUsed = s.direction === 'Reverse Complement' ? reverseComplement(ref) : ref;
@@ -266,48 +262,19 @@ self.onmessage = function(e) {
   }
 
   else if (type === 'identify_one') {
-    // For multi-sample: identify a single sequence, return best hit summary
     const { query, records } = payload;
     const rc = reverseComplement(query);
-    const qKmers  = kmerSet(query);
-    const rcKmers = kmerSet(rc);
 
-    const kscored = [];
-    for (const rec of records) {
-      const ref = rec.nuc.replace(/[-\\s]/g,'').toUpperCase();
-      if (ref.length < 100) continue;
-      const ks = Math.max(kmerScore(qKmers, ref), kmerScore(rcKmers, ref));
-      if (ks >= 3) kscored.push({ rec, ref, ks });
-    }
-    kscored.sort((a,b) => b.ks - a.ks);
-    const candidates = kscored.slice(0, 400);
-
-    const scored = [];
-    for (const { rec, ref } of candidates) {
-      const fwd = slideIdentity(query, ref);
-      const rev = slideIdentity(rc, ref);
-      const best = fwd.identity >= rev.identity
-        ? { ...fwd, direction:'Forward' }
-        : { ...rev, direction:'Reverse Complement' };
-      scored.push({ rec, ...best });
-    }
-
-    const seen = new Map();
-    for (const s of scored) {
-      const sp = getSpeciesName(s.rec);
-      if (!seen.has(sp) || seen.get(sp).identity < s.identity) seen.set(sp, s);
-    }
-    const top5 = [...seen.values()].sort((a,b)=>b.identity-a.identity).slice(0,5);
-    if (!top5.length) { self.postMessage({id,type:'done',result:null}); return; }
+    const top5 = scanRecords(query, rc, records, 5);
+    if (!top5.length) { self.postMessage({id, type:'done', result:null}); return; }
 
     const best = top5[0];
     const ref  = best.rec.nuc.replace(/[-\\s]/g,'').toUpperCase();
     const refUsed = best.direction==='Reverse Complement' ? reverseComplement(ref) : ref;
     const full = alignOverlap(query, refUsed);
-    const sp   = getSpeciesName(best.rec);
 
     self.postMessage({ id, type:'done', result: {
-      species: sp,
+      species: getSpeciesName(best.rec),
       pct:     parseFloat(full.identity),
       bin_uri: best.rec.bin_uri || '—',
       family:  best.rec.family || '—',
