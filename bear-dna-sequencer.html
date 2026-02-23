@@ -318,7 +318,7 @@
 
     // ══════════════════════════════════════════════════════════════════════════
     // BOLD LOCAL SPECIES IDENTIFIER
-    // Matches query sequences against a local ursus-dna.json BOLD dataset
+    // Matches query sequences against a local ursidae-dna.json BOLD dataset
     // using sliding-window identity scan + full DP alignment for top hits.
     // ══════════════════════════════════════════════════════════════════════════
     Alpine.data('identifier', () => ({
@@ -414,9 +414,9 @@
       // Load and cache the BOLD NDJSON file
       async loadBoldData() {
         if (this.boldData) return this.boldData;
-        const resp = await fetch('ursus-dna.json');
+        const resp = await fetch('ursidae-dna.json');
         if (!resp.ok) throw new Error(
-          `Could not load ursus-dna.json (HTTP ${resp.status}).\n` +
+          `Could not load ursidae-dna.json (HTTP ${resp.status}).\n` +
           `Make sure the file is hosted in the same directory as this HTML file.`
         );
         const text = await resp.text();
@@ -514,7 +514,7 @@
           });
 
           if (!results.length) {
-            this.error = 'No matches found in the BOLD Melissodes dataset.';
+            this.error = 'No matches found in the BOLD ursidae dataset.';
             return;
           }
           this.results = results;
@@ -570,8 +570,8 @@
 
       async _loadBold() {
         if (this.boldData) return this.boldData;
-        const r = await fetch('ursus-dna.json');
-        if (!r.ok) throw new Error(`Cannot load ursus-dna.json (HTTP ${r.status})`);
+        const r = await fetch('ursidae-dna.json');
+        if (!r.ok) throw new Error(`Cannot load ursidae-dna.json (HTTP ${r.status})`);
         const text = await r.text();
         this.boldData = text.trim().split('\n').filter(l => l.trim())
           .map(l => JSON.parse(l))
@@ -735,7 +735,7 @@
         });
 
         // Title watermark top-right
-        svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · MELISSODES BOLD</text>`;
+        svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · ursidae BOLD</text>`;
 
         svg += `</svg>`;
         return svg;
@@ -745,7 +745,7 @@
         if (!this.results) return;
         const blob = new Blob([this.results.svgHtml], { type:'image/svg+xml' });
         const a = Object.assign(document.createElement('a'), {
-          href: URL.createObjectURL(blob), download: 'melissodes-similarity.svg'
+          href: URL.createObjectURL(blob), download: 'ursidae-similarity.svg'
         });
         a.click(); URL.revokeObjectURL(a.href);
       },
@@ -1309,7 +1309,7 @@
     <div class="flex items-start justify-between gap-4 mb-5 flex-wrap">
       <div>
         <h2 class="text-base font-bold text-slate-800">Species Identification Engine</h2>
-        <p class="text-xs text-slate-500 mt-0.5">Local BOLD reference library · <span class="font-semibold text-slate-600">Melissodes</span> COI-5P barcodes · Pairwise alignments + K2P distances</p>
+        <p class="text-xs text-slate-500 mt-0.5">Local BOLD reference library · <span class="font-semibold text-slate-600">ursidae</span> COI-5P barcodes · Pairwise alignments + K2P distances</p>
       </div>
       <div class="flex items-center gap-2 shrink-0 flex-wrap">
         <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-[10px] text-amber-700 font-medium">
@@ -1411,7 +1411,7 @@
               <div class="flex items-center gap-2 mb-2 flex-wrap">
                 <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Best Match</span>
                 <span class="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full">
-                  BOLD · Melissodes library
+                  BOLD · ursidae library
                 </span>
               </div>
               <p class="text-3xl font-black italic leading-tight" :class="sc(topHit.pct).text" x-text="topHit.taxon"></p>
@@ -1472,7 +1472,7 @@
                 All Hits — <span x-text="results.length"></span> unique species
               </p>
               <p class="text-[10px] text-slate-400 mt-0.5">
-                BOLD Melissodes · COI-5P · Local alignment (semi-global DP + K2P)
+                BOLD ursidae · COI-5P · Local alignment (semi-global DP + K2P)
               </p>
             </div>
             <p class="text-[10px] text-slate-400">Click any row to expand pairwise alignment ↓</p>
