@@ -471,23 +471,49 @@
         }
       },
 
+      // Try several casing variants for a folder name and return the one that works
+      async _resolveFolder(family) {
+        const variants = [
+          family,
+          family.toLowerCase(),
+          family.charAt(0).toUpperCase() + family.slice(1).toLowerCase(),
+          family.toUpperCase(),
+        ];
+        for (const v of variants) {
+          const resp = await fetch(`${v}/1.json`);
+          if (resp.ok) return v;
+        }
+        return null;
+      },
+
       async _loadFamilyRecords(family, onProgress) {
         if (this._familyCache[family]) return this._familyCache[family];
+
+        // Resolve the actual folder name (handles case mismatches)
+        const folder = await this._resolveFolder(family);
+        if (!folder) {
+          throw new Error(
+            `Could not find folder for family "${family}".\n` +
+            `Tried: ${family}, ${family.toLowerCase()}, ${family.charAt(0).toUpperCase()+family.slice(1).toLowerCase()}\n` +
+            `Make sure the folder exists and contains 1.json.`
+          );
+        }
+
         const records = [];
         let idx = 1;
         while (true) {
-          if (onProgress) onProgress(`Loading ${family}/${idx}.json… (${records.length} records so far)`);
+          if (onProgress) onProgress(`Loading ${folder}/${idx}.json… (${records.length} records so far)`);
           await new Promise(r => setTimeout(r, 0));
-          const resp = await fetch(`${family}/${idx}.json`);
-          if (!resp.ok) break; // no more files for this family
+          const resp = await fetch(`${folder}/${idx}.json`);
+          if (!resp.ok) break;
           const text = await resp.text();
           const chunk = this._parseJsonFile(text);
           records.push(...chunk);
           idx++;
         }
         if (records.length === 0)
-          throw new Error(`No records found in family folder "${family}/". Check that ${family}/1.json exists.`);
-        if (onProgress) onProgress(`Loaded ${records.length} records from ${family} (${idx-1} file${idx-1>1?'s':''})`);
+          throw new Error(`No records found in "${folder}/". The folder exists but the JSON files may be empty or malformed.`);
+        if (onProgress) onProgress(`Loaded ${records.length} records from ${folder} (${idx-1} file${idx-1>1?'s':''})`);
         this._familyCache[family] = records;
         return records;
       },
@@ -689,12 +715,28 @@
         }
       },
 
+      async _resolveFolder(family) {
+        const variants = [
+          family,
+          family.toLowerCase(),
+          family.charAt(0).toUpperCase() + family.slice(1).toLowerCase(),
+          family.toUpperCase(),
+        ];
+        for (const v of variants) {
+          const resp = await fetch(`${v}/1.json`);
+          if (resp.ok) return v;
+        }
+        return null;
+      },
+
       async _loadFamilyRecords(family) {
         if (this._familyCache[family]) return this._familyCache[family];
+        const folder = await this._resolveFolder(family);
+        if (!folder) return [];
         const records = [];
         let idx = 1;
         while (true) {
-          const resp = await fetch(`${family}/${idx}.json`);
+          const resp = await fetch(`${folder}/${idx}.json`);
           if (!resp.ok) break;
           const text = await resp.text();
           const chunk = this._parseJsonFile(text);
