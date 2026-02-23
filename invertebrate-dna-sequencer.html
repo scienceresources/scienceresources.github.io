@@ -535,6 +535,304 @@
       }
     }));
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // MULTI-SAMPLE BATCH IDENTIFIER + DOT GRAPH
+    // Accepts 2–20 FASTA sequences, identifies each against BOLD, then computes
+    // an all-vs-all K2P distance matrix and renders a force-directed dot graph.
+    // ══════════════════════════════════════════════════════════════════════════
+    Alpine.data('multiId', () => ({
+      input: '',
+      results: null,
+      loading: false,
+      loadingStep: '',
+      error: null,
+      boldData: null,
+
+      get parsedSeqs() {
+        const lines = this.input.split('\n');
+        const seqs = [];
+        let name = null, buf = '';
+        for (const raw of lines) {
+          const l = raw.trim();
+          if (l.startsWith('>')) {
+            if (name !== null && buf.replace(/[^ATCGN]/gi,'').length > 0)
+              seqs.push({ name, seq: buf.replace(/[\s\-]/g,'').toUpperCase() });
+            name = l.slice(1).trim() || `Sample ${seqs.length + 1}`;
+            buf  = '';
+          } else { buf += l.replace(/\s/g,''); }
+        }
+        if (name !== null && buf.replace(/[^ATCGN]/gi,'').length > 0)
+          seqs.push({ name, seq: buf.replace(/[\s\-]/g,'').toUpperCase() });
+        return seqs;
+      },
+
+      get seqCount() { return this.parsedSeqs.length; },
+
+      async _loadBold() {
+        if (this.boldData) return this.boldData;
+        const r = await fetch('melissodes-dna.json');
+        if (!r.ok) throw new Error(`Cannot load melissodes-dna.json (HTTP ${r.status})`);
+        const text = await r.text();
+        this.boldData = text.trim().split('\n').filter(l => l.trim())
+          .map(l => JSON.parse(l))
+          .filter(r => r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+        return this.boldData;
+      },
+
+      _slideId(query, ref) {
+        const maxOff = Math.min(80, Math.abs(query.length - ref.length) + 30);
+        let best = 0;
+        for (let off = -maxOff; off <= maxOff; off++) {
+          let m = 0, t = 0;
+          const qs = Math.max(0, off), rs = Math.max(0, -off);
+          const len = Math.min(query.length - qs, ref.length - rs);
+          if (len < 50) continue;
+          for (let i = 0; i < len; i++) {
+            const q = query[qs+i], r = ref[rs+i];
+            if (q !== 'N' && r !== 'N') { t++; if (q === r) m++; }
+          }
+          if (t > 0) best = Math.max(best, m / t);
+        }
+        return best * 100;
+      },
+
+      async _identifyOne(seq) {
+        const records = await this._loadBold();
+        const rc = reverseComplementSimple(seq);
+        let best = null;
+        for (const rec of records) {
+          const ref = rec.nuc.replace(/[-\s]/g,'').toUpperCase();
+          const id  = Math.max(this._slideId(seq, ref), this._slideId(rc, ref));
+          if (!best || id > best.id) best = { id, rec };
+        }
+        if (!best) return { species: 'Unknown', pct: 0, bin_uri: '—' };
+        const sp = (best.rec.identification && best.rec.identification.trim() !== best.rec.genus)
+          ? best.rec.identification.trim()
+          : (best.rec.species || best.rec.genus || 'Unknown');
+        return { species: sp, pct: best.id, bin_uri: best.rec.bin_uri || '—' };
+      },
+
+      _forceLayout(n, distMatrix) {
+        const W = 740, H = 480;
+        if (n === 1) return [{ x: W/2, y: H/2 }];
+        let pos = Array.from({ length: n }, (_, i) => ({
+          x: W/2 + Math.cos(2 * Math.PI * i / n) * (n < 5 ? 130 : 170),
+          y: H/2 + Math.sin(2 * Math.PI * i / n) * (n < 5 ? 110 : 150)
+        }));
+        const valids = [];
+        for (let i = 0; i < n; i++)
+          for (let j = i+1; j < n; j++)
+            if (distMatrix[i][j] !== null) valids.push(distMatrix[i][j]);
+        const maxD = Math.max(...valids, 0.02);
+        const minD = Math.min(...valids, 0);
+        const SPREAD = Math.min(W, H) * 0.38;
+
+        for (let iter = 0; iter < 600; iter++) {
+          const cool = Math.pow(1 - iter / 600, 0.6);
+          const forces = pos.map(() => ({ x: 0, y: 0 }));
+          for (let i = 0; i < n; i++) {
+            for (let j = i+1; j < n; j++) {
+              const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+              const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+              const d    = distMatrix[i][j] ?? maxD;
+              const norm = (d - minD) / (maxD - minD || 1);
+              const target = 65 + norm * SPREAD;
+              const f = (dist - target) * 0.28 * cool / dist;
+              forces[i].x += dx * f; forces[i].y += dy * f;
+              forces[j].x -= dx * f; forces[j].y -= dy * f;
+            }
+          }
+          for (let i = 0; i < n; i++) {
+            pos[i].x = Math.max(64, Math.min(W - 64, pos[i].x + forces[i].x));
+            pos[i].y = Math.max(54, Math.min(H - 54, pos[i].y + forces[i].y));
+          }
+        }
+        return pos;
+      },
+
+      _buildSvg(pos, names, speciesArr, matrix) {
+        const W = 740, H = 480;
+        const palette = [
+          '#3b82f6','#10b981','#f59e0b','#8b5cf6',
+          '#ef4444','#ec4899','#0891b2','#65a30d',
+          '#dc2626','#c026d3','#ea580c','#0d9488'
+        ];
+        const spMap = {};
+        let ci = 0;
+        speciesArr.forEach(sp => { if (!spMap[sp]) spMap[sp] = palette[ci++ % palette.length]; });
+        const n = pos.length;
+
+        const _e = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+        // Find 7 shortest-distance pairs for labelling
+        const pairs = [];
+        for (let i = 0; i < n; i++)
+          for (let j = i+1; j < n; j++)
+            if (matrix[i][j] !== null) pairs.push({ i, j, d: matrix[i][j] });
+        pairs.sort((a,b) => a.d - b.d);
+        const labelSet = new Set(pairs.slice(0, Math.min(7, pairs.length)).map(p => `${p.i}-${p.j}`));
+
+        let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">`;
+        svg += `<defs>
+          <radialGradient id="bg" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stop-color="#f0f9ff"/>
+            <stop offset="100%" stop-color="#f8fafc"/>
+          </radialGradient>
+          <filter id="nd"><feDropShadow dx="0" dy="1.5" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.12"/></filter>
+          <filter id="glow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>`;
+        svg += `<rect width="${W}" height="${H}" fill="url(#bg)" rx="12"/>`;
+
+        // Grid dots (subtle background texture)
+        for (let gx = 40; gx < W; gx += 40)
+          for (let gy = 30; gy < H; gy += 40)
+            svg += `<circle cx="${gx}" cy="${gy}" r="1" fill="#e2e8f0" fill-opacity="0.5"/>`;
+
+        // Edges
+        for (const { i, j, d } of pairs) {
+          const sameSp  = speciesArr[i] === speciesArr[j];
+          const opacity = Math.max(0.07, 0.9 - d * 7);
+          const sw      = sameSp ? 2.5 : 1;
+          const dash    = sameSp ? '' : 'stroke-dasharray="6 4"';
+          const stroke  = sameSp ? spMap[speciesArr[i]] : '#94a3b8';
+          svg += `<line x1="${pos[i].x.toFixed(1)}" y1="${pos[i].y.toFixed(1)}" x2="${pos[j].x.toFixed(1)}" y2="${pos[j].y.toFixed(1)}" stroke="${stroke}" stroke-width="${sw}" stroke-opacity="${opacity}" ${dash}/>`;
+
+          if (labelSet.has(`${i}-${j}`)) {
+            const mx = (pos[i].x + pos[j].x) / 2;
+            const my = (pos[i].y + pos[j].y) / 2;
+            const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+            const len = Math.sqrt(dx*dx + dy*dy) || 1;
+            const ox = -dy / len * 10, oy = dx / len * 10;
+            const pct = (d * 100).toFixed(2) + '%';
+            svg += `<rect x="${(mx+ox-15).toFixed(1)}" y="${(my+oy-7).toFixed(1)}" width="30" height="13" rx="4" fill="white" fill-opacity="0.9" stroke="#e2e8f0"/>`;
+            svg += `<text x="${(mx+ox).toFixed(1)}" y="${(my+oy+3.5).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#475569" font-family="monospace" font-weight="600">${_e(pct)}</text>`;
+          }
+        }
+
+        // Nodes
+        for (let i = 0; i < n; i++) {
+          const { x, y } = pos[i];
+          const color = spMap[speciesArr[i]];
+          const label = names[i];
+          const sp2   = speciesArr[i].split(' ').slice(0,2).join(' ');
+          svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="30" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="0" filter="url(#glow)"/>`;
+          svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="24" fill="${color}" fill-opacity="0.16" stroke="${color}" stroke-width="2.5" filter="url(#nd)"/>`;
+          svg += `<text x="${x.toFixed(1)}" y="${(y-1).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="800" fill="${color}" font-family="system-ui,-apple-system,sans-serif">${_e(label)}</text>`;
+          svg += `<text x="${x.toFixed(1)}" y="${(y+13).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#64748b" font-family="system-ui" font-style="italic">${_e(sp2)}</text>`;
+        }
+
+        // Legend
+        const uniqueSp  = [...new Set(speciesArr)];
+        const legendH   = uniqueSp.length * 18 + 16;
+        const lx = 10, ly = H - legendH - 10;
+        svg += `<rect x="${lx}" y="${ly}" width="195" height="${legendH}" rx="8" fill="white" fill-opacity="0.9" stroke="#e2e8f0" stroke-width="1"/>`;
+        svg += `<text x="${lx+10}" y="${ly+11}" font-size="8" font-weight="800" fill="#94a3b8" font-family="system-ui" letter-spacing="0.08em">SPECIES</text>`;
+        uniqueSp.forEach((sp, idx) => {
+          const c = spMap[sp];
+          const ty = ly + 22 + idx * 18;
+          svg += `<circle cx="${lx+14}" cy="${ty}" r="5" fill="${c}" fill-opacity="0.25" stroke="${c}" stroke-width="1.8"/>`;
+          svg += `<text x="${lx+25}" y="${ty+4}" font-size="9.5" fill="#475569" font-family="system-ui" font-style="italic">${_e(sp)}</text>`;
+        });
+
+        // Title watermark top-right
+        svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · MELISSODES BOLD</text>`;
+
+        svg += `</svg>`;
+        return svg;
+      },
+
+      downloadSvg() {
+        if (!this.results) return;
+        const blob = new Blob([this.results.svgHtml], { type:'image/svg+xml' });
+        const a = Object.assign(document.createElement('a'), {
+          href: URL.createObjectURL(blob), download: 'melissodes-similarity.svg'
+        });
+        a.click(); URL.revokeObjectURL(a.href);
+      },
+
+      async run() {
+        const seqs = this.parsedSeqs;
+        if (seqs.length < 2) { this.error = 'Paste at least 2 sequences in FASTA format.'; return; }
+        if (seqs.length > 20) { this.error = 'Maximum 20 sequences per run.'; return; }
+
+        this.loading = true; this.results = null; this.error = null;
+        await new Promise(r => setTimeout(r, 30));
+
+        try {
+          // ── Phase 1: identify each against BOLD ────────────────────────────
+          const identified = [];
+          for (let i = 0; i < seqs.length; i++) {
+            this.loadingStep = `Identifying ${i+1}/${seqs.length}: ${seqs[i].name}…`;
+            await new Promise(r => setTimeout(r, 0));
+            const clean = seqs[i].seq.replace(/[^ATCGN]/g,'');
+            if (clean.length < 80) {
+              identified.push({ name: seqs[i].name, seq: clean, species: 'Too short', pct: 0, bin_uri: '—' });
+              continue;
+            }
+            const match = await this._identifyOne(clean);
+            identified.push({ name: seqs[i].name, seq: clean, ...match });
+          }
+
+          // ── Phase 2: all-vs-all K2P distance matrix ─────────────────────────
+          const n   = identified.length;
+          const mat = Array.from({ length: n }, () => new Array(n).fill(null));
+          for (let i = 0; i < n; i++) mat[i][i] = 0;
+          let pairNum = 0, totalPairs = n * (n - 1) / 2;
+          for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+              this.loadingStep = `Pairwise distances: ${++pairNum}/${totalPairs}`;
+              await new Promise(r => setTimeout(r, 0));
+              const res = alignOverlap(identified[i].seq, identified[j].seq);
+              const kp  = k2pDistance(res.alSeq1, res.alSeq2);
+              const d   = kp && !kp.saturated && kp.d !== null ? kp.d : null;
+              mat[i][j] = d; mat[j][i] = d;
+            }
+          }
+
+          // ── Phase 3: force layout + SVG ──────────────────────────────────────
+          this.loadingStep = 'Calculating graph layout…';
+          await new Promise(r => setTimeout(r, 0));
+          const pos    = this._forceLayout(n, mat);
+          const labels = identified.map(s => s.name.length > 12 ? s.name.slice(0,11)+'…' : s.name);
+          const svgHtml = this._buildSvg(pos, labels, identified.map(s => s.species), mat);
+
+          this.results = { samples: identified, matrix: mat, svgHtml, n };
+          this.loadingStep = '';
+
+        } catch (e) {
+          this.error = 'Error: ' + e.message;
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      cellVal(i, j) {
+        if (!this.results) return '—';
+        if (i === j) return '·';
+        const d = this.results.matrix[i][j];
+        return d === null ? '?' : (d * 100).toFixed(3) + '%';
+      },
+
+      cellCls(i, j) {
+        if (!this.results || i === j) return 'text-slate-200 text-center';
+        const d = this.results.matrix[i][j];
+        if (d === null) return 'text-slate-300 text-center';
+        if (d < 0.02) return 'bg-green-50  text-green-700  font-bold  text-center';
+        if (d < 0.05) return 'bg-emerald-50 text-emerald-700 font-semibold text-center';
+        if (d < 0.15) return 'bg-blue-50   text-blue-700   text-center';
+        if (d < 0.25) return 'bg-amber-50  text-amber-700  text-center';
+        return                'bg-red-50    text-red-600    text-center';
+      },
+
+      spBadge(pct) {
+        if (pct >= 99) return 'bg-green-100 text-green-800';
+        if (pct >= 97) return 'bg-emerald-100 text-emerald-800';
+        if (pct >= 95) return 'bg-blue-100 text-blue-800';
+        if (pct >= 90) return 'bg-amber-100 text-amber-800';
+        return 'bg-red-100 text-red-800';
+      }
+    }));
+
   });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
@@ -1004,18 +1302,36 @@
   </div><!-- /counter -->
 
   <!-- ══ SPECIES IDENTIFIER PANEL ═══════════════════════════════════════════ -->
-  <div id="panel-identify" class="hidden" x-data="identifier">
+  <div id="panel-identify" class="hidden">
+  <div x-data="{ spMode: 'single' }">
 
+    <!-- Mode toggle header -->
     <div class="flex items-start justify-between gap-4 mb-5 flex-wrap">
       <div>
         <h2 class="text-base font-bold text-slate-800">Species Identification Engine</h2>
         <p class="text-xs text-slate-500 mt-0.5">Local BOLD reference library · <span class="font-semibold text-slate-600">Melissodes</span> COI-5P barcodes · Pairwise alignments + K2P distances</p>
       </div>
-      <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-[10px] text-amber-700 font-medium shrink-0">
-        <i class="fa-solid fa-database"></i>
-        1,436 BOLD records · offline · no API required
+      <div class="flex items-center gap-2 shrink-0 flex-wrap">
+        <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-[10px] text-amber-700 font-medium">
+          <i class="fa-solid fa-database"></i>1,436 BOLD records · offline
+        </div>
+        <div class="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+          <button @click="spMode='single'"
+            :class="spMode==='single' ? 'bg-white shadow text-slate-800 font-bold' : 'text-slate-500 hover:text-slate-700'"
+            class="px-3 py-1.5 rounded-md text-xs transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-magnifying-glass text-[10px]"></i>Single
+          </button>
+          <button @click="spMode='multi'"
+            :class="spMode==='multi' ? 'bg-white shadow text-slate-800 font-bold' : 'text-slate-500 hover:text-slate-700'"
+            class="px-3 py-1.5 rounded-md text-xs transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-circle-nodes text-[10px]"></i>Multi-Sample
+          </button>
+        </div>
       </div>
     </div>
+
+    <!-- ── SINGLE SAMPLE MODE ─────────────────────────────────────────────── -->
+    <div x-show="spMode==='single'" x-data="identifier">
 
     <!-- Sequence input -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
@@ -1391,7 +1707,181 @@
       </div>
     </template>
 
-  </div><!-- /identifier -->
+    </div><!-- /single mode -->
+
+    <!-- ── MULTI-SAMPLE MODE ──────────────────────────────────────────────── -->
+    <div x-show="spMode==='multi'" x-data="multiId" x-cloak>
+
+      <!-- Multi-FASTA input -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Multi-FASTA Input
+          <span class="normal-case font-normal ml-2 text-slate-300">2–20 sequences · FASTA format required</span>
+        </label>
+        <textarea x-model="input" rows="10"
+          placeholder=">Sample_1&#10;AACTTTATTTTATTTTTGGGGCCTGAGCAGGAATAGTAGGAACTTCTTTAAGCTTACT…&#10;&#10;>Sample_2&#10;AACTTTATTTTATTTTCGGGGCCTGAGCAGGAATAGTAGGAACTACTTTATCACTTAC…&#10;&#10;>Sample_3&#10;AACATTATATTTAATCTGAGGAGCATGAGCAGGAATAGTAGGAACTTCT…"
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+        <div class="flex items-center justify-between mt-2">
+          <div class="flex items-center gap-3">
+            <template x-if="seqCount > 0">
+              <div class="flex items-center gap-1.5">
+                <div class="w-2 h-2 rounded-full" :class="seqCount >= 2 ? 'bg-green-500' : 'bg-amber-400'"></div>
+                <span class="text-[11px] font-mono font-bold" :class="seqCount >= 2 ? 'text-green-700' : 'text-amber-700'"
+                  x-text="seqCount + ' sequence' + (seqCount===1?'':'s') + ' detected'"></span>
+              </div>
+            </template>
+            <template x-if="seqCount === 0 && input.trim()">
+              <span class="text-[11px] text-red-500">No FASTA sequences found — add <span class="font-mono font-bold">&gt;Name</span> headers</span>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Run button -->
+      <div class="flex items-center gap-3 mb-6 flex-wrap">
+        <button @click="run()"
+          :disabled="loading || seqCount < 2"
+          :class="(loading || seqCount < 2) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 active:scale-95'"
+          class="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-circle-nodes'"></i>
+          <span x-text="loading ? 'Running…' : 'Run Multi-Sample ID'"></span>
+        </button>
+        <p class="text-xs text-slate-500 italic" x-show="loadingStep" x-text="loadingStep"></p>
+      </div>
+
+      <!-- Error -->
+      <template x-if="error">
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 flex items-start gap-3">
+          <i class="fa-solid fa-triangle-exclamation text-red-400 mt-0.5 shrink-0"></i>
+          <p class="text-sm text-red-600" x-text="error"></p>
+        </div>
+      </template>
+
+      <!-- Results -->
+      <template x-if="results">
+        <div class="space-y-5">
+
+          <!-- ── DOT GRAPH ─────────────────────────────────────────────────── -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Pairwise Similarity Dot Graph</p>
+                <p class="text-[10px] text-slate-400 mt-0.5">
+                  Node proximity = sequence similarity · K2P distance labelled on closest pairs ·
+                  <span class="font-semibold text-slate-500">Solid lines</span> = same species ·
+                  <span class="font-semibold text-slate-400">Dashed</span> = different
+                </p>
+              </div>
+              <button @click="downloadSvg()"
+                class="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition-all bg-white">
+                <i class="fa-solid fa-download text-[10px]"></i>Download SVG
+              </button>
+            </div>
+            <div x-html="results.svgHtml" class="overflow-hidden rounded-lg border border-slate-100 bg-slate-50"></div>
+
+            <!-- Interpretation note -->
+            <div class="mt-3 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-[11px] text-blue-700 flex items-start gap-2">
+              <i class="fa-solid fa-circle-info mt-0.5 shrink-0"></i>
+              <span>
+                <strong>Reading this graph:</strong> Nodes that are <em>close together</em> have low K2P divergence (high similarity).
+                Nodes coloured the same were matched to the same species.
+                Solid coloured edges connect same-species pairs; dashed grey edges connect inter-species pairs.
+                Only the 7 closest pairwise distances are labelled to avoid clutter.
+              </span>
+            </div>
+          </div>
+
+          <!-- ── SPECIES SUMMARY TABLE ──────────────────────────────────────── -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Species Identification Summary — <span x-text="results.n"></span> samples
+              </p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-100 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                    <th class="px-4 py-2.5 text-left w-7">#</th>
+                    <th class="px-4 py-2.5 text-left">Sample Name</th>
+                    <th class="px-4 py-2.5 text-left">Best BOLD Match</th>
+                    <th class="px-4 py-2.5 text-right">Identity</th>
+                    <th class="px-4 py-2.5 text-left">BIN</th>
+                    <th class="px-4 py-2.5 text-right">Seq length</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  <template x-for="(s, i) in results.samples" :key="i">
+                    <tr class="hover:bg-slate-50">
+                      <td class="px-4 py-2.5 font-mono text-slate-300 font-black text-center" x-text="i+1"></td>
+                      <td class="px-4 py-2.5 font-mono font-bold text-slate-700" x-text="s.name"></td>
+                      <td class="px-4 py-2.5 italic text-slate-800 font-semibold" x-text="s.species"></td>
+                      <td class="px-4 py-2.5 text-right">
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :class="spBadge(s.pct)"
+                          x-text="s.pct.toFixed(2)+'%'"></span>
+                      </td>
+                      <td class="px-4 py-2.5 font-mono text-amber-600 text-[11px]" x-text="s.bin_uri || '—'"></td>
+                      <td class="px-4 py-2.5 font-mono text-slate-400 text-right" x-text="s.seq.length + ' bp'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ── K2P DISTANCE MATRIX ────────────────────────────────────────── -->
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">All-vs-All K2P Distance Matrix</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">Kimura 2-parameter distances · color-coded by taxonomic threshold</p>
+            </div>
+            <div class="overflow-x-auto p-4">
+              <table class="text-[10px] font-mono border-separate border-spacing-0.5">
+                <thead>
+                  <tr>
+                    <th class="w-24 pr-2"></th>
+                    <template x-for="(s, j) in results.samples" :key="'mh-'+j">
+                      <th class="text-center text-[9px] text-slate-400 font-bold pb-1 max-w-[72px]">
+                        <div class="truncate max-w-[72px]" x-text="s.name.length>9?s.name.slice(0,8)+'…':s.name"></div>
+                      </th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(si, i) in results.samples" :key="'mr-'+i">
+                    <tr>
+                      <td class="pr-3 text-right text-[9px] text-slate-500 font-bold max-w-[96px]">
+                        <div class="truncate max-w-[96px]" x-text="si.name.length>11?si.name.slice(0,10)+'…':si.name"></div>
+                      </td>
+                      <template x-for="(sj, j) in results.samples" :key="'mc-'+i+'-'+j">
+                        <td class="px-1.5 py-1 rounded text-center text-[10px] min-w-[72px]"
+                          :class="cellCls(i,j)" x-text="cellVal(i,j)"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div class="flex flex-wrap gap-1.5 mt-3">
+                <template x-for="t in [
+                  {c:'bg-green-50 text-green-700 border border-green-200',l:'<2% Same species'},
+                  {c:'bg-emerald-50 text-emerald-700 border border-emerald-200',l:'2–5% Sister'},
+                  {c:'bg-blue-50 text-blue-700 border border-blue-200',l:'5–15% Same genus'},
+                  {c:'bg-amber-50 text-amber-700 border border-amber-200',l:'15–25% Same family'},
+                  {c:'bg-red-50 text-red-700 border border-red-200',l:'>25% Distant'}
+                ]" :key="t.l">
+                  <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded" :class="t.c" x-text="t.l"></span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </template>
+
+    </div><!-- /multi mode -->
+
+  </div><!-- /spMode wrapper -->
+  </div><!-- /panel-identify -->
 
 </main>
 
