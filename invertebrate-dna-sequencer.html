@@ -691,8 +691,8 @@
             : (entry.nuc ? [entry.nuc] : []);
           for (const nuc of reps) {
             const ref = nuc.replace(/[-\s]/g,'').toUpperCase();
-            const fwd = this._slideId(query, ref);
-            const rev = this._slideId(rc, ref);
+            const fwd = this._slideIdFull(query, ref).identity;
+            const rev = this._slideIdFull(rc, ref).identity;
             const score = Math.max(fwd, rev);
             if (score > bestScore) { bestScore = score; bestFamily = entry.family; }
           }
@@ -747,22 +747,86 @@
         return records;
       },
 
-      async _identifyOne(seq) {
+      async _identifyOne(seq, onProgress) {
+        // Step 1: detect family via manifest
         const family = await this._detectFamily(seq);
-        if (!family) return { species: 'Unknown', pct: 0, bin_uri: '—' };
+        if (!family) return { species: 'Unknown', pct: 0, bin_uri: '—', seq };
+
+        // Step 2: load all JSON files for that family
+        if (onProgress) onProgress(`  ↳ detected ${family}, loading records…`);
         const records = await this._loadFamilyRecords(family);
+        if (!records.length) return { species: 'Unknown', pct: 0, bin_uri: '—', seq };
+
         const rc = reverseComplementSimple(seq);
-        let best = null;
+
+        // ── Phase 1: fast sliding-window scan ────────────────────────────────
+        const scored = [];
         for (const rec of records) {
           const ref = rec.nuc.replace(/[-\s]/g,'').toUpperCase();
-          const id  = Math.max(this._slideId(seq, ref), this._slideId(rc, ref));
-          if (!best || id > best.id) best = { id, rec };
+          if (ref.length < 100) continue;
+          const fwd = this._slideIdFull(seq, ref);
+          const rev = this._slideIdFull(rc,  ref);
+          const best = fwd.identity >= rev.identity
+            ? { ...fwd, direction: 'Forward' }
+            : { ...rev, direction: 'Reverse Complement' };
+          scored.push({ rec, ...best });
         }
-        if (!best) return { species: 'Unknown', pct: 0, bin_uri: '—' };
+
+        // ── Deduplicate: best match per species ───────────────────────────────
+        const seen = new Map();
+        for (const s of scored) {
+          const sp = (s.rec.identification && s.rec.identification.trim() !== s.rec.genus)
+            ? s.rec.identification.trim()
+            : (s.rec.species || s.rec.genus || 'Unknown');
+          if (!seen.has(sp) || seen.get(sp).identity < s.identity) seen.set(sp, s);
+        }
+
+        // Top 5 unique species (we only need the best for multi-sample summary)
+        const top5 = [...seen.values()]
+          .sort((a, b) => b.identity - a.identity)
+          .slice(0, 5);
+
+        if (!top5.length) return { species: 'Unknown', pct: 0, bin_uri: '—', seq };
+
+        // ── Phase 2: full DP alignment on the top hit ────────────────────────
+        const best = top5[0];
+        const ref  = best.rec.nuc.replace(/[-\s]/g,'').toUpperCase();
+        const refUsed = best.direction === 'Reverse Complement'
+          ? reverseComplementSimple(ref) : ref;
+        const full = alignOverlap(seq, refUsed);
+
         const sp = (best.rec.identification && best.rec.identification.trim() !== best.rec.genus)
           ? best.rec.identification.trim()
           : (best.rec.species || best.rec.genus || 'Unknown');
-        return { species: sp, pct: best.id, bin_uri: best.rec.bin_uri || '—' };
+
+        return {
+          species:  sp,
+          pct:      parseFloat(full.identity),
+          bin_uri:  best.rec.bin_uri || '—',
+          family,
+          seq,
+          alSeq1:   full.alSeq1,
+          alSeq2:   full.alSeq2,
+        };
+      },
+
+      // Full sliding-window identity (returns object with .identity, mirrors single identifier)
+      _slideIdFull(query, ref) {
+        const maxOff = Math.min(80, Math.abs(query.length - ref.length) + 30);
+        let bestId = -1, bestQs = 0, bestRs = 0, bestLen = 0;
+        for (let off = -maxOff; off <= maxOff; off++) {
+          let matches = 0, total = 0;
+          const qs = Math.max(0, off), rs = Math.max(0, -off);
+          const len = Math.min(query.length - qs, ref.length - rs);
+          if (len < 50) continue;
+          for (let i = 0; i < len; i++) {
+            const q = query[qs+i], r = ref[rs+i];
+            if (q !== 'N' && r !== 'N') { total++; if (q === r) matches++; }
+          }
+          const id = total > 0 ? matches / total : 0;
+          if (id > bestId) { bestId = id; bestQs = qs; bestRs = rs; bestLen = len; }
+        }
+        return { identity: bestId * 100, qstart: bestQs, rstart: bestRs, ovLen: bestLen };
       },
 
       _forceLayout(n, distMatrix) {
@@ -912,18 +976,20 @@
         await new Promise(r => setTimeout(r, 30));
 
         try {
-          // ── Phase 1: identify each against BOLD ────────────────────────────
+          // ── Phase 1: identify each sample against BOLD ─────────────────────
           const identified = [];
           for (let i = 0; i < seqs.length; i++) {
             this.loadingStep = `Identifying ${i+1}/${seqs.length}: ${seqs[i].name}…`;
             await new Promise(r => setTimeout(r, 0));
             const clean = seqs[i].seq.replace(/[^ATCGN]/g,'');
             if (clean.length < 80) {
-              identified.push({ name: seqs[i].name, seq: clean, species: 'Too short', pct: 0, bin_uri: '—' });
+              identified.push({ name: seqs[i].name, seq: clean, species: 'Too short', pct: 0, bin_uri: '—', family: '—' });
               continue;
             }
-            const match = await this._identifyOne(clean);
-            identified.push({ name: seqs[i].name, seq: clean, ...match });
+            const match = await this._identifyOne(clean, msg => {
+              this.loadingStep = `Identifying ${i+1}/${seqs.length}: ${seqs[i].name}\n${msg}`;
+            });
+            identified.push({ name: seqs[i].name, ...match });
           }
 
           // ── Phase 2: all-vs-all K2P distance matrix ─────────────────────────
@@ -1958,6 +2024,7 @@
                     <th class="px-4 py-2.5 text-left w-7">#</th>
                     <th class="px-4 py-2.5 text-left">Sample Name</th>
                     <th class="px-4 py-2.5 text-left">Best BOLD Match</th>
+                    <th class="px-4 py-2.5 text-left">Family</th>
                     <th class="px-4 py-2.5 text-right">Identity</th>
                     <th class="px-4 py-2.5 text-left">BIN</th>
                     <th class="px-4 py-2.5 text-right">Seq length</th>
@@ -1969,6 +2036,7 @@
                       <td class="px-4 py-2.5 font-mono text-slate-300 font-black text-center" x-text="i+1"></td>
                       <td class="px-4 py-2.5 font-mono font-bold text-slate-700" x-text="s.name"></td>
                       <td class="px-4 py-2.5 italic text-slate-800 font-semibold" x-text="s.species"></td>
+                      <td class="px-4 py-2.5 text-slate-500 text-[11px]" x-text="s.family || '—'"></td>
                       <td class="px-4 py-2.5 text-right">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :class="spBadge(s.pct)"
                           x-text="s.pct.toFixed(2)+'%'"></span>
