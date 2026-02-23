@@ -330,6 +330,25 @@ self.onmessage = function(e) {
       return _worker;
     }
 
+    // Strip records to plain serialisable objects before postMessage.
+    // Prevents structured-clone errors from null-prototype objects or
+    // undefined/non-standard values that appear in raw BOLD JSON.
+    function slimRecords(records) {
+      return records.map(r => ({
+        nuc:                   String(r.nuc                   || ''),
+        identification:        String(r.identification        || ''),
+        species:               String(r.species               || ''),
+        genus:                 String(r.genus                 || ''),
+        family:                String(r.family                || ''),
+        processid:             String(r.processid             || ''),
+        bin_uri:               String(r.bin_uri               || ''),
+        collectors:            String(r.collectors            || ''),
+        collection_date_start: String(r.collection_date_start || ''),
+        'province/state':      String(r['province/state']     || ''),
+        'country/ocean':       String(r['country/ocean']      || ''),
+      }));
+    }
+
     function workerCall(type, payload, onProgress) {
       return new Promise((resolve, reject) => {
         const id = ++_workerMsgId;
@@ -849,7 +868,7 @@ self.onmessage = function(e) {
 
           const data = await workerCall(
             'identify',
-            { query, records },
+            { query, records: slimRecords(records) },
             msg => { this.loadingMsg = msg; }
           );
 
@@ -1021,7 +1040,7 @@ self.onmessage = function(e) {
         if (onProgress) onProgress(`  ↳ scanning ${records.length} ${family} records…`);
 
         // Step 3: run identification in worker
-        const data = await workerCall('identify_one', { query: seq, records });
+        const data = await workerCall('identify_one', { query: seq, records: slimRecords(records) });
         if (!data.result) return { species: 'Unknown', pct: 0, bin_uri: '—', family, seq };
         return data.result;
       },
