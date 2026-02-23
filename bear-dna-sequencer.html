@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Invertebrate COI 5P DNA Sequence Comparison and Protein Extraction</title>
+<title>Bear COI 5P DNA Sequence Comparison and Protein Extraction</title>
 <link rel="icon" type="image/png" href="favicon2.png">
      <link rel="apple-touch-icon" href="favicon2.png">
 
@@ -155,7 +155,7 @@
       };
       if (d < 0.15) return {
         level:'Same Genus — Different Species',
-        colorBg:'bg-blue-50', colorBorder:'border-blue-300', colorText:'text-blue-800',
+        colorBg:'bg-purple-50', colorBorder:'border-purple-300', colorText:'text-purple-800',
         icon:'fa-layer-group',
         desc:`K2P distance ${pct}% is in the interspecific range (5–15%). Sequences are likely from different species within the same genus.`
       };
@@ -307,10 +307,10 @@
         let gcBias = null;
         if (gcNum !== null) {
           if      (gcNum < 25)  gcBias = { label:'Very AT-rich',   note:'Extremely low GC (<25%) — may indicate NUMT or non-standard region.', color:'bg-orange-50 border-orange-200 text-orange-800' };
-          else if (gcNum < 32)  gcBias = { label:'AT-rich',        note:'GC content is low (25–32%), consistent with invertebrate mitochondrial DNA.', color:'bg-green-50 border-green-200 text-green-800' };
-          else if (gcNum <= 42) gcBias = { label:'Typical',        note:'GC content is in the normal range (32–42%) for invertebrate mitochondrial DNA.', color:'bg-green-50 border-green-200 text-green-800' };
-          else if (gcNum <= 55) gcBias = { label:'GC-elevated',    note:'GC content (42–55%) is higher than typical for invertebrate mt DNA. May be nuclear or unusual sequence.', color:'bg-amber-50 border-amber-200 text-amber-800' };
-          else                  gcBias = { label:'Highly GC-rich', note:'GC content >55% is atypical for invertebrate mt DNA. Likely nuclear, bacterial contamination, or GC-biased gene.', color:'bg-red-50 border-red-200 text-red-800' };
+          else if (gcNum < 32)  gcBias = { label:'AT-rich',        note:'GC content is low (25–32%), consistent with vertebrate mitochondrial DNA.', color:'bg-green-50 border-green-200 text-green-800' };
+          else if (gcNum <= 42) gcBias = { label:'Typical',        note:'GC content is in the normal range (32–42%) for vertebrate mitochondrial DNA.', color:'bg-green-50 border-green-200 text-green-800' };
+          else if (gcNum <= 55) gcBias = { label:'GC-elevated',    note:'GC content (42–55%) is higher than typical for vertebrate mt DNA. May be nuclear or unusual sequence.', color:'bg-amber-50 border-amber-200 text-amber-800' };
+          else                  gcBias = { label:'Highly GC-rich', note:'GC content >55% is atypical for vertebrate mt DNA. Likely nuclear, bacterial contamination, or GC-biased gene.', color:'bg-red-50 border-red-200 text-red-800' };
         }
         return { raw: raw.length, clean: clean.length, a, t, c, g, n, other, gc, codons, gcBias };
       }
@@ -340,7 +340,7 @@
       sc(pct) {
         if (pct >= 99) return { label:'Species Match',       pill:'bg-green-100 text-green-800',    bar:'bg-green-500',  text:'text-green-800',  hero:'bg-green-50 border-green-300'   };
         if (pct >= 97) return { label:'Likely Same Species', pill:'bg-emerald-100 text-emerald-800',bar:'bg-emerald-500',text:'text-emerald-800', hero:'bg-emerald-50 border-emerald-300'};
-        if (pct >= 95) return { label:'Same Genus',          pill:'bg-blue-100 text-blue-800',      bar:'bg-blue-500',   text:'text-blue-800',   hero:'bg-blue-50 border-blue-300'     };
+        if (pct >= 95) return { label:'Same Genus',          pill:'bg-purple-100 text-purple-800',      bar:'bg-purple-500',   text:'text-purple-800',   hero:'bg-purple-50 border-purple-300'     };
         if (pct >= 90) return { label:'Same Family',         pill:'bg-amber-100 text-amber-800',    bar:'bg-amber-500',  text:'text-amber-800',  hero:'bg-amber-50 border-amber-300'   };
         if (pct >= 85) return { label:'Same Order',          pill:'bg-orange-100 text-orange-800',  bar:'bg-orange-400', text:'text-orange-800', hero:'bg-orange-50 border-orange-300'  };
         return           { label:'Distant / Unresolved',     pill:'bg-red-100 text-red-800',        bar:'bg-red-400',    text:'text-red-800',    hero:'bg-red-50 border-red-300'       };
@@ -372,7 +372,7 @@
           const pos = i+1;
           html += `<div class="mb-1">`;
           html += `<span class="text-slate-400 select-none mr-2 text-[10px]">${String(pos).padStart(5)}</span>`;
-          html += `<span class="text-blue-700">`;
+          html += `<span class="text-purple-700">`;
           for (let j = 0; j < q.length; j++) html += q[j]==='-' ? `<span class="text-slate-300">-</span>` : q[j];
           html += `</span>`;
           html += `<br><span class="text-slate-400 select-none mr-2 text-[10px]">     </span>`;
@@ -819,7 +819,7 @@
         if (d === null) return 'text-slate-300 text-center';
         if (d < 0.02) return 'bg-green-50  text-green-700  font-bold  text-center';
         if (d < 0.05) return 'bg-emerald-50 text-emerald-700 font-semibold text-center';
-        if (d < 0.15) return 'bg-blue-50   text-blue-700   text-center';
+        if (d < 0.15) return 'bg-purple-50   text-purple-700   text-center';
         if (d < 0.25) return 'bg-amber-50  text-amber-700  text-center';
         return                'bg-red-50    text-red-600    text-center';
       },
@@ -827,7 +827,7 @@
       spBadge(pct) {
         if (pct >= 99) return 'bg-green-100 text-green-800';
         if (pct >= 97) return 'bg-emerald-100 text-emerald-800';
-        if (pct >= 95) return 'bg-blue-100 text-blue-800';
+        if (pct >= 95) return 'bg-purple-100 text-purple-800';
         if (pct >= 90) return 'bg-amber-100 text-amber-800';
         return 'bg-red-100 text-red-800';
       }
@@ -850,9 +850,9 @@
     white-space: pre;
     letter-spacing: 0.04em;
   }
-  .tab-active   { border-bottom: 2px solid #2563eb; color: #1d4ed8 !important; background: #eff6ff; }
+  .tab-active   { border-bottom: 2px solid #9225eb; color: rgb(141, 29, 216) !important; background: #f6efff; }
   .tab-inactive { border-bottom: 2px solid transparent; }
-  .tab-inactive:hover { color: #334155; background: #f8fafc; }
+  .tab-inactive:hover { color: #334155; background: #faf8fc; }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-24">
@@ -861,16 +861,16 @@
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
   <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
     <div class="flex items-center gap-3">
-      <div class="bg-blue-100 p-2 rounded-lg">
-        <i class="fa-solid fa-dna text-blue-600 text-xl"></i>
+      <div class="bg-purple-100 p-2 rounded-lg">
+        <i class="fa-solid fa-dna text-purple-600 text-xl"></i>
       </div>
       <div>
-        <h1 class="text-lg font-bold text-slate-900 leading-tight">Invertebrate DNA Sequencer</h1>
+        <h1 class="text-lg font-bold text-slate-900 leading-tight">Bear DNA Sequencer</h1>
         <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DNA · Protein Analysis</p>
       </div>
     </div>
     <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
-      The Invertebrate Mitochondrial Code (transl_table=5)
+      The Vertebrate Mitochondrial Code (transl_table=2)
     </p>
   </div>
 
@@ -913,17 +913,17 @@
     <div class="grid md:grid-cols-2 gap-4 mb-4">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-          <i class="fa-solid fa-1 mr-1 text-blue-400"></i>Fragment 1
+          <i class="fa-solid fa-1 mr-1 text-purple-400"></i>Fragment 1
         </label>
         <textarea x-model="fragA" rows="5" placeholder="ATCGATCG…"
-          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all"></textarea>
       </div>
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-          <i class="fa-solid fa-2 mr-1 text-blue-400"></i>Fragment 2
+          <i class="fa-solid fa-2 mr-1 text-purple-400"></i>Fragment 2
         </label>
         <textarea x-model="fragB" rows="5" placeholder="ATCGATCG…"
-          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all"></textarea>
       </div>
     </div>
 
@@ -961,7 +961,7 @@
             <template x-if="result.k2p && !result.k2p.saturated && result.k2p.d !== null">
               <div>
                 <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-1">K2P Distance</p>
-                <p class="font-bold text-blue-600 font-mono text-sm" x-text="(result.k2p.d * 100).toFixed(2) + '%'"></p>
+                <p class="font-bold text-purple-600 font-mono text-sm" x-text="(result.k2p.d * 100).toFixed(2) + '%'"></p>
               </div>
             </template>
             <template x-if="result.k2p && !result.k2p.saturated && result.k2p.d !== null">
@@ -984,7 +984,7 @@
                 <div class="flex items-center gap-2 mb-1 flex-wrap">
                   <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Taxonomic Interpretation</p>
                   <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-white"
-                    :class="{'bg-green-600':result.interp.colorBg.includes('green'), 'bg-emerald-600':result.interp.colorBg.includes('emerald'), 'bg-blue-600':result.interp.colorBg.includes('blue'), 'bg-amber-500':result.interp.colorBg.includes('amber'), 'bg-red-600':result.interp.colorBg.includes('red'), 'bg-slate-400':result.interp.colorBg.includes('slate')}">
+                    :class="{'bg-green-600':result.interp.colorBg.includes('green'), 'bg-emerald-600':result.interp.colorBg.includes('emerald'), 'bg-purple-600':result.interp.colorBg.includes('purple'), 'bg-amber-500':result.interp.colorBg.includes('amber'), 'bg-red-600':result.interp.colorBg.includes('red'), 'bg-slate-400':result.interp.colorBg.includes('slate')}">
                     Hebert et al. 2003
                   </span>
                 </div>
@@ -1002,7 +1002,7 @@
             <div class="seq-mono text-slate-700 mb-1">
               <span class="text-slate-400 select-none inline-block w-16">FRAG 1</span><span x-text="result.a1"></span>
             </div>
-            <div class="seq-mono text-blue-400 mb-1">
+            <div class="seq-mono text-purple-400 mb-1">
               <span class="text-slate-300 select-none inline-block w-16">MATCH</span><span x-text="result.matchLine"></span>
             </div>
             <div class="seq-mono text-slate-700">
@@ -1052,8 +1052,8 @@
   <div id="panel-translate" class="hidden" x-data="translator">
 
     <p class="text-sm text-slate-500 leading-relaxed mb-6">
-      Translates DNA using <span class="font-semibold text-slate-700">NCBI Genetic Code Table 5</span>
-      (Invertebrate Mitochondrial). All three reading frames are shown with stop codon counts.
+      Translates DNA using <span class="font-semibold text-slate-700">NCBI Genetic Code Table 2</span>
+      (Vertebrate Mitochondrial). All three reading frames are shown with stop codon counts.
     </p>
 
     <div class="space-y-4 mb-4">
@@ -1061,7 +1061,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <div class="flex justify-between items-center mb-3">
             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Sequence <span x-text="idx+1"></span>
+              <i class="fa-solid fa-dna mr-1 text-purple-400"></i>Sequence <span x-text="idx+1"></span>
             </label>
             <button x-show="seqs.length > 1" @click="removeSeq(seq.id)"
               class="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition-all">
@@ -1069,7 +1069,7 @@
             </button>
           </div>
           <textarea x-model="seq.val" rows="3" placeholder="ATCGATCG…"
-            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all"></textarea>
         </div>
       </template>
     </div>
@@ -1091,7 +1091,7 @@
       <template x-for="res in results" :key="res.index">
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
-            <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Sequence <span x-text="res.index"></span>
+            <i class="fa-solid fa-dna mr-1 text-purple-400"></i>Sequence <span x-text="res.index"></span>
           </p>
           <div class="space-y-3">
             <template x-for="fr in res.frames" :key="fr.frame">
@@ -1155,17 +1155,17 @@
     <div class="grid md:grid-cols-2 gap-4 mb-4">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-          <i class="fa-solid fa-p mr-1 text-blue-400"></i>Protein 1
+          <i class="fa-solid fa-p mr-1 text-purple-400"></i>Protein 1
         </label>
         <textarea x-model="p1" rows="4" placeholder="MLLFFNSK…"
-          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all"></textarea>
       </div>
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-          <i class="fa-solid fa-p mr-1 text-blue-400"></i>Protein 2
+          <i class="fa-solid fa-p mr-1 text-purple-400"></i>Protein 2
         </label>
         <textarea x-model="p2" rows="4" placeholder="MLLFFNSK…"
-          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all"></textarea>
       </div>
     </div>
 
@@ -1212,7 +1212,7 @@
     <p class="text-sm text-slate-500 leading-relaxed mb-6">
       Paste one or more DNA strands for an instant character count and nucleotide breakdown.
       Dashes and whitespace are stripped for the <span class="font-semibold text-slate-700">clean length</span>.
-      GC content is evaluated against typical invertebrate mitochondrial DNA composition. Results update live as you type.
+      GC content is evaluated against typical vertebrate mitochondrial DNA composition. Results update live as you type.
     </p>
 
     <div class="space-y-5">
@@ -1220,7 +1220,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <div class="flex justify-between items-center mb-3">
             <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              <i class="fa-solid fa-ruler-horizontal mr-1 text-blue-400"></i>
+              <i class="fa-solid fa-ruler-horizontal mr-1 text-purple-400"></i>
               Strand <span x-text="idx + 1"></span>
             </label>
             <button x-show="seqs.length > 1" @click="removeSeq(seq.id)"
@@ -1229,15 +1229,15 @@
             </button>
           </div>
           <textarea x-model="seq.val" rows="3" placeholder="ATCGATCG…"
-            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all mb-4"></textarea>
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all mb-4"></textarea>
 
           <template x-if="seq.val.trim()">
             <div>
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
-                  <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Clean Length</p>
-                  <p class="text-2xl font-black text-blue-700 font-mono" x-text="stats(seq.val).clean"></p>
-                  <p class="text-[10px] text-blue-400 mt-0.5">bp (no gaps)</p>
+                <div class="bg-purple-50 border border-purple-100 rounded-lg p-3 text-center">
+                  <p class="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-1">Clean Length</p>
+                  <p class="text-2xl font-black text-purple-700 font-mono" x-text="stats(seq.val).clean"></p>
+                  <p class="text-[10px] text-purple-400 mt-0.5">bp (no gaps)</p>
                 </div>
                 <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
                   <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Raw Length</p>
@@ -1336,12 +1336,12 @@
     <!-- Sequence input -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-        <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Query Sequence
+        <i class="fa-solid fa-dna mr-1 text-purple-400"></i>Query Sequence
         <span class="normal-case font-normal ml-2 text-slate-300">FASTA or raw DNA — gaps, spaces, headers stripped automatically</span>
       </label>
       <textarea x-model="sequence" rows="5"
         placeholder=">my_sample&#10;AACTTTATTTTATTTTTGGGGCCTGAGCAGGAATAGTAGGAACTTCTTTA…"
-        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+        class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all"></textarea>
 
       <div class="flex items-center justify-between mt-2 flex-wrap gap-2">
         <div class="flex items-center gap-3" x-show="seqLen > 0">
@@ -1369,8 +1369,8 @@
     <div class="flex flex-wrap gap-3 items-center mb-6">
       <button @click="search()"
         :disabled="loading || seqLen < 80"
-        :class="(loading || seqLen < 80) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 active:scale-95'"
-        class="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+        :class="(loading || seqLen < 80) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-700 active:scale-95'"
+        class="bg-purple-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
         <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-dna'"></i>
         <span x-text="loading ? 'Scanning 1,436 records…' : 'Identify Species'"></span>
       </button>
@@ -1388,7 +1388,7 @@
           <pre class="text-xs text-red-600 whitespace-pre-wrap font-sans leading-relaxed" x-text="error"></pre>
           <div class="flex gap-4 mt-3">
             <a href="https://id.boldsystems.org" target="_blank" rel="noopener"
-              class="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+              class="text-xs font-bold text-purple-600 hover:underline flex items-center gap-1">
               <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>BOLD v5 ID Engine
             </a>
             <a href="https://blast.ncbi.nlm.nih.gov/Blast.cgi" target="_blank" rel="noopener"
@@ -1499,7 +1499,7 @@
                     style="grid-template-columns: 1.5rem 1fr 7rem 5rem 5rem 9rem">
                     <!-- Rank -->
                     <span class="text-xs font-black font-mono text-center"
-                      :class="i===0 ? 'text-blue-600' : 'text-slate-300'" x-text="i+1"></span>
+                      :class="i===0 ? 'text-purple-600' : 'text-slate-300'" x-text="i+1"></span>
 
                     <!-- Species + processid -->
                     <div class="min-w-0">
@@ -1610,7 +1610,7 @@
                         <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2">
                           Pairwise Alignment
                           <span class="flex items-center gap-2 font-normal normal-case">
-                            <span class="text-blue-700 font-bold">■</span> query (your sequence)
+                            <span class="text-purple-700 font-bold">■</span> query (your sequence)
                             <span class="text-emerald-700 font-bold">■</span> BOLD reference
                             <span class="text-green-600 font-bold">|</span> match
                             <span class="text-red-400 font-bold">+</span> mismatch
@@ -1645,12 +1645,12 @@
                         <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center justify-between">
                           <span>Your Query (aligned region)</span>
                           <button @click.stop="navigator.clipboard.writeText(hit.alSeq1.replace(/-/g,''))"
-                            class="text-[9px] font-bold text-slate-400 hover:text-blue-600 flex items-center gap-0.5">
+                            class="text-[9px] font-bold text-slate-400 hover:text-purple-600 flex items-center gap-0.5">
                             <i class="fa-regular fa-copy"></i> Copy (no gaps)
                           </button>
                         </p>
                         <div class="bg-slate-900 rounded-lg p-3 overflow-x-auto">
-                          <p class="text-[11px] font-mono text-blue-400 break-all leading-relaxed" x-text="hit.alSeq1"></p>
+                          <p class="text-[11px] font-mono text-purple-400 break-all leading-relaxed" x-text="hit.alSeq1"></p>
                         </div>
                       </div>
                     </template>
@@ -1688,7 +1688,7 @@
             <template x-for="t in [
               {l:'≥99% Species Match',         c:'bg-green-100 text-green-800'},
               {l:'97–99% Likely Same Species',  c:'bg-emerald-100 text-emerald-800'},
-              {l:'95–97% Same Genus',           c:'bg-blue-100 text-blue-800'},
+              {l:'95–97% Same Genus',           c:'bg-purple-100 text-purple-800'},
               {l:'90–95% Same Family',          c:'bg-amber-100 text-amber-800'},
               {l:'85–90% Same Order',           c:'bg-orange-100 text-orange-800'},
               {l:'<85% Distant',                c:'bg-red-100 text-red-800'}
@@ -1715,12 +1715,12 @@
       <!-- Multi-FASTA input -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-          <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Multi-FASTA Input
+          <i class="fa-solid fa-dna mr-1 text-purple-400"></i>Multi-FASTA Input
           <span class="normal-case font-normal ml-2 text-slate-300">2–20 sequences · FASTA format required</span>
         </label>
         <textarea x-model="input" rows="10"
           placeholder=">Sample_1&#10;AACTTTATTTTATTTTTGGGGCCTGAGCAGGAATAGTAGGAACTTCTTTAAGCTTACT…&#10;&#10;>Sample_2&#10;AACTTTATTTTATTTTCGGGGCCTGAGCAGGAATAGTAGGAACTACTTTATCACTTAC…&#10;&#10;>Sample_3&#10;AACATTATATTTAATCTGAGGAGCATGAGCAGGAATAGTAGGAACTTCT…"
-          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-none transition-all"></textarea>
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-purple-400 outline-none resize-none transition-all"></textarea>
         <div class="flex items-center justify-between mt-2">
           <div class="flex items-center gap-3">
             <template x-if="seqCount > 0">
@@ -1741,8 +1741,8 @@
       <div class="flex items-center gap-3 mb-6 flex-wrap">
         <button @click="run()"
           :disabled="loading || seqCount < 2"
-          :class="(loading || seqCount < 2) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 active:scale-95'"
-          class="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          :class="(loading || seqCount < 2) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-purple-700 active:scale-95'"
+          class="bg-purple-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
           <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-circle-nodes'"></i>
           <span x-text="loading ? 'Running…' : 'Run Multi-Sample ID'"></span>
         </button>
@@ -1773,14 +1773,14 @@
                 </p>
               </div>
               <button @click="downloadSvg()"
-                class="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-1.5 rounded-lg transition-all bg-white">
+                class="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-purple-600 border border-slate-200 hover:border-purple-300 px-3 py-1.5 rounded-lg transition-all bg-white">
                 <i class="fa-solid fa-download text-[10px]"></i>Download SVG
               </button>
             </div>
             <div x-html="results.svgHtml" class="overflow-hidden rounded-lg border border-slate-100 bg-slate-50"></div>
 
             <!-- Interpretation note -->
-            <div class="mt-3 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-[11px] text-blue-700 flex items-start gap-2">
+            <div class="mt-3 bg-purple-50 border border-purple-100 rounded-lg px-4 py-2.5 text-[11px] text-purple-700 flex items-start gap-2">
               <i class="fa-solid fa-circle-info mt-0.5 shrink-0"></i>
               <span>
                 <strong>Reading this graph:</strong> Nodes that are <em>close together</em> have low K2P divergence (high similarity).
@@ -1865,7 +1865,7 @@
                 <template x-for="t in [
                   {c:'bg-green-50 text-green-700 border border-green-200',l:'<2% Same species'},
                   {c:'bg-emerald-50 text-emerald-700 border border-emerald-200',l:'2–5% Sister'},
-                  {c:'bg-blue-50 text-blue-700 border border-blue-200',l:'5–15% Same genus'},
+                  {c:'bg-purple-50 text-purple-700 border border-purple-200',l:'5–15% Same genus'},
                   {c:'bg-amber-50 text-amber-700 border border-amber-200',l:'15–25% Same family'},
                   {c:'bg-red-50 text-red-700 border border-red-200',l:'>25% Distant'}
                 ]" :key="t.l">
