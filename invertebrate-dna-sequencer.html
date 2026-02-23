@@ -318,7 +318,7 @@
 
     // ══════════════════════════════════════════════════════════════════════════
     // BOLD LOCAL SPECIES IDENTIFIER
-    // Matches query sequences against a local melissodes-dna.json BOLD dataset
+    // Matches query sequences against a multi-file BOLD dataset organised by bee family.
     // using sliding-window identity scan + full DP alignment for top hits.
     // ══════════════════════════════════════════════════════════════════════════
     Alpine.data('identifier', () => ({
@@ -326,9 +326,11 @@
       results:  null,
       topHit:   null,
       loading:  false,
+      loadingMsg: '',
       error:    null,
       expanded: {},
-      boldData: null,   // cached parsed NDJSON records
+      _familyCache: {},
+      _manifestCache: null,
 
       get cleanSeq() {
         return this.sequence.split('\n').filter(l => !l.startsWith('>')).join('')
@@ -411,20 +413,83 @@
         return { identity: bestId * 100, qstart: bestQs, rstart: bestRs, ovLen: bestLen };
       },
 
-      // Load and cache the BOLD NDJSON file
-      async loadBoldData() {
-        if (this.boldData) return this.boldData;
-        const resp = await fetch('melissodes-dna.json');
+      // ── MULTI-FAMILY LOADER ────────────────────────────────────────────────
+      // 1. Loads manifest.json to find best-matching bee family
+      // 2. Iterates through {Family}/1.json, 2.json … until 404
+      // ──────────────────────────────────────────────────────────────────────
+      _familyCache: {},   // family name → records array
+      _manifestCache: null,
+
+      async _loadManifest() {
+        if (this._manifestCache) return this._manifestCache;
+        const resp = await fetch('manifest.json');
         if (!resp.ok) throw new Error(
-          `Could not load melissodes-dna.json (HTTP ${resp.status}).\n` +
-          `Make sure the file is hosted in the same directory as this HTML file.`
+          `Could not load manifest.json (HTTP ${resp.status}).\n` +
+          `Place manifest.json in the same directory as this HTML file.\n` +
+          `Format: array of { family, nuc } objects with one representative sequence per family.`
         );
-        const text = await resp.text();
-        this.boldData = text.trim().split('\n')
-          .filter(l => l.trim())
-          .map(l => JSON.parse(l))
-          .filter(r => r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
-        return this.boldData;
+        this._manifestCache = await resp.json();
+        return this._manifestCache;
+      },
+
+      async _detectFamily(query, onProgress) {
+        const manifest = await this._loadManifest();
+        const rc = reverseComplementSimple(query);
+        let bestFamily = null, bestScore = -1;
+        for (const entry of manifest) {
+          // Support both { family, nuc } and { family, representatives: [{nuc}, ...] }
+          const reps = entry.representatives
+            ? entry.representatives.map(r => r.nuc).filter(Boolean)
+            : (entry.nuc ? [entry.nuc] : []);
+          for (const nuc of reps) {
+            const ref = nuc.replace(/[-\s]/g,'').toUpperCase();
+            const fwd = this._slideIdentity(query, ref).identity;
+            const rev = this._slideIdentity(rc, ref).identity;
+            const score = Math.max(fwd, rev);
+            if (score > bestScore) { bestScore = score; bestFamily = entry.family; }
+          }
+        }
+        if (onProgress) onProgress(`Best family match: ${bestFamily} (${bestScore.toFixed(1)}%)`);
+        return bestFamily;
+      },
+
+      // Parse a raw text response that is either a JSON array or NDJSON
+      _parseJsonFile(text) {
+        const t = text.trim();
+        if (t.startsWith('[')) {
+          // Standard JSON array
+          try {
+            const arr = JSON.parse(t);
+            return arr.filter(r => r && r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+          } catch { return []; }
+        } else {
+          // NDJSON (one JSON object per line)
+          return t.split('\n')
+            .filter(l => l.trim())
+            .map(l => { try { return JSON.parse(l); } catch { return null; } })
+            .filter(r => r && r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+        }
+      },
+
+      async _loadFamilyRecords(family, onProgress) {
+        if (this._familyCache[family]) return this._familyCache[family];
+        const records = [];
+        let idx = 1;
+        while (true) {
+          if (onProgress) onProgress(`Loading ${family}/${idx}.json… (${records.length} records so far)`);
+          await new Promise(r => setTimeout(r, 0));
+          const resp = await fetch(`${family}/${idx}.json`);
+          if (!resp.ok) break; // no more files for this family
+          const text = await resp.text();
+          const chunk = this._parseJsonFile(text);
+          records.push(...chunk);
+          idx++;
+        }
+        if (records.length === 0)
+          throw new Error(`No records found in family folder "${family}/". Check that ${family}/1.json exists.`);
+        if (onProgress) onProgress(`Loaded ${records.length} records from ${family} (${idx-1} file${idx-1>1?'s':''})`);
+        this._familyCache[family] = records;
+        return records;
       },
 
       async search() {
@@ -443,10 +508,22 @@
         await new Promise(r => setTimeout(r, 30));
 
         try {
-          const records = await this.loadBoldData();
+          // Step 1: detect family via manifest
+          this.loadingMsg = 'Detecting bee family from manifest…';
+          await new Promise(r => setTimeout(r, 0));
+          const family = await this._detectFamily(query, msg => { this.loadingMsg = msg; });
+
+          // Step 2: load all JSON files for that family
+          this.loadingMsg = `Loading ${family} records…`;
+          await new Promise(r => setTimeout(r, 0));
+          const records = await this._loadFamilyRecords(family, msg => { this.loadingMsg = msg; });
+
+          this.loadingMsg = `Scanning ${records.length} ${family} records…`;
+          await new Promise(r => setTimeout(r, 0));
+
           const rc = reverseComplementSimple(query);
 
-          // ── Phase 1: fast scan of all 1,400+ records ──────────────────────
+          // ── Phase 1: fast scan of all records in detected family ─────────
           const scored = [];
           for (const rec of records) {
             const ref = rec.nuc.replace(/[-\s]/g,'').toUpperCase();
@@ -514,7 +591,7 @@
           });
 
           if (!results.length) {
-            this.error = 'No matches found in the BOLD Melissodes dataset.';
+            this.error = `No matches found in the ${family} dataset.`;
             return;
           }
           this.results = results;
@@ -531,7 +608,7 @@
 
       clear() {
         this.sequence = ''; this.results = null; this.topHit = null;
-        this.error = null; this.expanded = {};
+        this.error = null; this.expanded = {}; this.loadingMsg = '';
       }
     }));
 
@@ -546,7 +623,8 @@
       loading: false,
       loadingStep: '',
       error: null,
-      boldData: null,
+      _familyCache: {},
+      _manifestCache: null,
 
       get parsedSeqs() {
         const lines = this.input.split('\n');
@@ -568,36 +646,69 @@
 
       get seqCount() { return this.parsedSeqs.length; },
 
-      async _loadBold() {
-        if (this.boldData) return this.boldData;
-        const r = await fetch('melissodes-dna.json');
-        if (!r.ok) throw new Error(`Cannot load melissodes-dna.json (HTTP ${r.status})`);
-        const text = await r.text();
-        this.boldData = text.trim().split('\n').filter(l => l.trim())
-          .map(l => JSON.parse(l))
-          .filter(r => r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
-        return this.boldData;
+      // ── SHARED FAMILY LOADER (mirrors identifier component) ───────────────
+      async _loadManifest() {
+        if (this._manifestCache) return this._manifestCache;
+        const resp = await fetch('manifest.json');
+        if (!resp.ok) throw new Error(`Cannot load manifest.json (HTTP ${resp.status})`);
+        this._manifestCache = await resp.json();
+        return this._manifestCache;
       },
 
-      _slideId(query, ref) {
-        const maxOff = Math.min(80, Math.abs(query.length - ref.length) + 30);
-        let best = 0;
-        for (let off = -maxOff; off <= maxOff; off++) {
-          let m = 0, t = 0;
-          const qs = Math.max(0, off), rs = Math.max(0, -off);
-          const len = Math.min(query.length - qs, ref.length - rs);
-          if (len < 50) continue;
-          for (let i = 0; i < len; i++) {
-            const q = query[qs+i], r = ref[rs+i];
-            if (q !== 'N' && r !== 'N') { t++; if (q === r) m++; }
+      async _detectFamily(query) {
+        const manifest = await this._loadManifest();
+        const rc = reverseComplementSimple(query);
+        let bestFamily = null, bestScore = -1;
+        for (const entry of manifest) {
+          const reps = entry.representatives
+            ? entry.representatives.map(r => r.nuc).filter(Boolean)
+            : (entry.nuc ? [entry.nuc] : []);
+          for (const nuc of reps) {
+            const ref = nuc.replace(/[-\s]/g,'').toUpperCase();
+            const fwd = this._slideId(query, ref);
+            const rev = this._slideId(rc, ref);
+            const score = Math.max(fwd, rev);
+            if (score > bestScore) { bestScore = score; bestFamily = entry.family; }
           }
-          if (t > 0) best = Math.max(best, m / t);
         }
-        return best * 100;
+        return bestFamily;
+      },
+
+      _parseJsonFile(text) {
+        const t = text.trim();
+        if (t.startsWith('[')) {
+          try {
+            const arr = JSON.parse(t);
+            return arr.filter(r => r && r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+          } catch { return []; }
+        } else {
+          return t.split('\n')
+            .filter(l => l.trim())
+            .map(l => { try { return JSON.parse(l); } catch { return null; } })
+            .filter(r => r && r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+        }
+      },
+
+      async _loadFamilyRecords(family) {
+        if (this._familyCache[family]) return this._familyCache[family];
+        const records = [];
+        let idx = 1;
+        while (true) {
+          const resp = await fetch(`${family}/${idx}.json`);
+          if (!resp.ok) break;
+          const text = await resp.text();
+          const chunk = this._parseJsonFile(text);
+          records.push(...chunk);
+          idx++;
+        }
+        this._familyCache[family] = records;
+        return records;
       },
 
       async _identifyOne(seq) {
-        const records = await this._loadBold();
+        const family = await this._detectFamily(seq);
+        if (!family) return { species: 'Unknown', pct: 0, bin_uri: '—' };
+        const records = await this._loadFamilyRecords(family);
         const rc = reverseComplementSimple(seq);
         let best = null;
         for (const rec of records) {
@@ -735,7 +846,7 @@
         });
 
         // Title watermark top-right
-        svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · MELISSODES BOLD</text>`;
+        svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · BEE BOLD DATABASE</text>`;
 
         svg += `</svg>`;
         return svg;
@@ -1372,10 +1483,10 @@
         :class="(loading || seqLen < 80) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 active:scale-95'"
         class="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
         <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-dna'"></i>
-        <span x-text="loading ? 'Scanning 1,436 records…' : 'Identify Species'"></span>
+        <span x-text="loading ? 'Identifying…' : 'Identify Species'"></span>
       </button>
       <template x-if="loading">
-        <p class="text-xs text-slate-500 italic">Aligning against local BOLD dataset — usually completes in 1–3 seconds…</p>
+        <p class="text-xs text-slate-500 italic" x-text="loadingMsg || 'Loading family data…'"></p>
       </template>
     </div>
 
