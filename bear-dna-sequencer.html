@@ -853,25 +853,46 @@
   .tab-active   { border-bottom: 2px solid #9225eb; color: rgb(141, 29, 216) !important; background: #f6efff; }
   .tab-inactive { border-bottom: 2px solid transparent; }
   .tab-inactive:hover { color: #334155; background: #faf8fc; }
+  .back-arrow-desktop { display: none; }
+  .back-arrow-mobile  { display: flex; }
+  @media (min-width: 1122px) {
+    .back-arrow-desktop { display: flex; }
+    .back-arrow-mobile  { display: none; }
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-24">
 
 <!-- ── HEADER ──────────────────────────────────────────────────────────────── -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-  <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
-    <div class="flex items-center gap-3">
-      <div class="bg-purple-100 p-2 rounded-lg">
-        <i class="fa-solid fa-dna text-purple-600 text-xl"></i>
+  <!-- Mobile: stacks above title (hidden above 1122px) -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="dna-index.html"
+       class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+  <!-- Title row -->
+  <div class="relative">
+    <!-- Desktop: pinned to true left edge (visible above 1122px) -->
+    <a href="dna-index.html"
+       class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-purple-100 p-2 rounded-lg">
+          <i class="fa-solid fa-dna text-purple-600 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Bear DNA Sequencer</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DNA · Protein Analysis</p>
+        </div>
       </div>
-      <div>
-        <h1 class="text-lg font-bold text-slate-900 leading-tight">Bear DNA Sequencer</h1>
-        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DNA · Protein Analysis</p>
-      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+        The Vertebrate Mitochondrial Code (transl_table=2)
+      </p>
     </div>
-    <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
-      The Vertebrate Mitochondrial Code (transl_table=2)
-    </p>
   </div>
 
   <!-- Tab row -->
