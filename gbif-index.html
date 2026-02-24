@@ -23,8 +23,7 @@
     box-shadow: 0 16px 32px -8px rgba(0,0,0,0.1);
   }
   .tool-card-blue:hover  { border-color: #93c5fd; }
-  .tool-card-green:hover { border-color: #86efac; }
-  .tool-card-amber:hover { border-color: oklch(82.8% 0.189 84.429) }
+  .tool-card-purple:hover { border-color: rgb(183, 106, 255); }
 
   .feature-pill {
     display: inline-flex;
@@ -61,10 +60,10 @@
 <section class="bg-white border-b border-slate-200">
   <div class="max-w-5xl mx-auto px-4 py-12 text-center">
     <h2 class="text-3xl font-black text-slate-900 tracking-tight mb-3">
-      Tools for Biology
+      GBIF data filters
     </h2>
     <p class="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-      Browser-based tools for Biology.
+      Tools for filtering and downloading GBIF data.<br>
       No installation, no account — your data stays on your device.
     </p>
   </div>
@@ -77,56 +76,7 @@
 
   <div class="grid md:grid-cols-2 gap-5">
 
-    <!-- SeqLab -->
-    <a href="dna-index.html"
-      class="tool-card tool-card-blue bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
-      <div class="flex items-start justify-between mb-5">
-        <div class="bg-blue-100 p-3.5 rounded-xl">
-          <i class="fa-solid fa-dna text-blue-600 text-2xl"></i>
-        </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-blue-400 transition-colors mt-1"></i>
-      </div>
-
-      <h2 class="text-xl font-black text-slate-900 mb-1">DNA Sequencers</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">DNA · RNA · Protein Analysis</p>
-      <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Align overlapping DNA fragments, translate sequences using The Invertebrate Mitochondrial Code (transl_table=5),
-        and compare amino acid sequences with mismatch highlighting.
-      </p>
-
-      <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-blue-400 text-[9px]"></i>Fragment Aligner</span>
-        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-blue-400 text-[9px]"></i>DNA → Amino Acid</span>
-        <span class="feature-pill"><i class="fa-solid fa-code-compare text-blue-400 text-[9px]"></i>Protein Comparator</span>
-      </div>
-    </a>
-
-
-    <!-- BioKey Builder -->
-    <a href="biokey.html"
-      class="tool-card tool-card-green bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
-      <div class="flex items-start justify-between mb-5">
-        <div class="bg-green-100 p-3.5 rounded-xl">
-          <i class="fa-solid fa-leaf text-green-600 text-2xl"></i>
-        </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-green-400 transition-colors mt-1"></i>
-      </div>
-
-      <h2 class="text-xl font-black text-slate-900 mb-1">BioKey Builder</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Dichotomous Key Constructor</p>
-      <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Build and export professional dichotomous identification keys. Link couplets,
-        define descriptors, and export in multiple standard formats.
-      </p>
-
-      <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-code-branch text-green-400 text-[9px]"></i>Couplet Builder</span>
-        <span class="feature-pill"><i class="fa-solid fa-file-arrow-down text-green-400 text-[9px]"></i>Export / Import</span>
-        <span class="feature-pill"><i class="fa-solid fa-rotate-left text-green-400 text-[9px]"></i>Undo / Redo</span>
-      </div>
-    </a>
-
-        <a href="gbif-index.html"
+        <a href="gbif-api.html"
       class="tool-card tool-card-amber bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-amber-100 p-3.5 rounded-xl">
@@ -135,18 +85,35 @@
         <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-amber-400 transition-colors mt-1"></i>
       </div>
 
-      <h2 class="text-xl font-black text-slate-900 mb-1">GBIF tools</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">CSV · TSV · TXT · JSON · Filters</p>
+      <h2 class="text-xl font-black text-slate-900 mb-1">Bee GBIF Json builder</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Species Json API Constructor</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Tools for analyzing GBIF data.
+        Build and export Json bee species APIs using GBIF data. Use AI interpretation to find flower records from historic lables and do analyses in the browser.
+      </p>
+
+        <!-- SeqLab -->
+        <a href="gbif-csv.html"
+      class="tool-card tool-card-amber bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
+      <div class="flex items-start justify-between mb-5">
+        <div class="bg-amber-100 p-3.5 rounded-xl">
+          <i class="fa-solid fa-file-csv text-amber-600 text-xl"></i>
+        </div>
+        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-amber-400 transition-colors mt-1"></i>
+      </div>
+
+      <h2 class="text-xl font-black text-slate-900 mb-1">GBIF to table filter</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">GBIF data to readable tables</p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
+        Build and export CSV, TSV, and TXT species tables using GBIF data. Automated maping, downloading, and analysis all in your browser
       </p>
 
       <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-code-branch text-amber-400 text-[9px]"></i>Json Builder</span>
-        <span class="feature-pill"><i class="fa-solid fa-file-arrow-down text-amber-400 text-[9px]"></i>Citations generator</span>
-        <span class="feature-pill"><i class="fa-solid fa-rotate-left text-amber-400 text-[9px]"></i>AI Flower interpretation</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-purple-400 text-[9px]"></i>Fragment Aligner</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-purple-400 text-[9px]"></i>DNA → Amino Acid</span>
+        <span class="feature-pill"><i class="fa-solid fa-code-compare text-purple-400 text-[9px]"></i>Protein Comparator</span>
       </div>
     </a>
+
 
   </div>
 </main>
@@ -158,10 +125,9 @@
       <span class="text-sm font-semibold text-slate-400">Science Resources</span>
     </div>
     <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
-      <p  class="transition-colors flex items-center gap-1.5">Created by - Frank Hogland
+<p  class="transition-colors flex items-center gap-1.5">Created by - Frank Hogland
 © 2026-present. All Rights Reserved.</p>
     </div>
-  </div>
 </footer>
 
 </body>
