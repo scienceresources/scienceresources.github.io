@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBIF → Custom CSV Converter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+
+<style>
+  [x-cloak] { display: none !important; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+  .seq-mono {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    white-space: pre;
+    letter-spacing: 0.04em;
+  }
+  .tab-active   { border-bottom: 2px solid #d97706; color: #b45309 !important; background: #fffbeb; }
+  .tab-inactive { border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #334155; background: #f8fafc; }
+
+  .source-option {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 14px 16px; border: 1px solid #e2e8f0;
+    border-radius: 12px; cursor: pointer;
+    transition: all 0.15s; background: white;
+  }
+  .source-option:has(input:checked) { border-color: #d97706; background: #fffbeb; }
+  .source-option input { accent-color: #d97706; margin-top: 2px; }
+
+  .check-option {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px; border: 1px solid #e2e8f0;
+    border-radius: 10px; cursor: pointer;
+    transition: all 0.15s; background: white;
+  }
+  .check-option:has(input:checked) { border-color: #d97706; background: #fffbeb; }
+  .check-option input { accent-color: #d97706; margin-top: 2px; }
+
+  .drop-zone { transition: all 0.2s; }
+  .drop-zone.dragging { border-color: #d97706 !important; background: #fffbeb !important; }
+
+  .progress-bar { transition: width 0.3s ease; }
+
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+  .bar-chart-row { display: flex; align-items: center; gap: 10px; }
+
+  .suggest-item { padding: 8px 14px; cursor: pointer; font-size: 12px; transition: background 0.1s; border-bottom: 1px solid #f1f5f9; }
+  .suggest-item:hover { background: #fffbeb; }
+  .suggest-item:last-child { border-bottom: none; }
+
+  .copy-btn { transition: all 0.15s; }
+  .copy-btn.copied { background: #dcfce7 !important; border-color: #86efac !important; color: #16a34a !important; }
+
+  .back-arrow-desktop { display: none; }
+  .back-arrow-mobile  { display: flex; }
+  @media (min-width: 1122px) {
+    .back-arrow-desktop { display: flex; }
+    .back-arrow-mobile  { display: none; }
+  }
+
+  .col-toggle {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border: 1px solid #e2e8f0;
+    border-radius: 8px; cursor: pointer;
+    transition: all 0.15s; background: white; font-size: 12px;
+  }
+  .col-toggle:has(input:checked) { border-color: #d97706; background: #fffbeb; }
+  .col-toggle input { accent-color: #d97706; }
+
+  /* ── Data Table ── */
+  #data-table-wrap { overflow: auto; max-height: 480px; position: relative; }
+  #data-table { border-collapse: collapse; font-size: 11px; min-width: 100%; }
+  #data-table th {
+    background: #1e293b; color: #94a3b8; padding: 7px 10px;
+    text-align: left; font-family: 'Courier New', monospace;
+    font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    white-space: nowrap; position: sticky; top: 0; z-index: 10;
+    cursor: pointer; user-select: none;
+  }
+  #data-table th.col-selected { background: #92400e; color: #fef3c7; }
+  #data-table th:hover { background: #334155; }
+  #data-table th.col-selected:hover { background: #78350f; }
+  #data-table td {
+    padding: 5px 10px; border-bottom: 1px solid #f1f5f9; color: #475569;
+    font-family: 'Courier New', monospace; white-space: nowrap;
+    max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+    cursor: pointer; user-select: none;
+  }
+  #data-table tr.row-selected td { background: #fffbeb !important; color: #92400e; }
+  #data-table tr:hover td { background: #f8fafc; }
+  #data-table tr.row-selected:hover td { background: #fef3c7 !important; }
+  #data-table td.cell-col-selected { background: #fef9c3 !important; outline: 2px solid #d97706; outline-offset: -2px; }
+
+  .stat-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+
+  /* ── Map ── */
+  #dist-map { height: 400px; overflow: hidden; z-index: 0; }
+
+  canvas { max-height: 360px; }
+
+  /* ── Citations ── */
+  .cite-card { border-left: 3px solid #d97706; }
+  .license-badge-cc0  { background: #dcfce7; color: #16a34a; }
+  .license-badge-ccby { background: #eff6ff; color: #2563eb; }
+  .license-badge-copy { background: #f1f5f9; color: #64748b; }
+</style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
+
+<!-- ── HEADER ───────────────────────────────────────────────────────────── -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="index.html" class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+  <div class="relative">
+    <a href="index.html" class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-amber-100 p-2 rounded-lg">
+          <i class="fa-solid fa-file-csv text-amber-600 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">GBIF → Custom CSV Converter</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Darwin Core · CSV Export · Distribution Map · Phenology · Citations</p>
+        </div>
+      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+        GBIF Occurrence API · BigDataCloud Geocoding · Leaflet Maps
+      </p>
+    </div>
+  </div>
+  <!-- Tab row -->
+  <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap" x-data>
+    <button onclick="showTab('convert')" id="tab-convert" class="tab-active text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-rotate mr-2 opacity-70"></i>Convert
+    </button>
+    <button onclick="showTab('data')" id="tab-data" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-table mr-2 opacity-70"></i>Data &amp; Export
+    </button>
+    <button onclick="showTab('map')" id="tab-map" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-map mr-2 opacity-70"></i>Map &amp; Phenology
+    </button>
+    <button onclick="showTab('citations')" id="tab-citations" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-quote-left mr-2 opacity-70"></i>Citations
+    </button>
+    <button onclick="showTab('guide')" id="tab-guide" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-book-open mr-2 opacity-70"></i>How To Use
+    </button>
+  </div>
+</header>
+
+<!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-5 flex-1 w-full" x-data="app">
+
+  <!-- ══ CONVERT PANEL ════════════════════════════════════════════════════ -->
+  <div id="panel-convert" class="space-y-5">
+
+    <!-- Step 1: Species Name -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-circle-1 mr-1 text-amber-400"></i>Species Information
+      </p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5">
+        Enter the species name to embed in every row of the output CSV under the <code class="bg-slate-100 px-1 rounded text-xs font-mono">speciesname</code> column.
+      </p>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <i class="fa-solid fa-bug mr-1 text-amber-400"></i>Species Name *
+          </label>
+          <input x-model="speciesName" type="text" placeholder="e.g. Melissodes apicatus"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+          <p class="text-[10px] text-slate-400 mt-1.5">Full binomial name written into every output row</p>
+        </div>
+        <div class="bg-amber-50 border border-amber-100 rounded-lg p-4 flex items-start gap-3">
+          <i class="fa-solid fa-circle-info text-amber-400 mt-0.5 shrink-0"></i>
+          <p class="text-xs text-amber-700 leading-relaxed">The species name is written into every row so your downstream pipeline always knows which species the records belong to.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Data Source -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-circle-2 mr-1 text-amber-400"></i>Data Source
+      </p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5">
+        Fetch live from the GBIF occurrence API by taxon name, or upload a Darwin Core Archive ZIP.
+      </p>
+
+      <div class="grid sm:grid-cols-2 gap-3 mb-5">
+        <label class="source-option">
+          <input type="radio" x-model="dataSource" value="api">
+          <div>
+            <p class="font-bold text-sm text-slate-700 mb-0.5"><i class="fa-solid fa-globe mr-1.5 text-blue-400"></i>GBIF API Live Fetch</p>
+            <p class="text-xs text-slate-400">Search by taxon name — paginate through GBIF automatically</p>
+          </div>
+        </label>
+        <label class="source-option">
+          <input type="radio" x-model="dataSource" value="zip">
+          <div>
+            <p class="font-bold text-sm text-slate-700 mb-0.5"><i class="fa-solid fa-file-zipper mr-1.5 text-blue-400"></i>Upload DwC-A ZIP or TXT</p>
+            <p class="text-xs text-slate-400">Upload a Darwin Core Archive ZIP or raw <code class="font-mono bg-slate-100 px-1 rounded text-[10px]">occurrence.txt</code></p>
+          </div>
+        </label>
+      </div>
+
+      <!-- API panel -->
+      <div x-show="dataSource === 'api'" class="space-y-4">
+        <div class="relative">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <i class="fa-solid fa-magnifying-glass mr-1 text-slate-300"></i>Search Taxon Name
+          </label>
+          <div class="flex gap-3">
+            <input x-model="taxonSearch" @input.debounce.400ms="searchTaxon()" @keydown.enter="searchTaxon()" @keydown.escape="taxonSuggestions=[]"
+              type="text" placeholder="e.g. Melissodes apicatus"
+              class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+            <button @click="searchTaxon()" :disabled="taxonSearching"
+              class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+              <i class="fa-solid text-xs" :class="taxonSearching ? 'fa-circle-notch animate-spin' : 'fa-search'"></i>
+              Search
+            </button>
+          </div>
+          <div x-show="taxonSuggestions.length > 0" x-cloak
+            style="position:absolute;top:100%;left:0;right:0;z-index:50;margin-top:4px;"
+            class="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+            <template x-for="s in taxonSuggestions" :key="s.key">
+              <div class="suggest-item" @click="selectTaxon(s)">
+                <span class="font-mono italic text-slate-800" x-text="s.canonicalName || s.scientificName"></span>
+                <span class="text-slate-400 ml-2 text-[11px]" x-text="s.rank + (s.family ? ' · ' + s.family : '')"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div x-show="selectedTaxon" x-cloak
+          class="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3 gap-3">
+          <div>
+            <p class="text-sm font-bold italic text-green-800" x-text="selectedTaxon?.canonicalName"></p>
+            <p class="text-[10px] text-green-600 font-mono mt-0.5" x-text="'GBIF key: ' + selectedTaxon?.key + ' · ' + (selectedTaxon?.rank||'')"></p>
+          </div>
+          <button @click="selectedTaxon=null;taxonSuggestions=[];taxonSearch=''"
+            class="text-slate-400 hover:text-red-500 transition-colors px-2 py-1 rounded hover:bg-red-50">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <i class="fa-solid fa-hashtag mr-1 text-slate-300"></i>Max Records
+              <span class="normal-case font-normal text-slate-300 ml-1">(leave blank for all)</span>
+            </label>
+            <input x-model="apiMaxRecords" type="number" min="1" step="100" placeholder="All records (up to 100,000)"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+            <p class="text-[10px] text-slate-400 mt-1.5">GBIF caps at 100,000. Leave empty to fetch all matching records.</p>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <i class="fa-solid fa-flag mr-1 text-slate-300"></i>Country Filter
+              <span class="normal-case font-normal text-slate-300 ml-1">(ISO 2-letter, optional)</span>
+            </label>
+            <input x-model="apiCountry" type="text" placeholder="US — or leave blank for all countries"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
+          <i class="fa-solid fa-ban text-red-400 mt-0.5 shrink-0 text-sm"></i>
+          <p class="text-xs text-red-700">
+            <strong>Always excluded:</strong> iNaturalist Research-Grade and BugGuide datasets are filtered out automatically to ensure specimen-based data quality.
+          </p>
+        </div>
+      </div>
+
+      <!-- ZIP Upload panel -->
+      <div x-show="dataSource === 'zip'">
+        <div class="drop-zone border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-all"
+          @dragover.prevent="$el.classList.add('dragging')"
+          @dragleave.prevent="$el.classList.remove('dragging')"
+          @drop.prevent="$el.classList.remove('dragging'); handleFileDrop($event)"
+          @click="$refs.fileInput.click()">
+          <input type="file" x-ref="fileInput" accept=".zip,.txt" class="hidden" @change="handleFileSelect($event)">
+          <template x-if="!uploadedFile">
+            <div>
+              <i class="fa-solid fa-cloud-arrow-up text-4xl text-slate-300 mb-3"></i>
+              <p class="text-sm font-bold text-slate-500">Drop GBIF DwC-A ZIP or occurrence.txt here</p>
+              <p class="text-xs text-slate-400 mt-1">or click to browse · .zip or .txt · processed entirely in-browser</p>
+            </div>
+          </template>
+          <template x-if="uploadedFile">
+            <div>
+              <i class="fa-solid fa-file-zipper text-3xl text-amber-500 mb-2"></i>
+              <p class="text-sm font-bold text-slate-700" x-text="uploadedFile.name"></p>
+              <p class="text-xs text-slate-400 mt-1" x-text="formatBytes(uploadedFile.size)"></p>
+              <p class="text-xs text-green-600 font-semibold mt-1.5"><i class="fa-solid fa-check mr-1"></i>Ready to process</p>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Output Columns -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-circle-3 mr-1 text-amber-400"></i>Output Columns
+      </p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-4">Choose which columns to include in the exported CSV. All 14 standard columns are enabled by default.</p>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <button @click="selectAllCols(true)" class="text-[11px] font-bold text-amber-600 hover:text-amber-700 border border-amber-200 hover:border-amber-400 px-3 py-1.5 rounded-lg bg-amber-50 transition-all">Select All</button>
+        <button @click="selectAllCols(false)" class="text-[11px] font-bold text-slate-500 hover:text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg bg-white transition-all">Clear All</button>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <template x-for="col in allColumns" :key="col.key">
+          <label class="col-toggle">
+            <input type="checkbox" :value="col.key" x-model="selectedColumns">
+            <span class="font-mono text-slate-600" x-text="col.key"></span>
+            <span class="text-slate-400 text-[10px]" x-text="'← ' + col.source"></span>
+          </label>
+        </template>
+      </div>
+    </div>
+
+    <!-- Step 4: Options -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-circle-4 mr-1 text-amber-400"></i>Processing Options
+      </p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5">Configure cleaning, enrichment, and geocoding.</p>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.reverseGeocode">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-location-dot mr-1 text-blue-400"></i>Reverse-geocode missing locality</p>
+            <p class="text-xs text-slate-400 mt-0.5">Fills <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">locality</code> from lat/lon for records where it is empty, using BigDataCloud (no key required)</p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.dropNullCoords">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-crosshairs mr-1 text-blue-400"></i>Drop records missing coordinates</p>
+            <p class="text-xs text-slate-400 mt-0.5">Removes rows with no latitude or longitude</p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.dropNullDate">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-calendar-xmark mr-1 text-blue-400"></i>Drop records missing date</p>
+            <p class="text-xs text-slate-400 mt-0.5">Removes rows where year, month, and day are all missing</p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.combineNotes">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-align-left mr-1 text-slate-400"></i>Combine notes fields</p>
+            <p class="text-xs text-slate-400 mt-0.5">Merges <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">fieldNotes</code> + <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">eventRemarks</code></p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.buildDate">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-calendar mr-1 text-green-400"></i>Build ISO date string</p>
+            <p class="text-xs text-slate-400 mt-0.5">Combines year + month + day → <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">YYYY-MM-DD</code></p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.excludeINat">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-ban mr-1 text-red-400"></i>Exclude iNat / BugGuide (ZIP mode)</p>
+            <p class="text-xs text-slate-400 mt-0.5">Filters out iNaturalist and BugGuide records from uploads</p>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 5: Run -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div class="flex flex-wrap gap-3 items-center mb-5">
+        <button @click="run()"
+          :disabled="loading || !canRun()"
+          :class="(loading || !canRun()) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-700 active:scale-95'"
+          class="bg-amber-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-play'"></i>
+          <span x-text="loading ? 'Converting…' : 'Convert to CSV'"></span>
+        </button>
+        <template x-if="outRows.length && !loading">
+          <button onclick="showTab('data')" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+            View Data &amp; Export <i class="fa-solid fa-arrow-right text-xs"></i>
+          </button>
+        </template>
+        <template x-if="outRows.length && !loading">
+          <button onclick="showTab('citations')" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+            View Citations <i class="fa-solid fa-quote-left text-xs"></i>
+          </button>
+        </template>
+        <template x-if="outRows.length && !loading">
+          <button onclick="showTab('map')" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+            View Map &amp; Phenology <i class="fa-solid fa-map text-xs"></i>
+          </button>
+        </template>
+        <template x-if="loading">
+          <p class="text-xs text-slate-500 italic" x-text="statusMsg"></p>
+        </template>
+      </div>
+
+      <template x-if="loading || outRows.length">
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" x-text="loading ? 'Processing…' : '✓ Complete'"></p>
+            <p class="text-[10px] font-mono text-slate-400" x-text="progress + '%'"></p>
+          </div>
+          <div class="h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+            <div class="progress-bar h-2 rounded-full" :style="'width:' + progress + '%'"
+              :class="loading ? 'bg-amber-400' : 'bg-green-500'"></div>
+          </div>
+          <!-- geocode sub-bar -->
+          <template x-if="geocodeTotal > 0">
+            <div class="mb-3">
+              <div class="flex justify-between items-center mb-1">
+                <p class="text-[10px] text-blue-500 font-bold uppercase tracking-widest">
+                  <i class="fa-solid fa-location-dot mr-1"></i>Geocoding <span x-text="geocodeDone"></span> / <span x-text="geocodeTotal"></span>
+                </p>
+                <p class="text-[10px] font-mono text-blue-400" x-text="geocodeTotal > 0 ? Math.round(geocodeDone/geocodeTotal*100)+'%' : ''"></p>
+              </div>
+              <div class="h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                <div class="progress-bar h-1.5 rounded-full bg-blue-400" :style="'width:' + (geocodeTotal > 0 ? Math.round(geocodeDone/geocodeTotal*100) : 0) + '%'"></div>
+              </div>
+            </div>
+          </template>
+          <div class="flex flex-wrap gap-5" x-show="stats">
+            <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Loaded</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="(stats?.total||0).toLocaleString()"></p></div>
+            <div><p class="text-[9px] text-green-500 uppercase tracking-widest">Exported</p><p class="font-bold text-green-600 font-mono text-lg" x-text="(stats?.exported||0).toLocaleString()"></p></div>
+            <div><p class="text-[9px] text-red-400 uppercase tracking-widest">Dropped</p><p class="font-bold text-red-500 font-mono text-lg" x-text="(stats?.dropped||0).toLocaleString()"></p></div>
+            <div><p class="text-[9px] text-blue-400 uppercase tracking-widest">Geocoded</p><p class="font-bold text-blue-600 font-mono text-lg" x-text="(stats?.geocoded||0).toLocaleString()"></p></div>
+            <div><p class="text-[9px] text-purple-400 uppercase tracking-widest">Datasets</p><p class="font-bold text-purple-600 font-mono text-lg" x-text="(citationsData.length||0)"></p></div>
+            <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Columns</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="stats?.cols||0"></p></div>
+            <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">File Size</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="stats?.size||'—'"></p></div>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="error">
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 mt-4 flex items-start gap-3">
+          <i class="fa-solid fa-triangle-exclamation text-red-400 mt-0.5 shrink-0"></i>
+          <div>
+            <p class="text-sm font-bold text-red-700">Conversion Failed</p>
+            <p class="text-xs text-red-600 mt-1" x-text="error"></p>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="log.length">
+        <div class="mt-4 bg-slate-900 rounded-xl p-4 max-h-48 overflow-y-auto">
+          <template x-for="(entry, i) in log" :key="i">
+            <p class="seq-mono leading-relaxed"
+              :class="entry.type==='ok' ? 'text-green-400' : entry.type==='warn' ? 'text-amber-400' : 'text-slate-500'"
+              x-text="entry.msg"></p>
+          </template>
+        </div>
+      </template>
+    </div>
+
+  </div><!-- /convert -->
+
+  <!-- ══ DATA & EXPORT PANEL ══════════════════════════════════════════════ -->
+  <div id="panel-data" class="hidden fade-in space-y-5">
+    <template x-if="outRows.length">
+      <div class="space-y-5">
+
+        <!-- Stats strip -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-wrap gap-3 items-center justify-between">
+          <div class="flex flex-wrap gap-2">
+            <span class="stat-chip bg-slate-100 text-slate-600"><i class="fa-solid fa-table-rows text-[10px]"></i><span x-text="outRows.length.toLocaleString() + ' rows'"></span></span>
+            <span class="stat-chip bg-amber-100 text-amber-700"><i class="fa-solid fa-table-columns text-[10px]"></i><span x-text="selectedColumns.length + ' columns'"></span></span>
+            <span class="stat-chip bg-green-100 text-green-700"><i class="fa-solid fa-file text-[10px]"></i><span x-text="stats?.size || '—'"></span></span>
+            <span x-show="selectedRows.size > 0" class="stat-chip bg-amber-100 text-amber-700"><i class="fa-solid fa-check-square text-[10px]"></i><span x-text="selectedRows.size + ' rows selected'"></span></span>
+            <span x-show="selectedCols.size > 0" class="stat-chip bg-purple-100 text-purple-700"><i class="fa-solid fa-columns text-[10px]"></i><span x-text="selectedCols.size + ' cols selected'"></span></span>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <button @click="clearSelection()" x-show="selectedRows.size > 0 || selectedCols.size > 0"
+              class="text-[11px] font-bold text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 transition-all">
+              <i class="fa-solid fa-xmark mr-1 text-[10px]"></i>Clear Selection
+            </button>
+            <button @click="selectAllRows()"
+              class="text-[11px] font-bold text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 transition-all">
+              <i class="fa-solid fa-check-double mr-1 text-[10px]"></i>Select All Rows
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 flex items-center gap-2">
+          <i class="fa-solid fa-circle-info text-blue-400 shrink-0 text-sm"></i>
+          <p class="text-xs text-blue-700"><strong>Click a row</strong> to select/deselect it · <strong>Click a column header</strong> to select/deselect that entire column · Use the export panel below.</p>
+        </div>
+
+        <!-- Search bar -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-3 flex gap-3 items-center flex-wrap">
+          <div class="flex-1 min-w-48 relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i>
+            <input x-model="tableSearch" type="text" placeholder="Search all columns…"
+              class="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+          </div>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <span>Showing</span>
+            <span class="font-bold text-slate-600" x-text="filteredRows.length.toLocaleString()"></span>
+            <span>of</span>
+            <span class="font-bold text-slate-600" x-text="outRows.length.toLocaleString()"></span>
+          </div>
+          <button @click="tableSearch=''" x-show="tableSearch" class="text-xs text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div id="data-table-wrap">
+            <table id="data-table">
+              <thead>
+                <tr>
+                  <th class="w-8" @click="toggleAllRows()">
+                    <i class="fa-solid fa-check text-slate-500 text-[10px]"></i>
+                  </th>
+                  <template x-for="col in selectedColumns" :key="col">
+                    <th :class="selectedCols.has(col) ? 'col-selected' : ''" @click="toggleColSelection(col)">
+                      <span x-text="col"></span>
+                    </th>
+                  </template>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(row, ri) in filteredRows.slice(tableOffset, tableOffset + tablePageSize)" :key="ri + tableOffset">
+                  <tr :class="selectedRows.has(getRowId(row)) ? 'row-selected' : ''" @click="toggleRowSelection(row)">
+                    <td class="text-center">
+                      <i class="fa-solid text-[10px]" :class="selectedRows.has(getRowId(row)) ? 'fa-check text-amber-500' : 'fa-circle text-slate-200'"></i>
+                    </td>
+                    <template x-for="col in selectedColumns" :key="col">
+                      <td :title="row[col] || ''" :class="selectedCols.has(col) ? 'cell-col-selected' : ''" x-text="row[col] || ''"></td>
+                    </template>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <!-- Pagination -->
+          <div class="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
+            <p class="text-[10px] text-slate-400">
+              Rows <span class="font-bold" x-text="tableOffset + 1"></span>–<span class="font-bold" x-text="Math.min(tableOffset + tablePageSize, filteredRows.length)"></span>
+              of <span class="font-bold" x-text="filteredRows.length.toLocaleString()"></span>
+            </p>
+            <div class="flex gap-1.5 items-center">
+              <button @click="tableOffset = Math.max(0, tableOffset - tablePageSize)" :disabled="tableOffset === 0"
+                class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50 transition-all">
+                <i class="fa-solid fa-chevron-left text-[10px]"></i>
+              </button>
+              <span class="text-xs text-slate-500 font-mono">Page <span x-text="Math.floor(tableOffset/tablePageSize)+1"></span> / <span x-text="Math.ceil(filteredRows.length/tablePageSize)||1"></span></span>
+              <button @click="tableOffset = Math.min(Math.max(0, filteredRows.length - tablePageSize), tableOffset + tablePageSize)" :disabled="tableOffset + tablePageSize >= filteredRows.length"
+                class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50 transition-all">
+                <i class="fa-solid fa-chevron-right text-[10px]"></i>
+              </button>
+              <select x-model.number="tablePageSize" class="ml-2 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-500 outline-none">
+                <option value="50">50 / page</option>
+                <option value="100">100 / page</option>
+                <option value="250">250 / page</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Export Panel -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
+            <i class="fa-solid fa-download mr-1.5 text-amber-400"></i>Export / Copy
+          </p>
+          <div class="mb-4">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">What to export</p>
+            <div class="grid sm:grid-cols-2 gap-2">
+              <label class="source-option !py-2.5 !px-3">
+                <input type="radio" x-model="exportScope" value="all">
+                <span class="text-sm font-semibold text-slate-700">All rows (<span x-text="outRows.length.toLocaleString()"></span>)</span>
+              </label>
+              <label class="source-option !py-2.5 !px-3">
+                <input type="radio" x-model="exportScope" value="selected_rows">
+                <span class="text-sm font-semibold text-slate-700">Selected rows (<span x-text="selectedRows.size"></span>)</span>
+              </label>
+              <label class="source-option !py-2.5 !px-3">
+                <input type="radio" x-model="exportScope" value="selected_cols">
+                <span class="text-sm font-semibold text-slate-700">Selected columns (<span x-text="selectedCols.size"></span>)</span>
+              </label>
+              <label class="source-option !py-2.5 !px-3">
+                <input type="radio" x-model="exportScope" value="selection">
+                <span class="text-sm font-semibold text-slate-700">Selected rows + columns</span>
+              </label>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-3 items-end">
+            <div>
+              <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Format</p>
+              <div class="flex gap-2">
+                <template x-for="fmt in ['csv','tsv','txt']" :key="fmt">
+                  <label class="flex items-center gap-1.5 px-3 py-2 border rounded-lg cursor-pointer transition-all text-sm font-bold"
+                    :class="exportFormat === fmt ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'">
+                    <input type="radio" x-model="exportFormat" :value="fmt" class="sr-only">
+                    <span x-text="'.' + fmt"></span>
+                  </label>
+                </template>
+              </div>
+            </div>
+            <button @click="downloadExport()"
+              class="bg-green-600 hover:bg-green-700 active:scale-95 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+              <i class="fa-solid fa-download text-xs"></i>Download
+            </button>
+            <button @click="copyExport()" id="btn-copy-export"
+              class="copy-btn bg-white border border-slate-200 hover:border-amber-300 text-slate-600 hover:text-amber-700 px-6 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+              <i class="fa-solid fa-copy text-xs"></i>Copy to Clipboard
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </template>
+    <template x-if="!outRows.length">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <i class="fa-solid fa-table text-4xl text-slate-200 mb-3"></i>
+        <p class="text-sm text-slate-400">No data yet — run the converter first.</p>
+      </div>
+    </template>
+  </div><!-- /data -->
+
+  <!-- ══ MAP & PHENOLOGY PANEL ════════════════════════════════════════════ -->
+  <div id="panel-map" class="hidden fade-in space-y-5">
+    <template x-if="outRows.length">
+      <div class="space-y-5">
+
+        <!-- Distribution Map -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <i class="fa-solid fa-map mr-1.5"></i>Distribution Map
+              </p>
+              <p class="text-[10px] text-slate-400 mt-0.5">
+                <span class="font-bold text-blue-600" x-text="mapPoints"></span> plotted ·
+                <span x-text="(outRows.length - mapPoints)"></span> without coordinates
+              </p>
+            </div>
+            <button @click="buildMap()" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+              <i class="fa-solid fa-rotate text-[10px]"></i>Refresh
+            </button>
+          </div>
+          <div id="dist-map"></div>
+          <div class="px-5 py-2.5 border-t border-slate-100 bg-slate-50">
+            <p class="text-[10px] text-slate-400">Points are clustered for performance. Click clusters to zoom in. Hover a marker for locality and date info.</p>
+          </div>
+        </div>
+
+        <!-- Phenology -->
+        <template x-if="phenologyTotal > 0">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <i class="fa-solid fa-calendar mr-1.5"></i>Flight Period / Phenology by Month
+              </p>
+              <div class="flex gap-2">
+                <button @click="copyPhenologyCSV()" id="btn-copy-pheno"
+                  class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                  <i class="fa-solid fa-copy text-[10px]"></i>Copy CSV
+                </button>
+                <button @click="downloadPhenologyCSV()"
+                  class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                  <i class="fa-solid fa-download text-[10px]"></i>Download CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mb-5">
+              <template x-for="[month, data] in Object.entries(phenologyData)" :key="month">
+                <div class="flex-1 min-w-[52px] text-center">
+                  <div class="bg-amber-50 border border-amber-100 rounded-lg p-2">
+                    <p class="text-[9px] font-bold text-amber-400 uppercase tracking-widest" x-text="month.slice(0,3)"></p>
+                    <p class="text-xl font-black text-amber-700 font-mono mt-0.5" x-text="data.count"></p>
+                    <p class="text-[9px] text-amber-400 font-mono" x-text="data.percentage + '%'"></p>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="w-2.5 h-2.5 rounded-sm bg-amber-400 shrink-0"></span>
+                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Records per Month</p>
+                <span class="text-[10px] text-slate-400 font-mono ml-auto" x-text="phenologyTotal.toLocaleString() + ' total records with month data'"></span>
+              </div>
+              <div style="height:260px; position:relative;">
+                <canvas id="phenologyChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="phenologyTotal === 0">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
+            <i class="fa-solid fa-calendar text-3xl text-slate-200 mb-3"></i>
+            <p class="text-sm text-slate-400 mb-1">No records with month data found.</p>
+            <p class="text-xs text-slate-400">Enable <strong>Build ISO date</strong> in Processing Options and re-convert, or ensure your data has <code class="font-mono bg-slate-100 px-1 rounded">month</code> values.</p>
+          </div>
+        </template>
+
+      </div>
+    </template>
+    <template x-if="!outRows.length">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <i class="fa-solid fa-map text-4xl text-slate-200 mb-3"></i>
+        <p class="text-sm text-slate-400">No data yet — run the converter first.</p>
+      </div>
+    </template>
+  </div><!-- /map -->
+
+  <!-- ══ CITATIONS PANEL ═══════════════════════════════════════════════════ -->
+  <div id="panel-citations" class="hidden fade-in space-y-5">
+    <template x-if="citationsData.length">
+      <div class="space-y-5">
+
+        <!-- Header stats + export buttons -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                <i class="fa-solid fa-database mr-1.5 text-blue-400"></i>Contributing Datasets
+              </p>
+              <p class="text-sm text-slate-600">
+                <span class="font-bold text-slate-800" x-text="citationsData.length"></span> datasets contributed to
+                <em class="italic text-slate-700" x-text="speciesName || 'this species'"></em>
+              </p>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <button @click="copyCitations()" id="btn-copy-all-cite"
+                class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-2 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-copy text-[10px]"></i>Copy All Citations
+              </button>
+              <button @click="copyInTextCitation()" id="btn-intext-cite"
+                class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-2 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-quote-left text-[10px]"></i>Copy In-text
+              </button>
+              <button @click="downloadCitationsTxt()"
+                class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-2 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-download text-[10px]"></i>Download .txt
+              </button>
+              <button @click="downloadCitationsCSV()"
+                class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-2 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-file-csv text-[10px]"></i>Download CSV
+              </button>
+            </div>
+          </div>
+
+          <!-- License breakdown chips -->
+          <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <template x-for="[lic, cnt] in Object.entries(licenseSummary)" :key="lic">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
+                :class="lic.includes('CC0') ? 'bg-green-100 text-green-700' : lic.includes('CC BY') ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'">
+                <i class="fa-solid fa-scale-balanced text-[9px]"></i>
+                <span x-text="lic"></span>
+                <span class="opacity-60" x-text="'×' + cnt"></span>
+              </span>
+            </template>
+          </div>
+        </div>
+
+        <!-- In-text citation preview box -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <i class="fa-solid fa-quote-left mr-1.5 text-amber-400"></i>In-text Citation Preview
+            </p>
+            <button @click="copyInTextCitation()" id="btn-intext-cite-2"
+              class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+              <i class="fa-solid fa-copy text-[10px]"></i>Copy
+            </button>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <p class="text-xs text-slate-700 leading-relaxed font-mono" x-text="inTextPreview || '…'"></p>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">
+            Authors sorted chronologically. Paste directly into your methods section.
+            Format: <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">Data derived from (Author, Year; …). Data licensed under CC BY 4.0.</code>
+          </p>
+        </div>
+
+        <!-- Individual dataset cards -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Full Dataset Listing — <span x-text="citationsData.length"></span> datasets
+            </p>
+            <p class="text-[10px] text-slate-400">Click any citation to copy it</p>
+          </div>
+          <div class="divide-y divide-slate-50 max-h-[640px] overflow-y-auto">
+            <template x-for="(ds, i) in citationsData" :key="i">
+              <div class="flex items-start gap-3 px-5 py-4 hover:bg-slate-50 transition-colors group cite-card"
+                @click="copySingleCitation(ds.citation)" style="cursor:pointer;">
+                <!-- Number -->
+                <span class="text-[10px] font-black font-mono text-slate-300 w-6 shrink-0 mt-0.5 text-right" x-text="(i+1) + '.'"></span>
+                <!-- Content -->
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-slate-800 mb-0.5" x-text="ds.title"></p>
+                  <p class="text-xs text-slate-500 leading-relaxed mb-1" x-text="ds.citation"></p>
+                  <div class="flex items-center gap-3 flex-wrap">
+                    <span class="text-[10px] text-slate-400 font-mono" x-show="ds.doi" x-text="'doi.org/' + ds.doi"></span>
+                    <a x-show="ds.doi" :href="'https://doi.org/' + ds.doi" target="_blank" @click.stop
+                      class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono">
+                      Open DOI ↗
+                    </a>
+                  </div>
+                </div>
+                <!-- License badge + copy hint -->
+                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                  <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
+                    :class="ds.license.includes('CC0') ? 'bg-green-100 text-green-700' : ds.license.includes('CC BY') ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'"
+                    x-text="ds.license"></span>
+                  <span class="text-[9px] text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                    <i class="fa-solid fa-copy"></i>copy
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </div>
+    </template>
+    <template x-if="!citationsData.length">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-16 text-center">
+        <i class="fa-solid fa-quote-left text-5xl text-slate-200 mb-4"></i>
+        <p class="text-base font-semibold text-slate-400 mb-1">No citation data yet</p>
+        <p class="text-sm text-slate-400">Run the converter first. Dataset metadata is fetched automatically from the GBIF API (live fetch mode) or parsed from the ZIP's <code class="font-mono bg-slate-100 px-1 rounded">citations.txt</code>.</p>
+      </div>
+    </template>
+  </div><!-- /citations -->
+
+  <!-- ══ GUIDE PANEL ═══════════════════════════════════════════════════════ -->
+  <div id="panel-guide" class="hidden fade-in space-y-5">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5">
+        <i class="fa-solid fa-circle-question mr-1.5"></i>How to Use This Tool
+      </p>
+      <div class="space-y-5 text-sm text-slate-600 leading-relaxed">
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">1</div>
+          <div><p class="font-bold text-slate-700 mb-1">Enter Species Name</p><p>Type the full binomial name (e.g. <em>Melissodes agilis</em>). Written into every row under <code class="bg-slate-100 px-1 rounded font-mono text-xs">speciesname</code>.</p></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">2</div>
+          <div><p class="font-bold text-slate-700 mb-1">Choose Data Source</p><p><strong>API:</strong> Type a taxon name, pick from the dropdown, set optional filters, convert.<br><br><strong>Upload:</strong> Download a DwC-A from <a href="https://www.gbif.org/occurrence/search" target="_blank" class="text-amber-600 hover:underline">gbif.org</a> and upload the .zip (or <code class="bg-slate-100 px-1 rounded font-mono text-xs">occurrence.txt</code>).</p></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">3</div>
+          <div><p class="font-bold text-slate-700 mb-1">Enable Geocoding</p><p>Tick <strong>Reverse-geocode missing locality</strong> to automatically fill in <code class="bg-slate-100 px-1 rounded font-mono text-xs">locality</code> from lat/lon for any record where it is empty, using BigDataCloud (free, no key).</p></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">4</div>
+          <div><p class="font-bold text-slate-700 mb-1">Data &amp; Export Tab</p><p>Interactive table — click rows to select, click column headers to select entire columns. Choose export scope (all / selected rows / selected columns / both) and format (CSV, TSV, TXT), then download or copy.</p></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">5</div>
+          <div><p class="font-bold text-slate-700 mb-1">Citations Tab</p><p>All contributing datasets are listed with their full citation text, DOI, and license. Use <strong>Copy In-text</strong> to get a formatted parenthetical citation string ready for your methods section (e.g. <em>Data derived from (Smith, 2021; Jones et al., 2023). Data licensed under CC BY 4.0.</em>). Use <strong>Copy All Citations</strong> for a numbered reference list, or download as .txt or .csv.</p></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">6</div>
+          <div><p class="font-bold text-slate-700 mb-1">Map &amp; Phenology Tab</p><p>All records with lat/lon are plotted on a Leaflet map with clustering. Below the map, a phenology chart shows the flight period by month.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="border-t border-slate-200 bg-white">
+  <div class="max-w-5xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-flask-vial text-slate-300"></i>
+      <span class="text-sm font-semibold text-slate-400">Science Resources</span>
+    </div>
+    <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
+      <p  class="transition-colors flex items-center gap-1.5">Created by - Frank Hogland
+© 2026-present. All Rights Reserved.</p>
+    </div>
+  </div>
+</footer>
+
+<!-- ── ALPINE DATA ────────────────────────────────────────────────────────── -->
+<script>
+const EXCLUDED_DATASET_KEYS = new Set([
+  '50c9509d-22c7-4a22-a47d-8c48425ef4a7',
+  '7f5e4129-0717-428e-876a-464fbd5d9a47',
+]);
+const EXCLUDED_PUBLISHERS = ['inaturalist','bugguide'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    loading: false, statusMsg: '', progress: 0, error: null,
+    log: [], outRows: [], stats: null,
+    geocodeTotal: 0, geocodeDone: 0, geoCache: {},
+
+    speciesName: '', dataSource: 'api', uploadedFile: null,
+    taxonSearch: '', taxonSearching: false, taxonSuggestions: [], selectedTaxon: null,
+    apiMaxRecords: '', apiCountry: 'US',
+
+    opts: {
+      reverseGeocode: true, dropNullCoords: false, dropNullDate: false,
+      combineNotes: true, buildDate: true, excludeINat: true
+    },
+
+    allColumns: [
+      {key:'speciesname', source:'user input'},
+      {key:'latitude',    source:'decimalLatitude'},
+      {key:'longitude',   source:'decimalLongitude'},
+      {key:'recordedby',  source:'recordedBy'},
+      {key:'datefound',   source:'year+month+day'},
+      {key:'determinedby',source:'identifiedBy'},
+      {key:'lifestage',   source:'lifeStage'},
+      {key:'sex',         source:'sex'},
+      {key:'notes',       source:'fieldNotes+eventRemarks'},
+      {key:'rights',      source:'accessRights/license'},
+      {key:'rightsholder',source:'rightsHolder'},
+      {key:'sourcelink',  source:'gbifID → URL'},
+      {key:'gbif_link',   source:'blank/manual'},
+      {key:'locality',    source:'county+state+country'},
+    ],
+    selectedColumns: ['speciesname','latitude','longitude','recordedby','datefound','determinedby','lifestage','sex','notes','rights','rightsholder','sourcelink','gbif_link','locality'],
+
+    // Table
+    tableSearch: '', tableOffset: 0, tablePageSize: 100,
+    selectedRows: new Set(), selectedCols: new Set(),
+    exportScope: 'all', exportFormat: 'csv',
+
+    // Map / Phenology
+    mapPoints: 0, _map: null,
+    phenologyData: {}, phenologyTotal: 0, _phenoChart: null,
+
+    // ── Citations ─────────────────────────────────────────────────────────
+    citationsData: [],
+    inTextPreview: '',
+    datasetInfoCache: {},
+
+    // ── helpers ────────────────────────────────────────────────────────────
+    selectAllCols(v) { this.selectedColumns = v ? this.allColumns.map(c=>c.key) : []; },
+    canRun() {
+      if (!this.speciesName.trim()) return false;
+      if (!this.selectedColumns.length) return false;
+      if (this.dataSource === 'api') return !!this.selectedTaxon;
+      return !!this.uploadedFile;
+    },
+    handleFileSelect(e) { const f = e.target.files[0]; if (f) this.uploadedFile = f; },
+    handleFileDrop(e) { const f = e.dataTransfer.files[0]; if (f && (f.name.endsWith('.zip')||f.name.endsWith('.txt'))) this.uploadedFile = f; },
+    formatBytes(b) { if (b<1024) return b+' B'; if (b<1048576) return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(1)+' MB'; },
+    addLog(msg, type='info') { this.log.push({msg,type}); if (this.log.length>300) this.log.shift(); },
+
+    // ── License normalizer ─────────────────────────────────────────────────
+    getLicense(url) {
+      if (!url) return 'CC BY 4.0';
+      if (url.startsWith('CC')) {
+        return url.replace(/_/g,' ').replace(/(\d)\s+(\d)/g,'$1.$2');
+      }
+      const u = url.toLowerCase();
+      if (u.includes('publicdomain/zero') || u.includes('cc0')) return 'CC0 1.0';
+      const parts = [];
+      if (u.includes('/by')) parts.push('BY');
+      if (u.includes('nc'))  parts.push('NC');
+      if (u.includes('sa'))  parts.push('SA');
+      const vm = u.match(/(\d\.\d)/);
+      const ver = vm ? ` ${vm[1]}` : ' 4.0';
+      return parts.length ? `CC ${parts.join('-')}${ver}` : 'Copyrighted';
+    },
+
+    // ── License summary computed ───────────────────────────────────────────
+    get licenseSummary() {
+      const counts = {};
+      for (const ds of this.citationsData) {
+        counts[ds.license] = (counts[ds.license] || 0) + 1;
+      }
+      return counts;
+    },
+
+    // ── Dataset metadata fetch ─────────────────────────────────────────────
+    async fetchDatasetInfo(datasetKey) {
+      if (!datasetKey) return null;
+      if (this.datasetInfoCache[datasetKey] !== undefined) return this.datasetInfoCache[datasetKey];
+      try {
+        const res = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) { this.datasetInfoCache[datasetKey] = null; return null; }
+        const d = await res.json();
+        const title = d.title || 'GBIF Dataset';
+        const doi = d.doi || null;
+        const doiUrl = doi ? `https://doi.org/${doi}` : null;
+        let citationText = d.citation?.text || null;
+        if (!citationText && doi) citationText = `${title} [Dataset]. GBIF. ${doiUrl}`;
+        if (!citationText) citationText = `${title} (via GBIF.org)`;
+        const licenseLabel = this.getLicense(d.license || '');
+        const info = { title, doi, doiUrl, license: licenseLabel, citation: citationText };
+        this.datasetInfoCache[datasetKey] = info;
+        return info;
+      } catch(e) {
+        this.datasetInfoCache[datasetKey] = null;
+        return null;
+      }
+    },
+
+    async preloadDatasetInfo(datasetKeys) {
+      const PARALLEL = 10;
+      const keys = [...new Set(datasetKeys)].filter(Boolean);
+      if (!keys.length) return;
+      this.addLog(`📚 Fetching metadata for ${keys.length} unique dataset(s)…`);
+      for (let i = 0; i < keys.length; i += PARALLEL) {
+        const batch = keys.slice(i, i + PARALLEL);
+        await Promise.all(batch.map(k => this.fetchDatasetInfo(k)));
+        if (i % 20 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+      const resolved = Object.values(this.datasetInfoCache).filter(Boolean).length;
+      this.addLog(`✅ Dataset metadata resolved (${resolved}/${keys.length} found)`, 'ok');
+    },
+
+    // ── Build citationsData from cache ─────────────────────────────────────
+    buildCitationsData(rawCiteLines, rightsMap) {
+      const seen = new Set();
+      const out = [];
+
+      // From GBIF API cache
+      for (const [key, info] of Object.entries(this.datasetInfoCache)) {
+        if (!info) continue;
+        const dedup = info.citation.trim();
+        if (seen.has(dedup)) continue;
+        seen.add(dedup);
+        out.push({ title: info.title, doi: info.doi || null, license: info.license, citation: info.citation });
+      }
+
+      // From ZIP citations.txt lines (fallback for anything not in cache)
+      if (rawCiteLines && rawCiteLines.length) {
+        for (const line of rawCiteLines) {
+          const l = line.trim();
+          if (!l || l.startsWith('When using')) continue;
+          if (seen.has(l)) continue;
+          seen.add(l);
+          const doiMatch = l.match(/doi\.org\/([^\s]+)/i);
+          out.push({
+            title: l.split(/[.(]/)[0].trim().slice(0,80) || 'GBIF Dataset',
+            doi: doiMatch ? doiMatch[1] : null,
+            license: 'CC BY 4.0',
+            citation: l
+          });
+        }
+      }
+
+      this.citationsData = out;
+      this.inTextPreview = this.buildInTextCitation(out);
+    },
+
+    // ── In-text citation builder (same logic as gbif-api.html) ────────────
+    parseInTextRef(citationText) {
+      if (!citationText) return { intext: '', year: 9999, sortKey: '' };
+      const yearMatch = citationText.match(/\((\d{4})\)/);
+      const year = yearMatch ? parseInt(yearMatch[1]) : 9999;
+      const authorPart = citationText.split(/\s*\(\d{4}\)/)[0].trim();
+      const parts = authorPart.split(',').map(s => s.trim()).filter(Boolean);
+      const isPersonal = parts.some(p => /\b[A-Z]{1,3}\s*$/.test(p));
+      let intext;
+      if (isPersonal) {
+        const lastNames = parts.map(p => p.trim().split(/\s+/)[0]);
+        if (lastNames.length === 1)      intext = `${lastNames[0]}, ${year}`;
+        else if (lastNames.length === 2) intext = `${lastNames[0]} & ${lastNames[1]}, ${year}`;
+        else                             intext = `${lastNames[0]} et al., ${year}`;
+      } else {
+        intext = year < 9999 ? `${authorPart}, ${year}` : authorPart;
+      }
+      const sortKey = `${year}_${authorPart.toLowerCase()}`;
+      return { intext, year, sortKey };
+    },
+
+    buildInTextCitation(items) {
+      if (!items || !items.length) return '';
+      const parsed = items.map(item => {
+        const citText = item.citation || '';
+        return { ...this.parseInTextRef(citText), license: item.license || 'CC BY 4.0' };
+      });
+      parsed.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
+      const refs = parsed.map(p => p.intext).filter(Boolean).join('; ');
+      const seenLicenses = new Set();
+      const licenses = [];
+      for (const p of parsed) {
+        const lic = (p.license || 'CC BY 4.0').trim();
+        if (lic && !seenLicenses.has(lic)) { seenLicenses.add(lic); licenses.push(lic); }
+      }
+      const licStr = licenses.join(' and ');
+      return `Data derived from (${refs}). Data licensed under ${licStr}.`;
+    },
+
+    // ── Citation copy / download actions ──────────────────────────────────
+    async copyCitations() {
+      if (!this.citationsData.length) return;
+      const text = this.citationsData.map((d, i) => `${i+1}. ${d.citation}`).join('\n\n');
+      try { await navigator.clipboard.writeText(text); this._flashBtn('btn-copy-all-cite'); } catch(e) { console.error(e); }
+    },
+
+    async copyInTextCitation() {
+      const text = this.inTextPreview;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        this._flashBtn('btn-intext-cite');
+        this._flashBtn('btn-intext-cite-2');
+      } catch(e) { console.error(e); }
+    },
+
+    async copySingleCitation(citText) {
+      if (!citText) return;
+      try { await navigator.clipboard.writeText(citText); } catch(e) {}
+      // Brief visual feedback — momentarily tint the body background
+      const flash = document.createElement('div');
+      flash.style.cssText = 'position:fixed;top:16px;right:16px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;z-index:9999;transition:opacity 0.4s';
+      flash.textContent = '✓ Citation copied';
+      document.body.appendChild(flash);
+      setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 400); }, 1800);
+    },
+
+    downloadCitationsTxt() {
+      if (!this.citationsData.length) return;
+      const lines = [
+        `Citations for: ${this.speciesName || 'species'}`,
+        '='.repeat(70), '',
+        'IN-TEXT CITATION:',
+        '-'.repeat(70),
+        this.inTextPreview,
+        '', '='.repeat(70), '',
+        'FULL REFERENCE LIST:',
+        '-'.repeat(70),
+        ...this.citationsData.map((d, i) => [
+          `${i+1}. ${d.title}`,
+          `   ${d.citation}`,
+          `   License: ${d.license}${d.doi ? ' · doi.org/' + d.doi : ''}`,
+          ''
+        ]).flat(),
+        `Total datasets: ${this.citationsData.length}`
+      ];
+      this._downloadText(lines.join('\n'), `${(this.speciesName||'species').replace(/\s+/g,'_')}_citations.txt`);
+    },
+
+    downloadCitationsCSV() {
+      if (!this.citationsData.length) return;
+      const esc = v => { const s = String(v||''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s; };
+      const lines = ['Title,Citation,License,DOI'];
+      for (const d of this.citationsData) {
+        lines.push([esc(d.title), esc(d.citation), esc(d.license), esc(d.doi||'')].join(','));
+      }
+      this._downloadText(lines.join('\n'), `${(this.speciesName||'species').replace(/\s+/g,'_')}_citations.csv`, 'text/csv');
+    },
+
+    _downloadText(content, filename, mime='text/plain') {
+      const blob = new Blob([content], { type: mime });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
+
+    // ── Taxon search ───────────────────────────────────────────────────────
+    async searchTaxon() {
+      const q = this.taxonSearch.trim();
+      if (!q || q.length < 2) { this.taxonSuggestions = []; return; }
+      this.taxonSearching = true;
+      try {
+        const url = `https://api.gbif.org/v1/species/suggest?q=${encodeURIComponent(q)}&limit=12&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`;
+        const res = await fetch(url);
+        const data = await res.json();
+        this.taxonSuggestions = data.filter(s => s.rank==='SPECIES'||s.rank==='SUBSPECIES').slice(0, 8);
+      } catch(e) { this.addLog('Taxon search error: '+e.message,'warn'); }
+      finally { this.taxonSearching = false; }
+    },
+    selectTaxon(s) {
+      this.selectedTaxon = s;
+      this.taxonSuggestions = [];
+      this.taxonSearch = s.canonicalName || s.scientificName;
+      if (!this.speciesName.trim()) this.speciesName = s.canonicalName || s.scientificName;
+      this.addLog(`✅ Selected: ${s.canonicalName} (key: ${s.key})`, 'ok');
+    },
+
+    // ── GBIF fetch ──────────────────────────────────────────────────────────
+    async fetchFromGBIF() {
+      const key = this.selectedTaxon.key;
+      const rawMax = parseInt(this.apiMaxRecords);
+      const maxRecs = (!this.apiMaxRecords||isNaN(rawMax)||rawMax<=0) ? 100000 : Math.min(rawMax, 100000);
+      const limit = 300; let offset = 0, all = [], totalCount = null;
+      this.addLog(`📡 Fetching occurrences for taxonKey=${key}…`);
+      const basisParams = '&basisOfRecord=PRESERVED_SPECIMEN&basisOfRecord=MATERIAL_SAMPLE&basisOfRecord=HUMAN_OBSERVATION';
+      while (all.length < maxRecs) {
+        const cp = this.apiCountry.trim() ? `&country=${encodeURIComponent(this.apiCountry.trim())}` : '';
+        const url = `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&limit=${limit}&offset=${offset}${basisParams}${cp}`;
+        this.statusMsg = `Fetching page ${Math.floor(offset/limit)+1}… (${all.length.toLocaleString()} so far)`;
+        this.progress = 10 + Math.min(40, Math.round((all.length/maxRecs)*40));
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`GBIF API returned ${res.status}`);
+        const data = await res.json();
+        if (totalCount === null) {
+          totalCount = data.count;
+          this.addLog(`📊 GBIF reports ${totalCount.toLocaleString()} matching records`, 'ok');
+          if (totalCount === 0) throw new Error('No occurrences found for this taxon with the current filters.');
+        }
+        const filtered = data.results.filter(r => {
+          if (EXCLUDED_DATASET_KEYS.has(r.datasetKey)) return false;
+          const pub = (r.publishingOrgKey||r.publisher||r.datasetName||'').toLowerCase();
+          return !EXCLUDED_PUBLISHERS.some(ex => pub.includes(ex));
+        });
+        all.push(...filtered);
+        this.addLog(`  Page ${Math.floor(offset/limit)+1}: +${filtered.length} (${data.results.length-filtered.length} excluded)`);
+        if (data.endOfRecords||data.results.length===0||all.length>=maxRecs) break;
+        offset += limit;
+        await new Promise(r => setTimeout(r, 80));
+      }
+      const capped = all.slice(0, maxRecs);
+      this.addLog(`✅ Fetched ${capped.length.toLocaleString()} records`, 'ok');
+      return capped;
+    },
+
+    parseTSV(text) {
+      const lines = text.split('\n');
+      if (lines.length < 2) return [];
+      const headers = lines[0].split('\t').map(h => h.trim());
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const vals = lines[i].split('\t');
+        const obj = {};
+        headers.forEach((h, j) => { const v = vals[j]!==undefined ? vals[j].trim() : ''; obj[h] = (v===''||v.toLowerCase()==='nan'||v.toLowerCase()==='null') ? null : v; });
+        rows.push(obj);
+      }
+      return rows;
+    },
+
+    normRow(r, isApi) {
+      if (!isApi) return r;
+      return {
+        gbifID:           String(r.gbifID||r.key||''),
+        datasetKey:       r.datasetKey || null,
+        decimalLatitude:  r.decimalLatitude  != null ? String(r.decimalLatitude)  : null,
+        decimalLongitude: r.decimalLongitude != null ? String(r.decimalLongitude) : null,
+        recordedBy:       r.recordedBy   || null,
+        year:             r.year   != null ? String(r.year)  : null,
+        month:            r.month  != null ? String(r.month) : null,
+        day:              r.day    != null ? String(r.day)   : null,
+        eventDate:        r.eventDate || null,
+        identifiedBy:     r.identifiedBy || null,
+        lifeStage:        r.lifeStage    || null,
+        sex:              r.sex          || null,
+        fieldNotes:       r.fieldNotes   || null,
+        eventRemarks:     r.eventRemarks || null,
+        accessRights:     r.license||r.accessRights || null,
+        rightsHolder:     r.rightsHolder || null,
+        county:           r.county        || null,
+        stateProvince:    r.stateProvince || null,
+        countryCode:      r.countryCode   || null,
+      };
+    },
+
+    async reverseGeocode(lat, lon) {
+      const key = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
+      if (this.geoCache[key] !== undefined) return this.geoCache[key];
+      try {
+        const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+        const res = await fetch(url, {signal: AbortSignal.timeout(6000)});
+        const d = await res.json();
+        const parts = [d.locality||d.city||'', d.principalSubdivision||'', d.countryName||''].filter(Boolean);
+        const result = parts.join(', ') || null;
+        this.geoCache[key] = result;
+        return result;
+      } catch { this.geoCache[key] = null; return null; }
+    },
+
+    buildRow(raw, isApi) {
+      const r = this.normRow(raw, isApi);
+      const get = k => r[k] || null;
+      let datefound = null;
+      if (this.opts.buildDate) {
+        const y = get('year'), mo = get('month'), d = get('day');
+        if (y && mo && d) datefound = `${String(y).padStart(4,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        else if (y && mo) datefound = `${y}-${String(mo).padStart(2,'0')}`;
+        else if (y) datefound = y;
+      } else datefound = get('eventDate');
+
+      let notes = null;
+      if (this.opts.combineNotes) {
+        const a = (get('fieldNotes')||'').trim(), b = (get('eventRemarks')||'').trim();
+        notes = [a, b].filter(Boolean).join(' ') || null;
+      } else notes = get('fieldNotes');
+
+      const parts = [get('county'), get('stateProvince'), get('countryCode')].filter(Boolean);
+      const locality = parts.length ? parts.join(', ') : null;
+      const gbifId = get('gbifID');
+
+      return {
+        speciesname:  this.speciesName.trim(),
+        latitude:     get('decimalLatitude'),
+        longitude:    get('decimalLongitude'),
+        recordedby:   get('recordedBy'),
+        datefound,
+        determinedby: get('identifiedBy'),
+        lifestage:    get('lifeStage'),
+        sex:          get('sex'),
+        notes,
+        rights:       get('accessRights'),
+        rightsholder: get('rightsHolder'),
+        sourcelink:   gbifId ? `https://www.gbif.org/occurrence/${gbifId}` : null,
+        gbif_link:    null,
+        locality,
+        // internals for map/phenology
+        _lat:   get('decimalLatitude'),
+        _lon:   get('decimalLongitude'),
+        _month: get('month'),
+      };
+    },
+
+    // ── MAIN RUN ────────────────────────────────────────────────────────────
+    async run() {
+      if (this.loading || !this.canRun()) return;
+      this.loading = true; this.error = null; this.log = [];
+      this.outRows = []; this.stats = null; this.progress = 0;
+      this.geoCache = {}; this.geocodeTotal = 0; this.geocodeDone = 0;
+      this.selectedRows = new Set(); this.selectedCols = new Set();
+      this.tableOffset = 0; this.phenologyData = {}; this.phenologyTotal = 0;
+      this.citationsData = []; this.inTextPreview = ''; this.datasetInfoCache = {};
+
+      try {
+        let rawRows = []; const isApi = this.dataSource === 'api';
+        let rawCiteLines = [], rightsMap = {};
+
+        if (isApi) {
+          rawRows = await this.fetchFromGBIF();
+          // Preload dataset metadata for all unique dataset keys
+          this.statusMsg = 'Fetching dataset citations & licences…'; this.progress = 55;
+          await new Promise(r => setTimeout(r, 0));
+          const allDatasetKeys = [...new Set(rawRows.map(r => r.datasetKey).filter(Boolean))];
+          await this.preloadDatasetInfo(allDatasetKeys);
+        } else {
+          this.statusMsg = 'Reading file…'; this.progress = 5;
+          const fn = this.uploadedFile.name;
+          const ab = await this.uploadedFile.arrayBuffer();
+          let tsvText;
+          if (fn.endsWith('.zip')) {
+            const zip = await JSZip.loadAsync(ab);
+            const occFile = zip.file('occurrence.txt');
+            if (!occFile) throw new Error('occurrence.txt not found in ZIP.');
+            this.addLog('✅ Found occurrence.txt in ZIP', 'ok');
+            tsvText = await occFile.async('string');
+
+            // Parse citations.txt
+            const citFile = zip.file('citations.txt');
+            if (citFile) {
+              const ct = await citFile.async('string');
+              rawCiteLines = ct.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('When using'));
+              this.addLog(`📄 Loaded ${rawCiteLines.length} citation lines from ZIP`, 'ok');
+            }
+
+            // Parse rights.txt
+            const rFile = zip.file('rights.txt');
+            if (rFile) {
+              const rt = await rFile.async('string');
+              const lines = rt.split('\n');
+              let curr = null;
+              for (const line of lines) {
+                if (line.startsWith('Dataset:')) curr = line.replace('Dataset:','').trim();
+                else if (line.startsWith('Rights as supplied:') && curr)
+                  rightsMap[curr] = this.getLicense(line.replace('Rights as supplied:','').trim());
+              }
+              this.addLog(`⚖ Loaded rights for ${Object.keys(rightsMap).length} datasets`, 'ok');
+            }
+          } else {
+            tsvText = new TextDecoder('utf-8').decode(ab);
+            this.addLog('✅ Loaded occurrence.txt', 'ok');
+          }
+          this.statusMsg = 'Parsing TSV…'; this.progress = 20;
+          rawRows = this.parseTSV(tsvText);
+          this.addLog(`📊 Parsed ${rawRows.length.toLocaleString()} raw records`, 'ok');
+          if (this.opts.excludeINat) {
+            const before = rawRows.length;
+            rawRows = rawRows.filter(r => {
+              if (EXCLUDED_DATASET_KEYS.has(r.datasetKey)) return false;
+              const pub = (r.datasetName||r.institutionCode||'').toLowerCase();
+              return !EXCLUDED_PUBLISHERS.some(ex => pub.includes(ex));
+            });
+            this.addLog(`🚫 Excluded ${(before - rawRows.length).toLocaleString()} iNat/BugGuide`, 'warn');
+          }
+          // Also preload dataset metadata for ZIP rows (fills in anything citations.txt missed)
+          this.statusMsg = 'Resolving dataset metadata…'; this.progress = 28;
+          const zipDatasetKeys = [...new Set(rawRows.map(r => r.datasetKey).filter(Boolean))];
+          await this.preloadDatasetInfo(zipDatasetKeys);
+        }
+
+        this.progress = 62; this.statusMsg = 'Building rows…';
+        await new Promise(r => setTimeout(r, 0));
+        let dropped = 0; const built = [];
+
+        for (let i = 0; i < rawRows.length; i++) {
+          if (i % 200 === 0) {
+            this.progress = 62 + Math.round((i / rawRows.length) * 20);
+            this.statusMsg = `Processing ${i.toLocaleString()} / ${rawRows.length.toLocaleString()}…`;
+            await new Promise(r => setTimeout(r, 0));
+          }
+          const norm = this.normRow(rawRows[i], isApi);
+          if (this.opts.dropNullCoords && !norm.decimalLatitude && !norm.decimalLongitude) { dropped++; continue; }
+          if (this.opts.dropNullDate   && !norm.year && !norm.month && !norm.day && !norm.eventDate) { dropped++; continue; }
+          built.push(this.buildRow(rawRows[i], isApi));
+        }
+        this.addLog(`✅ ${built.length.toLocaleString()} rows built · ${dropped} dropped`, 'ok');
+
+        // Geocoding
+        let geocoded = 0;
+        if (this.opts.reverseGeocode) {
+          const needsGeo = built.filter(r => {
+            const la = parseFloat(r._lat), lo = parseFloat(r._lon);
+            return !isNaN(la) && !isNaN(lo) && !r.locality;
+          });
+          if (needsGeo.length) {
+            this.geocodeTotal = needsGeo.length; this.geocodeDone = 0;
+            this.addLog(`🌍 Reverse geocoding ${needsGeo.length} records missing locality…`);
+            this.progress = 84;
+            const BATCH = 8;
+            for (let i = 0; i < needsGeo.length; i += BATCH) {
+              const batch = needsGeo.slice(i, i + BATCH);
+              await Promise.all(batch.map(async row => {
+                const loc = await this.reverseGeocode(parseFloat(row._lat), parseFloat(row._lon));
+                if (loc) { row.locality = loc; geocoded++; }
+                this.geocodeDone++;
+              }));
+              await new Promise(r => setTimeout(r, 0));
+            }
+            this.addLog(`✅ Geocoded ${geocoded} records`, 'ok');
+          }
+        }
+
+        // Phenology
+        const pheno = {};
+        for (const row of built) {
+          const mo = parseInt(row._month);
+          if (!isNaN(mo) && mo >= 1 && mo <= 12) {
+            const mName = MONTH_NAMES[mo - 1];
+            pheno[mName] = (pheno[mName] || 0) + 1;
+          }
+        }
+        const phenoTotal = Object.values(pheno).reduce((a,b) => a+b, 0);
+        const phenoFinal = {};
+        for (const m of MONTH_NAMES) {
+          if (pheno[m] !== undefined)
+            phenoFinal[m] = { count: pheno[m], percentage: phenoTotal > 0 ? parseFloat(((pheno[m]/phenoTotal)*100).toFixed(1)) : 0 };
+        }
+        this.phenologyData = phenoFinal;
+        this.phenologyTotal = phenoTotal;
+
+        // Build citations
+        this.buildCitationsData(rawCiteLines, rightsMap);
+        this.addLog(`📚 Citations built: ${this.citationsData.length} dataset(s)`, 'ok');
+
+        this.outRows = built;
+        const csvStr = this.serializeRows(built, this.selectedColumns, 'csv');
+        const sizeKb = new Blob([csvStr]).size / 1024;
+        const sizeStr = sizeKb > 1024 ? (sizeKb/1024).toFixed(1)+' MB' : sizeKb.toFixed(1)+' KB';
+        this.stats = { total: rawRows.length, exported: built.length, dropped, geocoded, cols: this.selectedColumns.length, size: sizeStr };
+        this.progress = 100; this.statusMsg = 'Done!';
+        this.addLog(`🎉 Done! ${built.length.toLocaleString()} rows · ${this.selectedColumns.length} cols · ${sizeStr} · ${this.citationsData.length} datasets cited`, 'ok');
+        setTimeout(() => { this.buildMap(); this.renderPhenologyChart(); }, 200);
+
+      } catch(e) {
+        this.error = e.message; this.addLog('❌ '+e.message,'warn'); this.progress = 0; console.error(e);
+      } finally { this.loading = false; }
+    },
+
+    // ── Table helpers ───────────────────────────────────────────────────────
+    get filteredRows() {
+      if (!this.tableSearch.trim()) return this.outRows;
+      const q = this.tableSearch.toLowerCase();
+      return this.outRows.filter(r => this.selectedColumns.some(c => r[c] && String(r[c]).toLowerCase().includes(q)));
+    },
+    getRowId(row) { return row.sourcelink || (row.latitude+'|'+row.longitude+'|'+row.datefound+'|'+row.recordedby); },
+    toggleRowSelection(row) { const id = this.getRowId(row); const s = new Set(this.selectedRows); if (s.has(id)) s.delete(id); else s.add(id); this.selectedRows = s; },
+    toggleColSelection(col) { const s = new Set(this.selectedCols); if (s.has(col)) s.delete(col); else s.add(col); this.selectedCols = s; },
+    toggleAllRows() { if (this.selectedRows.size === this.outRows.length) this.selectedRows = new Set(); else this.selectedRows = new Set(this.outRows.map(r => this.getRowId(r))); },
+    selectAllRows() { this.selectedRows = new Set(this.outRows.map(r => this.getRowId(r))); },
+    clearSelection() { this.selectedRows = new Set(); this.selectedCols = new Set(); },
+
+    // ── Serialise ──────────────────────────────────────────────────────────
+    serializeRows(rows, cols, fmt) {
+      const sep = fmt === 'tsv' ? '\t' : ',';
+      const esc = (v, tsv) => { if (v==null) return ''; const s = String(v); if (tsv) return s.replace(/\t/g,' '); if (s.includes(',')||s.includes('"')||s.includes('\n')) return `"${s.replace(/"/g,'""')}"`; return s; };
+      const isTsv = fmt === 'tsv';
+      const lines = [cols.join(sep)];
+      for (const r of rows) lines.push(cols.map(c => esc(r[c], isTsv)).join(sep));
+      return lines.join('\n');
+    },
+
+    getExportRows() {
+      let rows = this.outRows, cols = [...this.selectedColumns];
+      if (this.exportScope==='selected_rows'||this.exportScope==='selection') rows = rows.filter(r => this.selectedRows.has(this.getRowId(r)));
+      if (this.exportScope==='selected_cols'||this.exportScope==='selection') cols = cols.filter(c => this.selectedCols.has(c));
+      return { rows, cols };
+    },
+    downloadExport() {
+      const { rows, cols } = this.getExportRows();
+      const content = this.serializeRows(rows, cols, this.exportFormat);
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const safe = (this.speciesName||'species').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+      a.download = `${safe}_gbif.${this.exportFormat}`;
+      a.click(); URL.revokeObjectURL(a.href);
+    },
+    async copyExport() {
+      const { rows, cols } = this.getExportRows();
+      const content = this.serializeRows(rows, cols, this.exportFormat);
+      try { await navigator.clipboard.writeText(content); this._flashBtn('btn-copy-export'); } catch(e) { console.error(e); }
+    },
+    _flashBtn(id) {
+      const btn = document.getElementById(id); if (!btn) return;
+      const orig = btn.innerHTML; btn.classList.add('copied');
+      btn.innerHTML = '<i class="fa-solid fa-check mr-1 text-[10px]"></i>Copied!';
+      setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = orig; }, 2000);
+    },
+
+    // ── Map ────────────────────────────────────────────────────────────────
+    buildMap() {
+      const container = document.getElementById('dist-map');
+      if (!container) return;
+      const points = this.outRows.filter(r => { const la = parseFloat(r._lat), lo = parseFloat(r._lon); return !isNaN(la) && !isNaN(lo); });
+      this.mapPoints = points.length;
+      if (!points.length) return;
+
+      if (this._map) { this._map.remove(); this._map = null; }
+      const map = L.map('dist-map', { preferCanvas: true });
+      this._map = map;
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18
+      }).addTo(map);
+
+      const markers = L.markerClusterGroup({
+        chunkedLoading: true, maxClusterRadius: 50,
+        iconCreateFunction: cluster => {
+          const c = cluster.getChildCount();
+          const sz = c < 10 ? 30 : c < 100 ? 36 : c < 1000 ? 42 : 48;
+          return L.divIcon({
+            html: `<div style="width:${sz}px;height:${sz}px;background:#d97706;border:2px solid #92400e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-family:'Courier New',monospace;font-size:${c<100?11:9}px;font-weight:900;box-shadow:0 2px 6px rgba(0,0,0,.25)">${c}</div>`,
+            className: '', iconSize: [sz,sz], iconAnchor: [sz/2,sz/2]
+          });
+        }
+      });
+
+      const icon = L.divIcon({
+        html: `<div style="width:10px;height:10px;background:#d97706;border:2px solid #92400e;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>`,
+        className: '', iconSize: [10,10], iconAnchor: [5,5]
+      });
+
+      for (const r of points) {
+        const la = parseFloat(r._lat), lo = parseFloat(r._lon);
+        const popup = `<div style="font-family:'Courier New',monospace;font-size:11px;line-height:1.6">
+          <b style="font-style:italic">${this.speciesName||'Species'}</b><br>
+          ${r.locality ? '<span style="color:#64748b">'+r.locality+'</span><br>' : ''}
+          ${r.datefound ? '📅 '+r.datefound+'<br>' : ''}
+          ${r.recordedby ? '👤 '+r.recordedby+'<br>' : ''}
+          ${r.sourcelink ? '<a href="'+r.sourcelink+'" target="_blank" style="color:#d97706">GBIF record ↗</a>' : ''}
+        </div>`;
+        L.marker([la, lo], {icon}).bindPopup(popup).addTo(markers);
+      }
+      map.addLayer(markers);
+
+      const lats = points.map(r => parseFloat(r._lat));
+      const lons = points.map(r => parseFloat(r._lon));
+      map.fitBounds([[Math.min(...lats),Math.min(...lons)],[Math.max(...lats),Math.max(...lons)]], {padding:[30,30], maxZoom:10});
+    },
+
+    // ── Phenology chart ────────────────────────────────────────────────────
+    renderPhenologyChart() {
+      const canvas = document.getElementById('phenologyChart');
+      if (!canvas || !this.phenologyTotal) return;
+      if (this._phenoChart) { this._phenoChart.destroy(); this._phenoChart = null; }
+
+      const labels = Object.keys(this.phenologyData);
+      const counts = labels.map(m => this.phenologyData[m].count);
+
+      this._phenoChart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            data: counts,
+            backgroundColor: 'rgba(251,191,36,0.65)',
+            borderColor: '#d97706',
+            borderWidth: 1.5,
+            borderRadius: 4,
+            borderSkipped: false,
+            hoverBackgroundColor: 'rgba(217,119,6,0.8)'
+          }]
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#94a3b8',
+              bodyColor: '#f8fafc',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 10,
+              callbacks: {
+                label: ctx => `  ${ctx.parsed.y} records (${this.phenologyData[ctx.label]?.percentage || 0}%)`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { font: { size: 11, style: 'italic', family: 'Georgia, serif' }, color: '#334155' },
+              grid: { display: false },
+              border: { display: false }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { precision: 0, font: { size: 10, family: "'Courier New', monospace" }, color: '#94a3b8' },
+              grid: { color: '#f1f5f9', drawBorder: false },
+              border: { display: false }
+            }
+          }
+        }
+      });
+    },
+
+    async copyPhenologyCSV() {
+      if (!this.phenologyTotal) return;
+      const header = 'Month,Count,Percentage';
+      const rows = Object.entries(this.phenologyData).map(([m,d]) => `${m},${d.count},${d.percentage}`);
+      try { await navigator.clipboard.writeText([header,...rows].join('\n')); this._flashBtn('btn-copy-pheno'); } catch(e) { console.error(e); }
+    },
+
+    downloadPhenologyCSV() {
+      if (!this.phenologyTotal) return;
+      const lines = ['Month,Count,Percentage', ...Object.entries(this.phenologyData).map(([m,d]) => `${m},${d.count},${d.percentage}`)];
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const safe = (this.speciesName||'species').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+      a.download = `${safe}_phenology.csv`;
+      a.click(); URL.revokeObjectURL(a.href);
+    },
+  }));
+});
+
+const PANELS = ['convert','data','map','citations','guide'];
+function showTab(name) {
+  PANELS.forEach(id => {
+    const panel = document.getElementById('panel-'+id);
+    const tab   = document.getElementById('tab-'+id);
+    if (id === name) { panel.classList.remove('hidden'); tab.classList.remove('tab-inactive'); tab.classList.add('tab-active'); }
+    else             { panel.classList.add('hidden');    tab.classList.remove('tab-active');   tab.classList.add('tab-inactive'); }
+  });
+  if (name === 'map') {
+    setTimeout(() => {
+      const app = Alpine.$data(document.querySelector('[x-data="app"]'));
+      if (!app) return;
+      if (app.outRows.length) {
+        if (!app._map) app.buildMap();
+        else app._map.invalidateSize();
+        if (app.phenologyTotal > 0) app.renderPhenologyChart();
+      }
+    }, 80);
+  }
+}
+</script>
+</body>
+</html>
