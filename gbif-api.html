@@ -804,24 +804,41 @@
               <p class="text-[11px] text-slate-700 leading-relaxed font-mono" x-text="analyzeResults.taxaListPreview"></p>
             </div>
             <!-- Individual taxa rows -->
-            <div class="space-y-0 divide-y divide-slate-50 max-h-96 overflow-y-auto border border-slate-100 rounded-lg">
+            <div class="space-y-0 divide-y divide-slate-50 max-h-[600px] overflow-y-auto border border-slate-100 rounded-lg">
               <template x-for="(name, idx) in analyzeResults.sortedTaxaNames" :key="name">
-                <div class="flex items-start gap-3 px-4 py-2.5 hover:bg-amber-50 transition-colors">
-                  <span class="text-[10px] font-black font-mono text-slate-300 w-6 shrink-0 mt-0.5 text-right" x-text="(idx+1) + '.'"></span>
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                      <span class="italic text-sm font-semibold text-slate-800" x-text="name"></span>
-                      <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].is_synonym">
-                        <span class="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide shrink-0">old synonym</span>
-                      </template>
-                    </div>
-                    <div class="flex items-center gap-3 mt-0.5 flex-wrap" x-show="analyzeResults.taxaFirstOcc[name]">
-                      <span class="text-[10px] text-slate-400 truncate max-w-xs" x-text="analyzeResults.taxaFirstOcc[name] ? analyzeResults.taxaFirstOcc[name].intextRef : ''"></span>
-                      <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].gbifID">
-                        <a :href="'https://www.gbif.org/occurrence/' + analyzeResults.taxaFirstOcc[name].gbifID"
-                          target="_blank"
-                          class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono shrink-0"
-                          x-text="'GBIF ' + analyzeResults.taxaFirstOcc[name].gbifID"></a>
+                <div class="px-4 py-3 hover:bg-amber-50 transition-colors">
+                  <div class="flex items-start gap-3">
+                    <span class="text-[10px] font-black font-mono text-slate-300 w-6 shrink-0 mt-0.5 text-right" x-text="(idx+1) + '.'"></span>
+                    <div class="flex-1 min-w-0">
+                      <!-- Taxon name + synonym badge -->
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="italic text-sm font-semibold text-slate-800" x-text="name"></span>
+                        <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].is_synonym">
+                          <span class="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide shrink-0">old synonym</span>
+                        </template>
+                      </div>
+                      <!-- Citation + GBIF link row -->
+                      <div class="flex items-center gap-3 mt-0.5 flex-wrap" x-show="analyzeResults.taxaFirstOcc[name]">
+                        <span class="text-[10px] text-slate-400" x-text="analyzeResults.taxaFirstOcc[name] ? analyzeResults.taxaFirstOcc[name].intextRef : ''"></span>
+                        <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].gbifID">
+                          <a :href="'https://www.gbif.org/occurrence/' + analyzeResults.taxaFirstOcc[name].gbifID"
+                            target="_blank"
+                            class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono shrink-0"
+                            x-text="'GBIF ' + analyzeResults.taxaFirstOcc[name].gbifID"></a>
+                        </template>
+                      </div>
+                      <!-- Verbatim extraction source string -->
+                      <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].verbatimText">
+                        <div class="mt-1.5 bg-slate-50 border border-slate-100 rounded-md px-2.5 py-1.5">
+                          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                            <i class="fa-solid fa-quote-left mr-1 opacity-50"></i>Extracted from
+                            <template x-if="analyzeResults.taxaFirstOcc[name].originalQuery">
+                              <span> · matched as <em class="text-amber-600 not-italic font-mono" x-text="analyzeResults.taxaFirstOcc[name].originalQuery"></em></span>
+                            </template>
+                          </p>
+                          <p class="text-[10px] text-slate-500 font-mono leading-relaxed break-words whitespace-pre-wrap line-clamp-4"
+                            x-text="analyzeResults.taxaFirstOcc[name].verbatimText"></p>
+                        </div>
                       </template>
                     </div>
                   </div>
@@ -2016,6 +2033,7 @@ document.addEventListener('alpine:init', () => {
         if (!(occ?.ecology?.extracted_floral_hosts?.length)) continue;
         const citText = occ?.citation?.text || '';
         const gbifID  = occ?.gbifID || '';
+        const verbatim = (occ?.ecology?.notes || '').trim();
         for (const h of occ.ecology.extracted_floral_hosts) {
           const name = h.canonical_name ||
             (h.accepted_genus && h.accepted_species && h.accepted_species !== 'sp.'
@@ -2030,7 +2048,9 @@ document.addEventListener('alpine:init', () => {
               gbifLink: gbifID ? `https://www.gbif.org/occurrence/${gbifID}` : '',
               citationText: citText,
               intextRef: intext,
-              is_synonym: h.is_synonym || false
+              is_synonym: h.is_synonym || false,
+              verbatimText: verbatim || null,
+              originalQuery: h.original_query || null
             };
           }
         }
