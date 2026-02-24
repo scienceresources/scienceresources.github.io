@@ -430,6 +430,14 @@
     
     <style>
         [x-cloak] { display: none !important; }
+
+        /* ── Back arrow responsive behaviour (matches Bear DNA Sequencer) ── */
+        .back-arrow-desktop { display: none; }
+        .back-arrow-mobile  { display: flex; }
+        @media (min-width: 1122px) {
+            .back-arrow-desktop { display: flex; }
+            .back-arrow-mobile  { display: none; }
+        }
         
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -437,12 +445,12 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         .couplet-card {
-            transition: all 0.2s ease-in-out;
-            border-left: 4px solid transparent;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
         }
         .couplet-card:hover {
-            border-left: 4px solid #3b82f6;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 16px 32px -8px rgba(0,0,0,0.1);
+            border-color: #86efac !important;
         }
         
         .add-couplet-btn {
@@ -478,75 +486,95 @@
 
     <!-- Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
-            <div class="flex items-center gap-3">
-                <div class="bg-green-100 p-2 rounded-lg">
-                    <i class="fa-solid fa-leaf text-green-600 text-xl"></i>
+
+        <!-- Mobile back arrow: stacks above title row (hidden above 1122px) -->
+        <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+            <a href="dna-index.html"
+               class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+                <i class="fa-solid fa-arrow-left text-xs"></i>Back
+            </a>
+        </div>
+
+        <!-- Title row (relative so desktop arrow can be pinned absolutely) -->
+        <div class="relative">
+
+            <!-- Desktop back arrow: icon button pinned to left edge (visible above 1122px) -->
+            <a href="dna-index.html"
+               class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+                <i class="fa-solid fa-arrow-left text-sm"></i>
+            </a>
+
+            <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-green-100 p-2 rounded-lg">
+                        <i class="fa-solid fa-leaf text-green-600 text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-slate-900 leading-tight">BioKey Builder</h1>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Dichotomous Constructor</p>
+                    </div>
                 </div>
-                <div>
-                    <h1 class="text-lg font-bold text-slate-900 leading-tight">BioKey Builder</h1>
-                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Dichotomous Constructor</p>
-                </div>
-            </div>
-            
-            <div class="flex flex-wrap gap-2 items-center">
-                <!-- Undo/Redo buttons -->
-                <button 
-                    @click="undo()" 
-                    :disabled="!canUndo()"
-                    :class="canUndo() ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed'"
-                    class="p-2 rounded-lg transition-colors"
-                    title="Undo (Ctrl+Z)"
-                >
-                    <i class="fa-solid fa-rotate-left"></i>
-                </button>
                 
-                <button 
-                    @click="redo()" 
-                    :disabled="!canRedo()"
-                    :class="canRedo() ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed'"
-                    class="p-2 rounded-lg transition-colors"
-                    title="Redo (Ctrl+Shift+Z)"
-                >
-                    <i class="fa-solid fa-rotate-right"></i>
-                </button>
-
-                <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
-                
-                <label class="cursor-pointer bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
-                    <i class="fa-solid fa-file-import"></i> Import
-                    <input type="file" accept=".json" @change="importJSON($event)" class="hidden">
-                </label>
-                
-                <button @click="exportJSON()" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
-                    <i class="fa-solid fa-file-arrow-down"></i> Save File
-                </button>
-
-                <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
-
-                <button @click="confirmReset()" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Clear All">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
-                
-                <div class="flex items-center gap-2">
-                    <select x-model="outputStyle" class="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer focus:ring-2 focus:ring-blue-500 outline-none">
-                        <option value="numbered">Numbered (Traditional)</option>
-                        <option value="standard">Standard (with parentheses)</option>
-                        <option value="lettered">Lettered (1a/1b)</option>
-                        <option value="botanical">Botanical (dots)</option>
-                    </select>
+                <div class="flex flex-wrap gap-2 items-center">
+                    <!-- Undo/Redo buttons -->
+                    <button 
+                        @click="undo()" 
+                        :disabled="!canUndo()"
+                        :class="canUndo() ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed'"
+                        class="p-2 rounded-lg transition-colors"
+                        title="Undo (Ctrl+Z)"
+                    >
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
                     
                     <button 
-                        @click="copyToClipboard()" 
-                        :class="copyButtonState === 'copied' ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-800 hover:bg-slate-900'"
-                        class="px-4 py-2 text-white rounded-lg shadow-sm transition-all flex items-center gap-2 text-sm font-bold"
+                        @click="redo()" 
+                        :disabled="!canRedo()"
+                        :class="canRedo() ? 'text-slate-600 hover:bg-slate-100' : 'text-slate-300 cursor-not-allowed'"
+                        class="p-2 rounded-lg transition-colors"
+                        title="Redo (Ctrl+Shift+Z)"
                     >
-                        <i :class="copyButtonState === 'copied' ? 'fa-solid fa-circle-check' : 'fa-solid fa-copy'"></i>
-                        <span x-text="copyButtonState === 'copied' ? 'Copied!' : 'Copy Text'"></span>
+                        <i class="fa-solid fa-rotate-right"></i>
                     </button>
+
+                    <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+                    
+                    <label class="cursor-pointer bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-file-import"></i> Import
+                        <input type="file" accept=".json" @change="importJSON($event)" class="hidden">
+                    </label>
+                    
+                    <button @click="exportJSON()" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-file-arrow-down"></i> Save File
+                    </button>
+
+                    <div class="h-6 w-[1px] bg-slate-200 mx-1"></div>
+
+                    <button @click="confirmReset()" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Clear All">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                    
+                    <div class="flex items-center gap-2">
+                        <select x-model="outputStyle" class="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer focus:ring-2 focus:ring-green-500 outline-none">
+                            <option value="numbered">Numbered (Traditional)</option>
+                            <option value="standard">Standard (with parentheses)</option>
+                            <option value="lettered">Lettered (1a/1b)</option>
+                            <option value="botanical">Botanical (dots)</option>
+                        </select>
+                        
+                        <button 
+                            @click="copyToClipboard()" 
+                            :class="copyButtonState === 'copied' ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-800 hover:bg-slate-900'"
+                            class="px-4 py-2 text-white rounded-lg shadow-sm transition-all flex items-center gap-2 text-sm font-bold"
+                        >
+                            <i :class="copyButtonState === 'copied' ? 'fa-solid fa-circle-check' : 'fa-solid fa-copy'"></i>
+                            <span x-text="copyButtonState === 'copied' ? 'Copied!' : 'Copy Text'"></span>
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+
+        </div><!-- /relative title row -->
     </header>
 
     <!-- Main Content -->
@@ -558,20 +586,20 @@
                     <!-- Add couplet divider (between couplets) -->
                     <div x-show="index > 0" class="divider-container flex items-center gap-4 py-3">
                         <div class="divider-line"></div>
-                        <button @click="insertCouplet(index)" class="add-couplet-btn bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-all hover:scale-110">
+                        <button @click="insertCouplet(index)" class="add-couplet-btn bg-green-500 hover:bg-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-all hover:scale-110">
                             <i class="fa-solid fa-plus"></i>
                         </button>
                         <div class="divider-line"></div>
                     </div>
 
                     <!-- Couplet card -->
-                    <div class="couplet-card bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <div class="couplet-card bg-white rounded-xl shadow-sm border-2 border-slate-200 p-5">
                         <div class="flex justify-between items-start mb-4 border-b border-slate-100 pb-3">
                             <div class="flex items-center gap-3">
                                 <span class="bg-slate-100 text-slate-800 font-black rounded-lg w-10 h-10 flex items-center justify-center text-xl shadow-inner border border-slate-200" x-text="index + 1"></span>
                                 <div class="flex flex-col">
                                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Couplet</span>
-                                    <span class="text-xs font-mono text-blue-500 font-bold" x-text="getParentRef(couplet.id)"></span>
+                                    <span class="text-xs font-mono text-green-500 font-bold" x-text="getParentRef(couplet.id)"></span>
                                 </div>
                             </div>
                             <button @click="confirmDelete(index)" class="text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition-all">
@@ -590,7 +618,7 @@
                                     x-model="couplet.leadA.text" 
                                     @input="onTextInput()"
                                     placeholder="Characteristic of first path..." 
-                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24 transition-all"
+                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none resize-none h-24 transition-all"
                                 ></textarea>
                                 
                                 <div class="space-y-2">
@@ -630,7 +658,7 @@
                                     x-model="couplet.leadB.text" 
                                     @input="onTextInput()"
                                     placeholder="Alternative characteristic..." 
-                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none h-24 transition-all"
+                                    class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none resize-none h-24 transition-all"
                                 ></textarea>
 
                                 <div class="space-y-2">
@@ -667,7 +695,7 @@
             <!-- Add button at the bottom (after last couplet) -->
             <div class="divider-container flex items-center gap-4 py-3">
                 <div class="divider-line"></div>
-                <button @click="addCouplet()" class="add-couplet-btn bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-all hover:scale-110">
+                <button @click="addCouplet()" class="add-couplet-btn bg-green-500 hover:bg-green-600 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-all hover:scale-110">
                     <i class="fa-solid fa-plus"></i>
                 </button>
                 <div class="divider-line"></div>
@@ -699,7 +727,7 @@
         >
             <div class="p-6">
                 <div class="flex items-center gap-4 mb-4">
-                    <div :class="modal.isDanger ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0">
+                    <div :class="modal.isDanger ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'" class="w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0">
                         <i :class="modal.isDanger ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-question'"></i>
                     </div>
                     <h3 class="text-xl font-bold text-slate-900" x-text="modal.title"></h3>
@@ -707,7 +735,7 @@
                 <p class="text-slate-600 leading-relaxed mb-6" x-text="modal.message"></p>
                 <div class="flex gap-3 justify-end">
                     <button @click="modal.show = false" class="px-4 py-2 rounded-lg font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancel</button>
-                    <button @click="modal.onConfirm" :class="modal.isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'" class="px-6 py-2 rounded-lg font-bold text-white shadow-lg transition-all" x-text="modal.confirmText"></button>
+                    <button @click="modal.onConfirm" :class="modal.isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'" class="px-6 py-2 rounded-lg font-bold text-white shadow-lg transition-all" x-text="modal.confirmText"></button>
                 </div>
             </div>
         </div>
