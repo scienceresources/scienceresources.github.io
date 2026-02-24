@@ -38,7 +38,326 @@
       return seq.split('').reverse().map(b => m[b]||b).join('');
     }
 
-    // ── SEMI-GLOBAL OVERLAP ALIGNER ─────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // WEB WORKER — all CPU-heavy work runs off the main thread
+    // Built as a Blob URL so no separate file is needed.
+    // ══════════════════════════════════════════════════════════════════════════
+    const WORKER_SRC = `
+'use strict';
+
+// ── Codon table 5 (Invertebrate Mitochondrial) ──────────────────────────────
+const AAS   = "FFLLSSSSYY**CCWWLLLLPPPPHHQQRRRRIIMMTTTTNNKKSSSSVVVVAAAADDEEGGGG";
+const BASE1 = "TTTTTTTTTTTTTTTTCCCCCCCCCCCCCCCCAAAAAAAAAAAAAAAAGGGGGGGGGGGGGGGG";
+const BASE2 = "TTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGGTTTTCCCCAAAAGGGG";
+const BASE3 = "TCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAGTCAG";
+const CODON_MAP = {};
+for (let i = 0; i < 64; i++) CODON_MAP[BASE1[i]+BASE2[i]+BASE3[i]] = AAS[i];
+
+function reverseComplement(seq) {
+  const m = {A:'T',T:'A',C:'G',G:'C',N:'N'};
+  return seq.split('').reverse().map(b => m[b]||b).join('');
+}
+
+// ── K-mer index for fast pre-filtering ──────────────────────────────────────
+const K = 8;
+function kmerSet(seq) {
+  const s = new Set();
+  for (let i = 0; i <= seq.length - K; i++) s.add(seq.slice(i, i+K));
+  return s;
+}
+function kmerScore(queryKmers, ref) {
+  let hits = 0;
+  for (let i = 0; i <= ref.length - K; i++) {
+    if (queryKmers.has(ref.slice(i, i+K))) hits++;
+  }
+  return hits;
+}
+
+// ── Sliding-window identity ──────────────────────────────────────────────────
+function slideIdentity(query, ref) {
+  const maxOff = Math.min(80, Math.abs(query.length - ref.length) + 30);
+  let bestId = -1, bestQs = 0, bestRs = 0, bestLen = 0;
+  for (let off = -maxOff; off <= maxOff; off++) {
+    let matches = 0, total = 0;
+    const qs = Math.max(0, off), rs = Math.max(0, -off);
+    const len = Math.min(query.length - qs, ref.length - rs);
+    if (len < 50) continue;
+    for (let i = 0; i < len; i++) {
+      const q = query[qs+i], r = ref[rs+i];
+      if (q !== 'N' && r !== 'N') { total++; if (q === r) matches++; }
+    }
+    const id = total > 0 ? matches / total : 0;
+    if (id > bestId) { bestId = id; bestQs = qs; bestRs = rs; bestLen = len; }
+  }
+  return { identity: bestId * 100, qstart: bestQs, rstart: bestRs, ovLen: bestLen };
+}
+
+// ── DP overlap aligner ───────────────────────────────────────────────────────
+function alignOverlap(s1, s2) {
+  const MATCH = 2, MISMATCH = -1, GAP = -2;
+  const m = s1.length, n = s2.length;
+  if (m > 1400 || n > 1400) return alignOverlapFast(s1, s2);
+  const H   = Array.from({length: m+1}, () => new Int32Array(n+1));
+  const ptr = Array.from({length: m+1}, () => new Uint8Array(n+1));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const diag = H[i-1][j-1] + (s1[i-1]===s2[j-1] ? MATCH : MISMATCH);
+      const up   = H[i-1][j] + GAP;
+      const left = H[i][j-1] + GAP;
+      if (diag >= up && diag >= left) { H[i][j] = diag; ptr[i][j] = 1; }
+      else if (up >= left)            { H[i][j] = up;   ptr[i][j] = 2; }
+      else                            { H[i][j] = left; ptr[i][j] = 3; }
+    }
+  }
+  let best = -Infinity, ei = m, ej = n;
+  for (let j = 0; j <= n; j++) if (H[m][j] > best) { best = H[m][j]; ei = m; ej = j; }
+  for (let i = 0; i <= m; i++) if (H[i][n] > best) { best = H[i][n]; ei = i; ej = n; }
+  let al1='', al2='', mLine='';
+  let i = ei, j = ej;
+  while (i > 0 && j > 0) {
+    const p = ptr[i][j];
+    if (p===1) { al1=s1[i-1]+al1; al2=s2[j-1]+al2; mLine=(s1[i-1]===s2[j-1]?'|':'.')+mLine; i--; j--; }
+    else if (p===2) { al1=s1[i-1]+al1; al2='-'+al2; mLine=' '+mLine; i--; }
+    else            { al1='-'+al1; al2=s2[j-1]+al2; mLine=' '+mLine; j--; }
+  }
+  const lead1=s1.slice(0,i), lead2=s2.slice(0,j);
+  const ll=Math.max(lead1.length,lead2.length);
+  const trail1=s1.slice(ei), trail2=s2.slice(ej);
+  const tl=Math.max(trail1.length,trail2.length);
+  const full1=lead1.padStart(ll)+al1+trail1.padEnd(tl);
+  const full2=lead2.padStart(ll)+al2+trail2.padEnd(tl);
+  const fullM=' '.repeat(ll)+mLine+' '.repeat(tl);
+  const matches=(mLine.match(/\\|/g)||[]).length;
+  const compared=mLine.replace(/ /g,'').length;
+  return {
+    a1:full1, a2:full2, matchLine:fullM,
+    ov1:al1.replace(/^-+|-+$/g,''), ov2:al2.replace(/^-+|-+$/g,''),
+    alSeq1:al1, alSeq2:al2,
+    identity:compared>0?((matches/compared)*100).toFixed(1):'0.0',
+    frac:matches+'/'+compared, ovLen:al1.length, direction:'Forward'
+  };
+}
+function alignOverlapFast(s1, s2) {
+  let bestShift=0, maxMatches=-1;
+  for (let shift=-(s2.length-10); shift<s1.length-10; shift++) {
+    let matches=0, ov=0;
+    const st=Math.max(0,shift), en=Math.min(s1.length,s2.length+shift);
+    for (let i=st;i<en;i++){ov++;if(s1[i]===s2[i-shift])matches++;}
+    if(ov>=20&&matches>maxMatches){maxMatches=matches;bestShift=shift;}
+  }
+  const shift=bestShift;
+  const pad1=Math.max(0,-shift),pad2=Math.max(0,shift);
+  const a1=' '.repeat(pad1)+s1,a2=' '.repeat(pad2)+s2;
+  const maxL=Math.max(a1.length,a2.length);
+  let matchLine='',perfect=0,totalOv=0;
+  for(let j=0;j<maxL;j++){
+    const c1=j<a1.length?a1[j]:' ',c2=j<a2.length?a2[j]:' ';
+    if(c1!==' '&&c2!==' '){totalOv++;if(c1===c2){matchLine+='|';perfect++;}else matchLine+='.';}else matchLine+=' ';
+  }
+  const ovStart=Math.max(pad1,pad2),ovEnd=Math.min(s1.length+pad1,s2.length+pad2);
+  return{a1,a2,matchLine,ov1:a1.slice(ovStart,ovEnd).trim(),ov2:a2.slice(ovStart,ovEnd).trim(),
+    alSeq1:a1.slice(ovStart,ovEnd).trim(),alSeq2:a2.slice(ovStart,ovEnd).trim(),
+    identity:totalOv>0?((perfect/totalOv)*100).toFixed(1):'0.0',
+    frac:perfect+'/'+totalOv,ovLen:ovEnd-ovStart,direction:'Forward'};
+}
+
+// ── K2P distance ─────────────────────────────────────────────────────────────
+function k2pDistance(al1, al2) {
+  const purines = new Set(['A','G']);
+  let P=0,Q=0,N=0;
+  const len=Math.min(al1.length,al2.length);
+  for(let i=0;i<len;i++){
+    const a=al1[i],b=al2[i];
+    if(a==='-'||b==='-'||a==='N'||b==='N'||a===' '||b===' ')continue;
+    N++;
+    if(a===b)continue;
+    if(purines.has(a)===purines.has(b))P++;else Q++;
+  }
+  if(N<10)return null;
+  const p=P/N,q=Q/N,w1=1-2*p-q,w2=1-2*q;
+  if(w1<=0||w2<=0)return{d:null,P,Q,N,p,q,saturated:true};
+  return{d:-0.5*Math.log(w1)-0.25*Math.log(w2),P,Q,N,p,q,saturated:false};
+}
+
+function getSpeciesName(rec) {
+  return (rec.identification && rec.identification.trim() !== rec.genus)
+    ? rec.identification.trim()
+    : (rec.species || rec.genus || 'Unknown');
+}
+
+// ── Shared scan: k-mer ranking then slide ALL records (no cutoff) ────────────
+// K-mers are used ONLY to sort records so likely matches run first.
+// Every record is scanned — nothing is filtered out.
+function scanRecords(query, rc, records, topN) {
+  const qKmers  = kmerSet(query);
+  const rcKmers = kmerSet(rc);
+
+  const withKmer = [];
+  for (const rec of records) {
+    const ref = rec.nuc.replace(/[-\\s]/g,'').toUpperCase();
+    if (ref.length < 100) continue;
+    const ks = Math.max(kmerScore(qKmers, ref), kmerScore(rcKmers, ref));
+    withKmer.push({ rec, ref, ks });
+  }
+  // Sort by k-mer score so best matches run first (pure optimisation, NOT a filter)
+  withKmer.sort((a,b) => b.ks - a.ks);
+
+  // Slide every single record
+  const scored = withKmer.map(({ rec, ref }) => {
+    const fwd = slideIdentity(query, ref);
+    const rev = slideIdentity(rc, ref);
+    return fwd.identity >= rev.identity
+      ? { rec, ...fwd, direction:'Forward' }
+      : { rec, ...rev, direction:'Reverse Complement' };
+  });
+
+  // Deduplicate: best score per species
+  const seen = new Map();
+  for (const s of scored) {
+    const sp = getSpeciesName(s.rec);
+    if (!seen.has(sp) || seen.get(sp).identity < s.identity) seen.set(sp, s);
+  }
+  return [...seen.values()].sort((a,b) => b.identity - a.identity).slice(0, topN);
+}
+
+// ── Main message handler ──────────────────────────────────────────────────────
+self.onmessage = function(e) {
+  const { type, id, payload } = e.data;
+
+  if (type === 'identify') {
+    const { query, records } = payload;
+    const rc = reverseComplement(query);
+
+    self.postMessage({ id, type:'progress',
+      msg: 'Scanning all ' + records.length + ' records…' });
+
+    const top20 = scanRecords(query, rc, records, 20);
+
+    self.postMessage({ id, type:'progress',
+      msg: 'Full DP alignment on top ' + top20.length + ' candidates…' });
+
+    const results = top20.map(s => {
+      const ref = s.rec.nuc.replace(/[-\\s]/g,'').toUpperCase();
+      const refUsed = s.direction === 'Reverse Complement' ? reverseComplement(ref) : ref;
+      const full = alignOverlap(query, refUsed);
+      const k2p  = k2pDistance(full.alSeq1, full.alSeq2);
+      const sp   = getSpeciesName(s.rec);
+      const loc  = [s.rec['province/state'], s.rec['country/ocean']].filter(Boolean).join(', ');
+      return {
+        taxon: sp, processid: s.rec.processid||'—', bin_uri: s.rec.bin_uri||'—',
+        location: loc||'—', collectors: s.rec.collectors||'—',
+        collection_date: s.rec.collection_date_start||'—',
+        pct: parseFloat(full.identity), frac: full.frac, ovLen: full.ovLen,
+        direction: s.direction, k2p,
+        alSeq1: full.alSeq1, alSeq2: full.alSeq2,
+        a1: full.a1, a2: full.a2, matchLine: full.matchLine,
+        boldUrl: s.rec.processid
+          ? 'https://boldsystems.org/index.php/Public_RecordView?processid='+s.rec.processid : null,
+        binUrl: s.rec.bin_uri
+          ? 'https://boldsystems.org/index.php/Public_BarcodeCluster?clusteruri='+s.rec.bin_uri : null,
+      };
+    });
+
+    self.postMessage({ id, type:'done', results });
+  }
+
+  else if (type === 'identify_one') {
+    const { query, records } = payload;
+    const rc = reverseComplement(query);
+
+    const top5 = scanRecords(query, rc, records, 5);
+    if (!top5.length) { self.postMessage({id, type:'done', result:null}); return; }
+
+    const best = top5[0];
+    const ref  = best.rec.nuc.replace(/[-\\s]/g,'').toUpperCase();
+    const refUsed = best.direction==='Reverse Complement' ? reverseComplement(ref) : ref;
+    const full = alignOverlap(query, refUsed);
+
+    self.postMessage({ id, type:'done', result: {
+      species: getSpeciesName(best.rec),
+      pct:     parseFloat(full.identity),
+      bin_uri: best.rec.bin_uri || '—',
+      family:  best.rec.family || '—',
+      alSeq1:  full.alSeq1,
+      alSeq2:  full.alSeq2,
+      seq:     query,
+    }});
+  }
+
+  else if (type === 'k2p_matrix') {
+    // Compute all-vs-all K2P distance matrix for multi-sample
+    const { seqs } = payload;
+    const n = seqs.length;
+    const mat = Array.from({length:n},()=>new Array(n).fill(null));
+    for (let i=0;i<n;i++) mat[i][i]=0;
+    let done=0, total=n*(n-1)/2;
+    for (let i=0;i<n;i++) {
+      for (let j=i+1;j<n;j++) {
+        const res = alignOverlap(seqs[i], seqs[j]);
+        const kp  = k2pDistance(res.alSeq1, res.alSeq2);
+        const d   = kp && !kp.saturated && kp.d!==null ? kp.d : null;
+        mat[i][j]=d; mat[j][i]=d;
+        done++;
+        if (done % 5 === 0 || done === total)
+          self.postMessage({id,type:'progress',msg:'Pairwise K2P: '+done+'/'+total});
+      }
+    }
+    self.postMessage({id, type:'done', matrix:mat});
+  }
+};
+`;
+
+    // Create the worker once, shared across both identifier components
+    let _worker = null;
+    let _workerCallbacks = {};
+    let _workerMsgId = 0;
+
+    function getWorker() {
+      if (_worker) return _worker;
+      const blob = new Blob([WORKER_SRC], { type: 'application/javascript' });
+      _worker = new Worker(URL.createObjectURL(blob));
+      _worker.onmessage = function(e) {
+        const { id, type, msg } = e.data;
+        const cb = _workerCallbacks[id];
+        if (!cb) return;
+        if (type === 'progress' && cb.onProgress) cb.onProgress(msg);
+        else if (type === 'done') { delete _workerCallbacks[id]; cb.resolve(e.data); }
+      };
+      _worker.onerror = function(e) {
+        Object.values(_workerCallbacks).forEach(cb => cb.reject(e));
+        _workerCallbacks = {};
+      };
+      return _worker;
+    }
+
+    // Strip records to plain serialisable objects before postMessage.
+    // Prevents structured-clone errors from null-prototype objects or
+    // undefined/non-standard values that appear in raw BOLD JSON.
+    function slimRecords(records) {
+      return records.map(r => ({
+        nuc:                   String(r.nuc                   || ''),
+        identification:        String(r.identification        || ''),
+        species:               String(r.species               || ''),
+        genus:                 String(r.genus                 || ''),
+        family:                String(r.family                || ''),
+        processid:             String(r.processid             || ''),
+        bin_uri:               String(r.bin_uri               || ''),
+        collectors:            String(r.collectors            || ''),
+        collection_date_start: String(r.collection_date_start || ''),
+        'province/state':      String(r['province/state']     || ''),
+        'country/ocean':       String(r['country/ocean']      || ''),
+      }));
+    }
+
+    function workerCall(type, payload, onProgress) {
+      return new Promise((resolve, reject) => {
+        const id = ++_workerMsgId;
+        _workerCallbacks[id] = { resolve, reject, onProgress };
+        getWorker().postMessage({ type, id, payload });
+      });
+    }
+
+    // ── SEMI-GLOBAL OVERLAP ALIGNER (kept for aligner/comparator panels) ────
     function alignOverlap(s1, s2) {
       const MATCH = 2, MISMATCH = -1, GAP = -2;
       const m = s1.length, n = s2.length;
@@ -318,7 +637,7 @@
 
     // ══════════════════════════════════════════════════════════════════════════
     // BOLD LOCAL SPECIES IDENTIFIER
-    // Matches query sequences against a local melissodes-dna.json BOLD dataset
+    // Matches query sequences against a multi-file BOLD dataset organised by bee family.
     // using sliding-window identity scan + full DP alignment for top hits.
     // ══════════════════════════════════════════════════════════════════════════
     Alpine.data('identifier', () => ({
@@ -326,9 +645,11 @@
       results:  null,
       topHit:   null,
       loading:  false,
+      loadingMsg: '',
       error:    null,
       expanded: {},
-      boldData: null,   // cached parsed NDJSON records
+      _familyCache: {},
+      _manifestCache: null,
 
       get cleanSeq() {
         return this.sequence.split('\n').filter(l => !l.startsWith('>')).join('')
@@ -411,20 +732,109 @@
         return { identity: bestId * 100, qstart: bestQs, rstart: bestRs, ovLen: bestLen };
       },
 
-      // Load and cache the BOLD NDJSON file
-      async loadBoldData() {
-        if (this.boldData) return this.boldData;
-        const resp = await fetch('melissodes-dna.json');
+      // ── MULTI-FAMILY LOADER ────────────────────────────────────────────────
+      // 1. Loads manifest.json to find best-matching bee family
+      // 2. Iterates through {Family}/1.json, 2.json … until 404
+      // ──────────────────────────────────────────────────────────────────────
+      _familyCache: {},   // family name → records array
+      _manifestCache: null,
+
+      async _loadManifest() {
+        if (this._manifestCache) return this._manifestCache;
+        const resp = await fetch('manifest.json');
         if (!resp.ok) throw new Error(
-          `Could not load melissodes-dna.json (HTTP ${resp.status}).\n` +
-          `Make sure the file is hosted in the same directory as this HTML file.`
+          `Could not load manifest.json (HTTP ${resp.status}).\n` +
+          `Place manifest.json in the same directory as this HTML file.\n` +
+          `Format: array of { family, nuc } objects with one representative sequence per family.`
         );
-        const text = await resp.text();
-        this.boldData = text.trim().split('\n')
-          .filter(l => l.trim())
-          .map(l => JSON.parse(l))
-          .filter(r => r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
-        return this.boldData;
+        this._manifestCache = await resp.json();
+        return this._manifestCache;
+      },
+
+      async _detectFamily(query, onProgress) {
+        const manifest = await this._loadManifest();
+        const rc = reverseComplementSimple(query);
+        let bestFamily = null, bestScore = -1;
+        for (const entry of manifest) {
+          // Support both { family, nuc } and { family, representatives: [{nuc}, ...] }
+          const reps = entry.representatives
+            ? entry.representatives.map(r => r.nuc).filter(Boolean)
+            : (entry.nuc ? [entry.nuc] : []);
+          for (const nuc of reps) {
+            const ref = nuc.replace(/[-\s]/g,'').toUpperCase();
+            const fwd = this._slideIdentity(query, ref).identity;
+            const rev = this._slideIdentity(rc, ref).identity;
+            const score = Math.max(fwd, rev);
+            if (score > bestScore) { bestScore = score; bestFamily = entry.family; }
+          }
+        }
+        if (onProgress) onProgress(`Best family match: ${bestFamily} (${bestScore.toFixed(1)}%)`);
+        return bestFamily;
+      },
+
+      // Parse a raw text response that is either a JSON array or NDJSON
+      _parseJsonFile(text) {
+        const t = text.trim();
+        if (t.startsWith('[')) {
+          // Standard JSON array
+          try {
+            const arr = JSON.parse(t);
+            return arr.filter(r => r && r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+          } catch { return []; }
+        } else {
+          // NDJSON (one JSON object per line)
+          return t.split('\n')
+            .filter(l => l.trim())
+            .map(l => { try { return JSON.parse(l); } catch { return null; } })
+            .filter(r => r && r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+        }
+      },
+
+      // Try several casing variants for a folder name and return the one that works
+      async _resolveFolder(family) {
+        const variants = [
+          family,
+          family.toLowerCase(),
+          family.charAt(0).toUpperCase() + family.slice(1).toLowerCase(),
+          family.toUpperCase(),
+        ];
+        for (const v of variants) {
+          const resp = await fetch(`${v}/1.json`);
+          if (resp.ok) return v;
+        }
+        return null;
+      },
+
+      async _loadFamilyRecords(family, onProgress) {
+        if (this._familyCache[family]) return this._familyCache[family];
+
+        // Resolve the actual folder name (handles case mismatches)
+        const folder = await this._resolveFolder(family);
+        if (!folder) {
+          throw new Error(
+            `Could not find folder for family "${family}".\n` +
+            `Tried: ${family}, ${family.toLowerCase()}, ${family.charAt(0).toUpperCase()+family.slice(1).toLowerCase()}\n` +
+            `Make sure the folder exists and contains 1.json.`
+          );
+        }
+
+        const records = [];
+        let idx = 1;
+        while (true) {
+          if (onProgress) onProgress(`Loading ${folder}/${idx}.json… (${records.length} records so far)`);
+          await new Promise(r => setTimeout(r, 0));
+          const resp = await fetch(`${folder}/${idx}.json`);
+          if (!resp.ok) break;
+          const text = await resp.text();
+          const chunk = this._parseJsonFile(text);
+          records.push(...chunk);
+          idx++;
+        }
+        if (records.length === 0)
+          throw new Error(`No records found in "${folder}/". The folder exists but the JSON files may be empty or malformed.`);
+        if (onProgress) onProgress(`Loaded ${records.length} records from ${folder} (${idx-1} file${idx-1>1?'s':''})`);
+        this._familyCache[family] = records;
+        return records;
       },
 
       async search() {
@@ -443,78 +853,33 @@
         await new Promise(r => setTimeout(r, 30));
 
         try {
-          const records = await this.loadBoldData();
-          const rc = reverseComplementSimple(query);
+          // Step 1: detect family via manifest
+          this.loadingMsg = 'Detecting bee family from manifest…';
+          await new Promise(r => setTimeout(r, 0));
+          const family = await this._detectFamily(query, msg => { this.loadingMsg = msg; });
 
-          // ── Phase 1: fast scan of all 1,400+ records ──────────────────────
-          const scored = [];
-          for (const rec of records) {
-            const ref = rec.nuc.replace(/[-\s]/g,'').toUpperCase();
-            if (ref.length < 100) continue;
-            const fwd = this._slideIdentity(query, ref);
-            const rev = this._slideIdentity(rc,    ref);
-            const best = fwd.identity >= rev.identity
-              ? { ...fwd, direction: 'Forward' }
-              : { ...rev, direction: 'Reverse Complement' };
-            scored.push({ rec, ...best });
+          // Step 2: load all JSON files for that family
+          this.loadingMsg = `Loading ${family} records…`;
+          await new Promise(r => setTimeout(r, 0));
+          const records = await this._loadFamilyRecords(family, msg => { this.loadingMsg = msg; });
+
+          this.loadingMsg = `Scanning ${records.length} ${family} records…`;
+          await new Promise(r => setTimeout(r, 0));
+
+          const data = await workerCall(
+            'identify',
+            { query, records: slimRecords(records) },
+            msg => { this.loadingMsg = msg; }
+          );
+
+          const results = data.results;
+          // Rebuild midline for display (cheap, runs on main thread)
+          for (const r of results) {
+            r.midline = this.getMidline(r.alSeq1, r.alSeq2);
           }
-
-          // ── Deduplicate: one entry per species (best identity wins) ───────
-          const seen = new Map();
-          for (const s of scored) {
-            const sp = (s.rec.identification && s.rec.identification.trim() !== s.rec.genus)
-              ? s.rec.identification.trim()
-              : (s.rec.species || s.rec.genus || 'Unknown');
-            if (!seen.has(sp) || seen.get(sp).identity < s.identity) seen.set(sp, s);
-          }
-
-          // Top 20 unique species
-          const top20 = [...seen.values()]
-            .sort((a, b) => b.identity - a.identity)
-            .slice(0, 20);
-
-          // ── Phase 2: full DP alignment for display on top candidates ──────
-          const results = top20.map(s => {
-            const ref = s.rec.nuc.replace(/[-\s]/g,'').toUpperCase();
-            const refUsed = s.direction === 'Reverse Complement'
-              ? reverseComplementSimple(ref)
-              : ref;
-            const full    = alignOverlap(query, refUsed);
-            const k2p     = k2pDistance(full.alSeq1, full.alSeq2);
-            const midline = this.getMidline(full.alSeq1, full.alSeq2);
-
-            const sp  = (s.rec.identification && s.rec.identification.trim() !== s.rec.genus)
-              ? s.rec.identification.trim()
-              : (s.rec.species || s.rec.genus || 'Unknown');
-            const loc = [s.rec['province/state'], s.rec['country/ocean']]
-              .filter(Boolean).join(', ');
-
-            return {
-              taxon:           sp,
-              processid:       s.rec.processid || '—',
-              bin_uri:         s.rec.bin_uri || '—',
-              location:        loc || '—',
-              collectors:      s.rec.collectors || '—',
-              collection_date: s.rec.collection_date_start || '—',
-              pct:             parseFloat(full.identity),
-              frac:            full.frac,
-              ovLen:           full.ovLen,
-              direction:       s.direction,
-              k2p,
-              alSeq1:   full.alSeq1,
-              alSeq2:   full.alSeq2,
-              midline,
-              boldUrl: s.rec.processid
-                ? `https://boldsystems.org/index.php/Public_RecordView?processid=${s.rec.processid}`
-                : null,
-              binUrl: s.rec.bin_uri
-                ? `https://boldsystems.org/index.php/Public_BarcodeCluster?clusteruri=${s.rec.bin_uri}`
-                : null,
-            };
-          });
 
           if (!results.length) {
-            this.error = 'No matches found in the BOLD Melissodes dataset.';
+            this.error = `No matches found in the ${family} dataset.`;
             return;
           }
           this.results = results;
@@ -531,7 +896,7 @@
 
       clear() {
         this.sequence = ''; this.results = null; this.topHit = null;
-        this.error = null; this.expanded = {};
+        this.error = null; this.expanded = {}; this.loadingMsg = '';
       }
     }));
 
@@ -546,7 +911,8 @@
       loading: false,
       loadingStep: '',
       error: null,
-      boldData: null,
+      _familyCache: {},
+      _manifestCache: null,
 
       get parsedSeqs() {
         const lines = this.input.split('\n');
@@ -568,48 +934,115 @@
 
       get seqCount() { return this.parsedSeqs.length; },
 
-      async _loadBold() {
-        if (this.boldData) return this.boldData;
-        const r = await fetch('melissodes-dna.json');
-        if (!r.ok) throw new Error(`Cannot load melissodes-dna.json (HTTP ${r.status})`);
-        const text = await r.text();
-        this.boldData = text.trim().split('\n').filter(l => l.trim())
-          .map(l => JSON.parse(l))
-          .filter(r => r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
-        return this.boldData;
+      // ── SHARED FAMILY LOADER (mirrors identifier component) ───────────────
+      async _loadManifest() {
+        if (this._manifestCache) return this._manifestCache;
+        const resp = await fetch('manifest.json');
+        if (!resp.ok) throw new Error(`Cannot load manifest.json (HTTP ${resp.status})`);
+        this._manifestCache = await resp.json();
+        return this._manifestCache;
       },
 
-      _slideId(query, ref) {
+      // Lightweight slide identity used for manifest family detection
+      _slideIdFull(query, ref) {
         const maxOff = Math.min(80, Math.abs(query.length - ref.length) + 30);
-        let best = 0;
+        let bestId = -1;
         for (let off = -maxOff; off <= maxOff; off++) {
-          let m = 0, t = 0;
+          let matches = 0, total = 0;
           const qs = Math.max(0, off), rs = Math.max(0, -off);
           const len = Math.min(query.length - qs, ref.length - rs);
           if (len < 50) continue;
           for (let i = 0; i < len; i++) {
             const q = query[qs+i], r = ref[rs+i];
-            if (q !== 'N' && r !== 'N') { t++; if (q === r) m++; }
+            if (q !== 'N' && r !== 'N') { total++; if (q === r) matches++; }
           }
-          if (t > 0) best = Math.max(best, m / t);
+          if (total > 0) bestId = Math.max(bestId, matches / total);
         }
-        return best * 100;
+        return { identity: bestId * 100 };
       },
 
-      async _identifyOne(seq) {
-        const records = await this._loadBold();
-        const rc = reverseComplementSimple(seq);
-        let best = null;
-        for (const rec of records) {
-          const ref = rec.nuc.replace(/[-\s]/g,'').toUpperCase();
-          const id  = Math.max(this._slideId(seq, ref), this._slideId(rc, ref));
-          if (!best || id > best.id) best = { id, rec };
+      async _detectFamily(query) {
+        const manifest = await this._loadManifest();
+        const rc = reverseComplementSimple(query);
+        let bestFamily = null, bestScore = -1;
+        for (const entry of manifest) {
+          const reps = entry.representatives
+            ? entry.representatives.map(r => r.nuc).filter(Boolean)
+            : (entry.nuc ? [entry.nuc] : []);
+          for (const nuc of reps) {
+            const ref = nuc.replace(/[-\s]/g,'').toUpperCase();
+            const fwd = this._slideIdFull(query, ref).identity;
+            const rev = this._slideIdFull(rc, ref).identity;
+            const score = Math.max(fwd, rev);
+            if (score > bestScore) { bestScore = score; bestFamily = entry.family; }
+          }
         }
-        if (!best) return { species: 'Unknown', pct: 0, bin_uri: '—' };
-        const sp = (best.rec.identification && best.rec.identification.trim() !== best.rec.genus)
-          ? best.rec.identification.trim()
-          : (best.rec.species || best.rec.genus || 'Unknown');
-        return { species: sp, pct: best.id, bin_uri: best.rec.bin_uri || '—' };
+        return bestFamily;
+      },
+
+      _parseJsonFile(text) {
+        const t = text.trim();
+        if (t.startsWith('[')) {
+          try {
+            const arr = JSON.parse(t);
+            return arr.filter(r => r && r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+          } catch { return []; }
+        } else {
+          return t.split('\n')
+            .filter(l => l.trim())
+            .map(l => { try { return JSON.parse(l); } catch { return null; } })
+            .filter(r => r && r.nuc && r.nuc.replace(/[-\s]/g,'').length >= 100);
+        }
+      },
+
+      async _resolveFolder(family) {
+        const variants = [
+          family,
+          family.toLowerCase(),
+          family.charAt(0).toUpperCase() + family.slice(1).toLowerCase(),
+          family.toUpperCase(),
+        ];
+        for (const v of variants) {
+          const resp = await fetch(`${v}/1.json`);
+          if (resp.ok) return v;
+        }
+        return null;
+      },
+
+      async _loadFamilyRecords(family) {
+        if (this._familyCache[family]) return this._familyCache[family];
+        const folder = await this._resolveFolder(family);
+        if (!folder) return [];
+        const records = [];
+        let idx = 1;
+        while (true) {
+          const resp = await fetch(`${folder}/${idx}.json`);
+          if (!resp.ok) break;
+          const text = await resp.text();
+          const chunk = this._parseJsonFile(text);
+          records.push(...chunk);
+          idx++;
+        }
+        this._familyCache[family] = records;
+        return records;
+      },
+
+      async _identifyOne(seq, onProgress) {
+        // Step 1: detect family via manifest
+        const family = await this._detectFamily(seq);
+        if (!family) return { species: 'Unknown', pct: 0, bin_uri: '—', family: '—', seq };
+
+        // Step 2: load all JSON files for that family
+        if (onProgress) onProgress(`  ↳ detected ${family}, loading records…`);
+        const records = await this._loadFamilyRecords(family);
+        if (!records.length) return { species: 'Unknown', pct: 0, bin_uri: '—', family: '—', seq };
+
+        if (onProgress) onProgress(`  ↳ scanning ${records.length} ${family} records…`);
+
+        // Step 3: run identification in worker
+        const data = await workerCall('identify_one', { query: seq, records: slimRecords(records) });
+        if (!data.result) return { species: 'Unknown', pct: 0, bin_uri: '—', family, seq };
+        return data.result;
       },
 
       _forceLayout(n, distMatrix) {
@@ -735,7 +1168,7 @@
         });
 
         // Title watermark top-right
-        svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · MELISSODES BOLD</text>`;
+        svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · BEE BOLD DATABASE</text>`;
 
         svg += `</svg>`;
         return svg;
@@ -759,39 +1192,37 @@
         await new Promise(r => setTimeout(r, 30));
 
         try {
-          // ── Phase 1: identify each against BOLD ────────────────────────────
+          // ── Phase 1: identify each sample against BOLD ─────────────────────
           const identified = [];
           for (let i = 0; i < seqs.length; i++) {
             this.loadingStep = `Identifying ${i+1}/${seqs.length}: ${seqs[i].name}…`;
             await new Promise(r => setTimeout(r, 0));
             const clean = seqs[i].seq.replace(/[^ATCGN]/g,'');
             if (clean.length < 80) {
-              identified.push({ name: seqs[i].name, seq: clean, species: 'Too short', pct: 0, bin_uri: '—' });
+              identified.push({ name: seqs[i].name, seq: clean, species: 'Too short', pct: 0, bin_uri: '—', family: '—' });
               continue;
             }
-            const match = await this._identifyOne(clean);
-            identified.push({ name: seqs[i].name, seq: clean, ...match });
+            const match = await this._identifyOne(clean, msg => {
+              this.loadingStep = `Identifying ${i+1}/${seqs.length}: ${seqs[i].name}\n${msg}`;
+            });
+            identified.push({ name: seqs[i].name, ...match });
           }
 
-          // ── Phase 2: all-vs-all K2P distance matrix ─────────────────────────
-          const n   = identified.length;
-          const mat = Array.from({ length: n }, () => new Array(n).fill(null));
-          for (let i = 0; i < n; i++) mat[i][i] = 0;
-          let pairNum = 0, totalPairs = n * (n - 1) / 2;
-          for (let i = 0; i < n; i++) {
-            for (let j = i + 1; j < n; j++) {
-              this.loadingStep = `Pairwise distances: ${++pairNum}/${totalPairs}`;
-              await new Promise(r => setTimeout(r, 0));
-              const res = alignOverlap(identified[i].seq, identified[j].seq);
-              const kp  = k2pDistance(res.alSeq1, res.alSeq2);
-              const d   = kp && !kp.saturated && kp.d !== null ? kp.d : null;
-              mat[i][j] = d; mat[j][i] = d;
-            }
-          }
+          // ── Phase 2: all-vs-all K2P distance matrix (in worker) ─────────────
+          this.loadingStep = 'Computing pairwise K2P distances…';
+          await new Promise(r => setTimeout(r, 0));
+
+          const matData = await workerCall(
+            'k2p_matrix',
+            { seqs: identified.map(s => s.seq) },
+            msg => { this.loadingStep = msg; }
+          );
+          const mat = matData.matrix;
 
           // ── Phase 3: force layout + SVG ──────────────────────────────────────
           this.loadingStep = 'Calculating graph layout…';
           await new Promise(r => setTimeout(r, 0));
+          const n      = identified.length;
           const pos    = this._forceLayout(n, mat);
           const labels = identified.map(s => s.name.length > 12 ? s.name.slice(0,11)+'…' : s.name);
           const svgHtml = this._buildSvg(pos, labels, identified.map(s => s.species), mat);
@@ -853,25 +1284,46 @@
   .tab-active   { border-bottom: 2px solid #2563eb; color: #1d4ed8 !important; background: #eff6ff; }
   .tab-inactive { border-bottom: 2px solid transparent; }
   .tab-inactive:hover { color: #334155; background: #f8fafc; }
+  .back-arrow-desktop { display: none; }
+  .back-arrow-mobile  { display: flex; }
+  @media (min-width: 1122px) {
+    .back-arrow-desktop { display: flex; }
+    .back-arrow-mobile  { display: none; }
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-24">
 
 <!-- ── HEADER ──────────────────────────────────────────────────────────────── -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-  <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
-    <div class="flex items-center gap-3">
-      <div class="bg-blue-100 p-2 rounded-lg">
-        <i class="fa-solid fa-dna text-blue-600 text-xl"></i>
+  <!-- Mobile: stacks above title (hidden above 1122px) -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="dna-index.html"
+       class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+  <!-- Title row -->
+  <div class="relative">
+    <!-- Desktop: pinned to true left edge (visible above 1122px) -->
+    <a href="dna-index.html"
+       class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-blue-100 p-2 rounded-lg">
+          <i class="fa-solid fa-dna text-blue-600 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Invertebrate DNA Sequencer</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DNA · Protein Analysis</p>
+        </div>
       </div>
-      <div>
-        <h1 class="text-lg font-bold text-slate-900 leading-tight">Invertebrate DNA Sequencer</h1>
-        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DNA · Protein Analysis</p>
-      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+        The Invertebrate Mitochondrial Code (transl_table=5)
+      </p>
     </div>
-    <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
-      The Invertebrate Mitochondrial Code (transl_table=5)
-    </p>
   </div>
 
   <!-- Tab row -->
@@ -1372,10 +1824,10 @@
         :class="(loading || seqLen < 80) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700 active:scale-95'"
         class="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
         <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-dna'"></i>
-        <span x-text="loading ? 'Scanning 1,436 records…' : 'Identify Species'"></span>
+        <span x-text="loading ? 'Identifying…' : 'Identify Species'"></span>
       </button>
       <template x-if="loading">
-        <p class="text-xs text-slate-500 italic">Aligning against local BOLD dataset — usually completes in 1–3 seconds…</p>
+        <p class="text-xs text-slate-500 italic" x-text="loadingMsg || 'Loading family data…'"></p>
       </template>
     </div>
 
@@ -1805,6 +2257,7 @@
                     <th class="px-4 py-2.5 text-left w-7">#</th>
                     <th class="px-4 py-2.5 text-left">Sample Name</th>
                     <th class="px-4 py-2.5 text-left">Best BOLD Match</th>
+                    <th class="px-4 py-2.5 text-left">Family</th>
                     <th class="px-4 py-2.5 text-right">Identity</th>
                     <th class="px-4 py-2.5 text-left">BIN</th>
                     <th class="px-4 py-2.5 text-right">Seq length</th>
@@ -1816,6 +2269,7 @@
                       <td class="px-4 py-2.5 font-mono text-slate-300 font-black text-center" x-text="i+1"></td>
                       <td class="px-4 py-2.5 font-mono font-bold text-slate-700" x-text="s.name"></td>
                       <td class="px-4 py-2.5 italic text-slate-800 font-semibold" x-text="s.species"></td>
+                      <td class="px-4 py-2.5 text-slate-500 text-[11px]" x-text="s.family || '—'"></td>
                       <td class="px-4 py-2.5 text-right">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full" :class="spBadge(s.pct)"
                           x-text="s.pct.toFixed(2)+'%'"></span>
