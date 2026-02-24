@@ -17,7 +17,6 @@
       const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
       env.allowLocalModels = false;
       env.useBrowserCache = true;
-      // Point directly at HuggingFace hub — public models don't need auth
       env.remoteHost = 'https://huggingface.co/';
       env.remotePathTemplate = '{model}/resolve/{revision}/';
       window._transformersPipeline = pipeline;
@@ -216,7 +215,6 @@
         Fetch directly from the GBIF API by typing a taxon name, or upload a Darwin Core Archive ZIP.
       </p>
 
-      <!-- Source radio -->
       <div class="grid sm:grid-cols-2 gap-3 mb-5">
         <label class="source-option">
           <input type="radio" x-model="dataSource" value="api">
@@ -250,7 +248,6 @@
               Search
             </button>
           </div>
-          <!-- Dropdown suggestions -->
           <div x-show="taxonSuggestions.length > 0" x-cloak
             style="position:absolute;top:100%;left:0;right:0;z-index:50;margin-top:4px;"
             class="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
@@ -263,7 +260,6 @@
           </div>
         </div>
 
-        <!-- Selected taxon badge -->
         <div x-show="selectedTaxon" x-cloak
           class="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3 gap-3">
           <div>
@@ -296,7 +292,6 @@
           </div>
         </div>
 
-        <!-- Citation notice for API mode -->
         <div class="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
           <i class="fa-solid fa-circle-info text-blue-400 mt-0.5 shrink-0 text-sm"></i>
           <p class="text-xs text-blue-700">
@@ -304,7 +299,6 @@
           </p>
         </div>
 
-        <!-- Exclusion notice -->
         <div class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
           <i class="fa-solid fa-ban text-red-400 mt-0.5 shrink-0 text-sm"></i>
           <p class="text-xs text-red-700">
@@ -394,7 +388,6 @@
         </label>
       </div>
 
-      <!-- RoBERTa model status -->
       <div x-show="opts.aiParse" x-cloak class="bg-slate-900 rounded-xl p-4">
         <div class="flex items-center gap-3">
           <div class="w-2 h-2 rounded-full shrink-0 transition-colors"
@@ -416,7 +409,6 @@
           </div>
           <p class="text-[10px] text-slate-500 mt-1.5" x-text="aiModelLoadMsg || 'Fetching model weights from HuggingFace CDN…'"></p>
         </div>
-        <!-- CORS / network error help -->
         <div x-show="aiModelStatus === 'error'" x-cloak class="mt-3 bg-slate-800 rounded-lg p-3">
           <p class="text-[10px] text-amber-300 font-bold mb-1">Common causes &amp; fixes:</p>
           <ul class="text-[10px] text-slate-400 space-y-0.5 list-disc list-inside">
@@ -457,7 +449,6 @@
         </template>
       </div>
 
-      <!-- Progress bar -->
       <template x-if="loading || jsonOutput">
         <div>
           <div class="flex justify-between items-center mb-1.5">
@@ -479,7 +470,6 @@
         </div>
       </template>
 
-      <!-- Error -->
       <template x-if="error">
         <div class="bg-red-50 border border-red-200 rounded-xl p-4 mt-4 flex items-start gap-3">
           <i class="fa-solid fa-triangle-exclamation text-red-400 mt-0.5 shrink-0"></i>
@@ -490,7 +480,6 @@
         </div>
       </template>
 
-      <!-- Log -->
       <template x-if="log.length">
         <div class="mt-4 bg-slate-900 rounded-xl p-4 max-h-48 overflow-y-auto">
           <template x-for="(entry, i) in log" :key="i">
@@ -535,7 +524,6 @@
   <div id="panel-summary" class="hidden fade-in space-y-5">
     <template x-if="stats">
       <div class="space-y-5">
-        <!-- Hero stats -->
         <div class="grid grid-cols-2 sm:grid-cols-6 gap-4">
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 text-center">
             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Records</p>
@@ -563,7 +551,6 @@
           </div>
         </div>
 
-        <!-- Flight period tiles only -->
         <template x-if="stats.flightPeriod && Object.keys(stats.flightPeriod).length">
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
             <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
@@ -583,7 +570,6 @@
           </div>
         </template>
 
-        <!-- Floral hosts ranked list (no chart) -->
         <template x-if="stats.topHosts && stats.topHosts.length">
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
@@ -650,7 +636,6 @@
           </div>
         </template>
 
-        <!-- Distribution table -->
         <template x-if="stats.distribution && Object.keys(stats.distribution).length">
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="px-5 py-3 border-b border-slate-100">
@@ -693,7 +678,6 @@
   <!-- ══ ANALYZE PANEL ═════════════════════════════════════════════════════ -->
   <div id="panel-analyze" class="hidden fade-in space-y-5">
 
-    <!-- Data source selector -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
       <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
         <i class="fa-solid fa-flask mr-1 text-amber-400"></i>Analysis Data Source
@@ -782,7 +766,7 @@
               </div>
               <div class="bg-slate-50 rounded-lg p-3 text-center">
                 <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Unique Plant Taxa</p>
-                <p class="text-2xl font-black text-green-600 font-mono" x-text="analyzeResults.rawFlowers.length.toLocaleString()"></p>
+                <p class="text-2xl font-black text-green-600 font-mono" x-text="analyzeResults.sortedTaxaNames.length.toLocaleString()"></p>
               </div>
               <div class="bg-slate-50 rounded-lg p-3 text-center">
                 <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Datasets with Flora</p>
@@ -791,6 +775,63 @@
             </div>
           </div>
         </div>
+
+        <!-- ═══ NEW CELL 1B: Unique Floral Taxa with Formatted Citations ═══ -->
+        <div class="notebook-cell">
+          <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3">
+              <span class="cell-label">CELL 1B</span>
+              <span class="text-sm font-bold text-slate-200">Unique Floral Taxa — Formatted Citation List</span>
+            </div>
+            <div class="flex gap-2">
+              <button @click="copyFloralTaxaList()" id="btn-copy-taxa-list"
+                class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-copy text-[10px]"></i>Copy Formatted List
+              </button>
+              <button @click="downloadTaxaListTxt()" 
+                class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-download text-[10px]"></i>Download .txt
+              </button>
+            </div>
+          </div>
+          <div class="bg-white p-5">
+            <p class="text-[10px] text-slate-400 mb-4 leading-relaxed">
+              One entry per unique taxon, alphabetically sorted. Uses the first GBIF occurrence for each taxon. Synonyms are flagged. Copy produces a formatted citation string ready for publication.
+            </p>
+            <!-- Preview of formatted output -->
+            <div class="bg-amber-50 border border-amber-100 rounded-lg p-4 mb-4 max-h-32 overflow-y-auto">
+              <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2">Preview (formatted copy output):</p>
+              <p class="text-[11px] text-slate-700 leading-relaxed font-mono" x-text="analyzeResults.taxaListPreview"></p>
+            </div>
+            <!-- Individual taxa rows -->
+            <div class="space-y-0 divide-y divide-slate-50 max-h-96 overflow-y-auto border border-slate-100 rounded-lg">
+              <template x-for="(name, idx) in analyzeResults.sortedTaxaNames" :key="name">
+                <div class="flex items-start gap-3 px-4 py-2.5 hover:bg-amber-50 transition-colors">
+                  <span class="text-[10px] font-black font-mono text-slate-300 w-6 shrink-0 mt-0.5 text-right" x-text="(idx+1) + '.'"></span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="italic text-sm font-semibold text-slate-800" x-text="name"></span>
+                      <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].is_synonym">
+                        <span class="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide shrink-0">old synonym</span>
+                      </template>
+                    </div>
+                    <div class="flex items-center gap-3 mt-0.5 flex-wrap" x-show="analyzeResults.taxaFirstOcc[name]">
+                      <span class="text-[10px] text-slate-400 truncate max-w-xs" x-text="analyzeResults.taxaFirstOcc[name] ? analyzeResults.taxaFirstOcc[name].intextRef : ''"></span>
+                      <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].gbifID">
+                        <a :href="'https://www.gbif.org/occurrence/' + analyzeResults.taxaFirstOcc[name].gbifID"
+                          target="_blank"
+                          class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono shrink-0"
+                          x-text="'GBIF ' + analyzeResults.taxaFirstOcc[name].gbifID"></a>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-3 text-right" x-text="analyzeResults.sortedTaxaNames.length + ' unique taxa'"></p>
+          </div>
+        </div>
+        <!-- ═══ END CELL 1B ═══ -->
 
         <!-- Cell 2: Dual Bar Charts -->
         <div class="notebook-cell">
@@ -899,12 +940,10 @@
                           <div class="flex items-start gap-2">
                             <span class="text-slate-300 font-mono shrink-0 mt-0.5" x-text="'Ex. ' + (ei+1)"></span>
                             <div class="flex-1 min-w-0">
-                              <!-- Extracted query label -->
                               <p class="text-[10px] font-bold text-amber-600 mb-1" x-show="ex.original_query">
                                 <i class="fa-solid fa-crosshairs mr-1 opacity-60"></i>
                                 Extracted: <span class="italic font-mono" x-text="ex.original_query"></span>
                               </p>
-                              <!-- Full verbatim label / notes text — shown entirely as-is -->
                               <p class="text-slate-600 leading-relaxed font-mono text-[10px] whitespace-pre-wrap break-words"
                                 x-show="ex.displayText"
                                 x-text="ex.displayText"></p>
@@ -989,79 +1028,26 @@
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">2</div>
           <div>
             <p class="font-bold text-slate-700 mb-1">Choose Your Data Source</p>
-            <p><strong>GBIF API:</strong> Type a taxon name, pick from suggestions, and the tool pages through GBIF automatically. Leave Max Records blank to fetch everything. iNaturalist and BugGuide are always excluded. Dataset citations and licences are fetched from the GBIF dataset API automatically — no ZIP needed.<br><br>
-            <strong>Upload ZIP:</strong> Download a Darwin Core Archive from <a href="https://www.gbif.org/occurrence/search" target="_blank" class="text-amber-600 hover:underline">gbif.org</a> and upload the .zip. Citations are read from the embedded <code class="bg-slate-100 px-1 rounded text-xs font-mono">citations.txt</code> and <code class="bg-slate-100 px-1 rounded text-xs font-mono">rights.txt</code>.</p>
+            <p><strong>GBIF API:</strong> Type a taxon name, pick from suggestions, and the tool pages through GBIF automatically.<br><br>
+            <strong>Upload ZIP:</strong> Download a Darwin Core Archive from <a href="https://www.gbif.org/occurrence/search" target="_blank" class="text-amber-600 hover:underline">gbif.org</a> and upload the .zip.</p>
           </div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">3</div>
           <div>
-            <p class="font-bold text-slate-700 mb-1">Configure Options</p>
-            <p><strong><i class="fa-solid fa-location-dot text-blue-400 mr-1"></i>Reverse Geocoding:</strong> For every record with lat/lon coordinates, fills in missing state and locality using BigDataCloud's free API. Geocoded records get a <code class="bg-slate-100 px-1 rounded font-mono text-xs">geocode_source</code> flag.<br><br>
-            <strong><i class="fa-solid fa-wand-magic-sparkles text-purple-400 mr-1"></i>AI Parser:</strong> Runs <code class="bg-slate-100 px-1 rounded font-mono text-xs">deepset/roberta-base-squad2</code> directly in your browser using Transformers.js. <strong>Requires serving over HTTP/HTTPS</strong> — the model cannot be downloaded from <code class="bg-slate-100 px-1 rounded font-mono text-xs">file://</code> due to browser CORS rules. Run <code class="bg-slate-100 px-1 rounded font-mono text-xs">python -m http.server 8080</code> and open <code class="bg-slate-100 px-1 rounded font-mono text-xs">http://localhost:8080</code> to enable it.</p>
+            <p class="font-bold text-slate-700 mb-1">Configure Options &amp; Run</p>
+            <p>Enable reverse geocoding, AI parser, and plant verification as needed, then click <strong>Build JSON</strong>.</p>
           </div>
         </div>
         <div class="flex gap-4">
-          <div class="w-7 h-7 bg-green-100 text-green-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">
-            <i class="fa-solid fa-download text-xs"></i>
-          </div>
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">4</div>
           <div>
-            <p class="font-bold text-slate-700 mb-1">Build & Download</p>
-            <p>Click <strong>Build JSON</strong>. The output is saved as <code class="bg-slate-100 px-1.5 rounded font-mono text-xs">{species}.json</code> and matches the Species API schema exactly.</p>
+            <p class="font-bold text-slate-700 mb-1">Analyze — Cell 1B: Unique Taxa List</p>
+            <p>The <strong>Analyze</strong> tab → <strong>Cell 1B</strong> shows every unique floral taxon alphabetically, each with its in-text dataset citation and GBIF record number. Click <strong>Copy Formatted List</strong> to get a publication-ready string like:<br><br>
+            <code class="bg-slate-100 px-2 py-1 rounded text-xs leading-loose block mt-2">Encelia farinosa (Illinois NHS, 2025; GBIF record 3801377092), Helianthus annuus (Carril et al., 2023; GBIF record 3421528374), …</code><br>
+            Synonyms are flagged with <em>old synonym</em> in both the display and the copied text.</p>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Output JSON Schema</p>
-      <div class="bg-slate-950 rounded-xl p-5 overflow-x-auto">
-        <pre class="seq-mono text-slate-300 leading-relaxed text-[11px]">{
-  "binomial_name": "Melissodes agilis",
-  "common_name":   "Agile Long-horned Bee",
-  "taxonomy":      { "family", "subfamily", "tribe", "genus", "subgenus", "species" },
-  "flight_period": { "June": { "count": 42, "percentage": 31.11 }, … },
-  "distribution":  {
-    "Arizona": { "state_total": 12, "counties": { "Pima": { "count": 5 } } }
-  },
-  "occurrences":   [{
-    "gbifID":    "…",
-    "gbif_link": "https://www.gbif.org/occurrence/…",
-    "location":  {
-      "state":          "Arizona",
-      "county":         "Pima",
-      "locality":       "Tucson, near Saguaro NP",  ← filled by geocoding if missing
-      "coordinates":    { "lat": 32.254, "lon": -110.974 },
-      "geocode_source": "coordinates"                ← added when reverse-geocoded
-    },
-    "temporal":  { "date", "month", "year" },
-    "collector": { "recordedBy", "identifiedBy" },
-    "ecology":   {
-      "notes": "Nectaring on Helianthus annuus…",
-      "extracted_floral_hosts": [{
-        "original_query":   "Helianthus",
-        "accepted_genus":   "Helianthus",
-        "accepted_species": "annuus",
-        "canonical_name":   "Helianthus annuus",
-        "parse_method":     "ai"         ← or "gbif_api"
-      }]
-    },
-    "citation":  { "text": "…", "license": "CC BY 4.0" }
-  }],
-  "metadata":      {
-    "project_name":       "…",
-    "total_records":      N,
-    "processed_records":  N,
-    "geocoded_records":   N,
-    "excluded_datasets":  ["iNaturalist Research-Grade", "BugGuide"],
-    "contributing_datasets": [{
-      "title":   "Museum Dataset",
-      "doi":     "10.15468/…",
-      "license": "CC BY 4.0",
-      "citation": "Smith et al. (2024) …"
-    }]
-  }
-}</pre>
       </div>
     </div>
   </div><!-- /guide -->
@@ -1070,10 +1056,9 @@
 
 <!-- ── ALPINE DATA ─────────────────────────────────────────────────────────── -->
 <script>
-// ── CONSTANTS ─────────────────────────────────────────────────────────────
 const EXCLUDED_DATASET_KEYS = new Set([
-  '50c9509d-22c7-4a22-a47d-8c48425ef4a7', // iNaturalist
-  '7f5e4129-0717-428e-876a-464fbd5d9a47', // BugGuide
+  '50c9509d-22c7-4a22-a47d-8c48425ef4a7',
+  '7f5e4129-0717-428e-876a-464fbd5d9a47',
 ]);
 const EXCLUDED_PUBLISHERS = ['inaturalist', 'bugguide'];
 
@@ -1090,47 +1075,37 @@ const PLANT_BLACKLIST = new Set([
 ]);
 const GEO_BLACKLIST = new Set(['usa','united states','mexico','canada','unknown','none','nan']);
 
-// ── ALPINE APP ────────────────────────────────────────────────────────────
 document.addEventListener('alpine:init', () => {
   Alpine.data('app', () => ({
-    // UI
     loading: false, statusMsg: '', progress: 0, error: null,
     log: [], jsonOutput: null, jsonPreview: '', stats: null,
 
-    // Species
     genus: 'Melissodes', speciesEpithet: '', commonName: '',
     subgenus: '', family: 'Apidae', tribe: 'Eucerini',
     projectName: 'The Melissodes Project',
 
-    // Source
     dataSource: 'api', uploadedFile: null,
 
-    // GBIF API
     taxonSearch: '', taxonSearching: false,
     taxonSuggestions: [], selectedTaxon: null,
     apiMaxRecords: '', apiCountry: 'US',
 
-    // AI
     aiModelStatus: 'idle', aiModelLoadMsg: '', _aiPipeline: null,
 
-    // Options
     opts: {
       reverseGeocode: true, aiParse: false, verifyPlants: true,
       extractFromRemarks: true, fixCounties: true, skipGeoBlacklist: true
     },
 
-    // Caches
     geoCache: {}, plantCache: {}, aiCache: {},
-    datasetInfoCache: {},  // NEW: { datasetKey → { title, doi, license, citation } }
+    datasetInfoCache: {},
 
-    // ── Validation ──────────────────────────────────────────────────────────
     canRun() {
       if (!this.genus.trim() || !this.speciesEpithet.trim()) return false;
       if (this.dataSource === 'api') return !!this.selectedTaxon;
       return !!this.uploadedFile;
     },
 
-    // ── File handling ────────────────────────────────────────────────────────
     handleFileSelect(e) { const f = e.target.files[0]; if (f) this.uploadedFile = f; },
     handleFileDrop(e)   { const f = e.dataTransfer.files[0]; if (f && f.name.endsWith('.zip')) this.uploadedFile = f; },
     formatBytes(b) {
@@ -1139,13 +1114,11 @@ document.addEventListener('alpine:init', () => {
       return (b/1048576).toFixed(1) + ' MB';
     },
 
-    // ── Logging ──────────────────────────────────────────────────────────────
     addLog(msg, type='info') {
       this.log.push({ msg, type });
       if (this.log.length > 400) this.log.shift();
     },
 
-    // ── GBIF Taxon Search ─────────────────────────────────────────────────────
     async searchTaxon() {
       const q = this.taxonSearch.trim();
       if (!q || q.length < 2) { this.taxonSuggestions = []; return; }
@@ -1170,11 +1143,6 @@ document.addEventListener('alpine:init', () => {
       this.addLog(`✅ Selected: ${s.canonicalName} (key: ${s.key})`, 'ok');
     },
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // DATASET INFO FETCHER — mirrors Colab's resolve_dataset_citation() but
-    // works for API mode by calling GBIF's /v1/dataset/{key} endpoint.
-    // Returns { title, doi, license, citation } for a datasetKey.
-    // ══════════════════════════════════════════════════════════════════════════
     async fetchDatasetInfo(datasetKey) {
       if (!datasetKey) return null;
       if (this.datasetInfoCache[datasetKey]) return this.datasetInfoCache[datasetKey];
@@ -1182,22 +1150,14 @@ document.addEventListener('alpine:init', () => {
         const res = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`, { signal: AbortSignal.timeout(8000) });
         if (!res.ok) { this.datasetInfoCache[datasetKey] = null; return null; }
         const d = await res.json();
-
-        // Build human-readable citation — mirrors Colab's citation logic
         const title = d.title || 'GBIF Dataset';
         const doi = d.doi || null;
         const doiUrl = doi ? `https://doi.org/${doi}` : null;
-        const pubOrg = d.publishingOrganizationKey || null;
-
-        // Prefer the dataset's own citation block if available
         let citationText = d.citation?.text || null;
         if (!citationText && doi) citationText = `${title} [Dataset]. GBIF. ${doiUrl}`;
         if (!citationText) citationText = `${title} (via GBIF.org)`;
-
-        // Resolve license — mirrors Colab's get_license_label()
         const rawLicense = d.license || '';
         const licenseLabel = this.getLicense(rawLicense);
-
         const info = { title, doi, doiUrl, license: licenseLabel, citation: citationText };
         this.datasetInfoCache[datasetKey] = info;
         return info;
@@ -1207,7 +1167,6 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    // Pre-fetch all dataset info in parallel (mirrors Colab ThreadPoolExecutor for citations)
     async preloadDatasetInfo(datasetKeys) {
       const PARALLEL = 10;
       const keys = [...new Set(datasetKeys)].filter(Boolean);
@@ -1221,7 +1180,6 @@ document.addEventListener('alpine:init', () => {
       this.addLog(`✅ Dataset metadata resolved (${resolved}/${keys.length} found)`, 'ok');
     },
 
-    // ── Fetch from GBIF API ──────────────────────────────────────────────────
     async fetchFromGBIF() {
       const key = this.selectedTaxon.key;
       const rawMax = parseInt(this.apiMaxRecords);
@@ -1263,8 +1221,6 @@ document.addEventListener('alpine:init', () => {
       const capped = allResults.slice(0, maxRecs);
       this.addLog(`✅ Fetched ${capped.length} records after exclusions`, 'ok');
 
-      // ── Preload all dataset info in parallel NOW (before processing) ──
-      // This is the API-mode equivalent of reading citations.txt + rights.txt from a ZIP.
       this.statusMsg = 'Fetching dataset citations & licences…';
       this.progress = 38;
       const allDatasetKeys = [...new Set(capped.map(r => r.datasetKey).filter(Boolean))];
@@ -1289,12 +1245,10 @@ document.addEventListener('alpine:init', () => {
         datasetKey:         r.datasetKey  || '',
         datasetName:        r.datasetTitle || r.datasetName || '',
         institutionCode:    r.institutionCode || '',
-        // Store the per-record license from GBIF directly — mirrors Colab's license_val = clean_val(row.get('license'))
         license:            r.license || '',
       }));
     },
 
-    // ── Reverse geocoding ─────────────────────────────────────────────────────
     async reverseGeocode(lat, lon) {
       const key = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
       if (this.geoCache[key]) return this.geoCache[key];
@@ -1312,19 +1266,12 @@ document.addEventListener('alpine:init', () => {
       } catch { return null; }
     },
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // ROBERTA QA MODEL — deepset/roberta-base-squad2 via Transformers.js
-    // Mirrors Colab: pipeline('question-answering', model='deepset/roberta-base-squad2')
-    // IMPORTANT: Requires HTTP/HTTPS origin — file:// is blocked by CORS.
-    //            Falls back to regex extraction silently if unavailable.
-    // ══════════════════════════════════════════════════════════════════════════
     async loadAIModel() {
       if (this._aiPipeline) return true;
       if (this.aiModelStatus === 'loading') return false;
       this.aiModelStatus = 'loading';
       this.aiModelLoadMsg = 'Waiting for Transformers.js…';
 
-      // Wait for ES module to initialise
       if (!window._transformersReady) {
         try {
           await new Promise((resolve, reject) => {
@@ -1348,9 +1295,6 @@ document.addEventListener('alpine:init', () => {
 
       try {
         this.aiModelLoadMsg = 'Downloading model weights (~90 MB, cached after first load)…';
-
-        // Try primary model: Xenova/roberta-base-squad2
-        // Falls back to Xenova/distilbert-base-uncased-distilled-squad if auth issues
         const MODELS_TO_TRY = [
           'Xenova/roberta-base-squad2',
           'Xenova/distilbert-base-cased-distilled-squad',
@@ -1360,18 +1304,15 @@ document.addEventListener('alpine:init', () => {
           try {
             this.aiModelLoadMsg = `Trying ${modelId}…`;
             this._aiPipeline = await window._transformersPipeline(
-              'question-answering',
-              modelId,
-              {
-                progress_callback: (p) => {
-                  if (p.status === 'downloading') {
-                    const pct = p.total ? Math.round((p.loaded / p.total) * 100) : '?';
-                    this.aiModelLoadMsg = `${modelId}: ${p.file} — ${pct}%`;
-                  } else if (p.status === 'loading') {
-                    this.aiModelLoadMsg = `Loading ${p.file}…`;
-                  }
+              'question-answering', modelId,
+              { progress_callback: (p) => {
+                if (p.status === 'downloading') {
+                  const pct = p.total ? Math.round((p.loaded / p.total) * 100) : '?';
+                  this.aiModelLoadMsg = `${modelId}: ${p.file} — ${pct}%`;
+                } else if (p.status === 'loading') {
+                  this.aiModelLoadMsg = `Loading ${p.file}…`;
                 }
-              }
+              }}
             );
             this.aiModelStatus = 'ready';
             this.aiModelLoadMsg = '';
@@ -1382,7 +1323,6 @@ document.addEventListener('alpine:init', () => {
             this._aiPipeline = null;
           }
         }
-
         throw new Error('All model variants failed. Serve via HTTP (not file://) and retry.');
       } catch(e) {
         this.aiModelStatus = 'error';
@@ -1392,8 +1332,6 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    // ── Batch AI extraction — mirrors Colab batch_ai_extract() exactly ────────
-    // Processes unique_texts in batches of 16, same question, same score threshold
     async batchAiExtract(uniqueTexts, onProgress) {
       if (!uniqueTexts.length || !this._aiPipeline) return {};
       const QUESTION = 'What are the botanical or common names of the plants or flowers the insect was visiting?';
@@ -1405,22 +1343,16 @@ document.addEventListener('alpine:init', () => {
         if (onProgress) onProgress(`AI scanning labels ${i+1}–${Math.min(i+BATCH_SIZE, uniqueTexts.length)} of ${uniqueTexts.length}…`);
         await new Promise(r => setTimeout(r, 0));
 
-        const inputs = batch
-          .filter(t => t && t.length > 4)
-          .map(t => ({ question: QUESTION, context: t.slice(0, 800) }));
+        const inputs = batch.filter(t => t && t.length > 4).map(t => ({ question: QUESTION, context: t.slice(0, 800) }));
         if (!inputs.length) continue;
 
         try {
           let outputs = await this._aiPipeline(inputs);
           if (!Array.isArray(outputs)) outputs = [outputs];
-
           inputs.forEach((inp, idx) => {
             const out = outputs[idx];
             if (!out || out.score <= 0.01) return;
-            const parts = out.answer
-              .split(/[,|;]|\band\b/i)
-              .map(p => p.trim())
-              .filter(p => p.length > 2);
+            const parts = out.answer.split(/[,|;]|\band\b/i).map(p => p.trim()).filter(p => p.length > 2);
             if (parts.length) results[inp.context] = parts;
           });
         } catch(e) {
@@ -1430,8 +1362,6 @@ document.addEventListener('alpine:init', () => {
       return results;
     },
 
-    // ── Pre-verify all plant candidates in parallel ────────────────────────────
-    // Mirrors Colab ThreadPoolExecutor(max_workers=10)
     async preVerifyAllPlants(candidates) {
       const PARALLEL = 10;
       const names = [...candidates];
@@ -1441,7 +1371,7 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    // ── GBIF plant verification — mirrors Colab BotanicalValidator.verify() ──
+    // ══ verifyPlant — now also records is_synonym from GBIF ══════════════════
     async verifyPlant(name) {
       if (!name || name.length < 3) return null;
       name = name.replace(/^(nectaring on|flowers of|on|visiting|at|found on|blast to|host|label)\s+/i, '')
@@ -1464,7 +1394,11 @@ document.addEventListener('alpine:init', () => {
               canonical = `${genus} ${species}`;
             }
           }
-          const result = { accepted_genus: genus, accepted_species: species, canonical_name: canonical };
+          // Detect synonym: GBIF returns synonym=true, or the matched canonical differs from queried name
+          const isSynonym = data.synonym === true ||
+            (data.matchType !== 'NONE' && canonical.toLowerCase() !== low &&
+             genus.toLowerCase() !== low && !low.startsWith(genus.toLowerCase()));
+          const result = { accepted_genus: genus, accepted_species: species, canonical_name: canonical, is_synonym: isSynonym };
           this.plantCache[low] = result;
           return result;
         }
@@ -1473,62 +1407,38 @@ document.addEventListener('alpine:init', () => {
       return null;
     },
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // CITATION RESOLVER — unified for both API and ZIP modes
-    // Mirrors Colab's resolve_dataset_citation() with datasetKey lookup
-    // ══════════════════════════════════════════════════════════════════════════
     resolveRecordCitation(row, rawCites, doiToCitation) {
       const dk = row.datasetKey || '';
-
-      // ── API mode: use pre-fetched dataset info ──
       if (this.dataSource === 'api' && dk && this.datasetInfoCache[dk]) {
         return this.datasetInfoCache[dk].citation || `${row.datasetName || 'GBIF Dataset'} (via GBIF.org)`;
       }
-
-      // ── ZIP mode: mirrors Colab resolve_dataset_citation() exactly ──
-      // 1. Try datasetKey → DOI → citation text match
       if (dk && this.datasetInfoCache[dk]) {
         const cached = this.datasetInfoCache[dk];
         if (cached) return cached.citation;
       }
-
-      // 2. Try matching by dataset name / institution code against citations.txt lines
       const dsName = (row.datasetName || '').toLowerCase();
       const inst   = (row.institutionCode || '').toLowerCase();
       const identifiers = [dsName, inst].filter(Boolean);
-
       for (const cite of rawCites) {
         if (cite.startsWith('When using')) continue;
         const citeLow = cite.toLowerCase();
         if (identifiers.some(id => id && citeLow.includes(id))) return cite;
       }
-
-      // 3. Fallback
       return row.datasetName ? `${row.datasetName} (via GBIF.org)` : 'GBIF Dataset (via GBIF.org)';
     },
 
-    // Resolve license for a record — checks per-record field first, then dataset info
     resolveRecordLicense(row, rightsMap) {
-      // Per-record license field (from occurrence API or TSV)
       if (row.license) return this.getLicense(row.license);
-
-      // ZIP rights map
       const dsName = row.datasetName || '';
       if (rightsMap && rightsMap[dsName]) return rightsMap[dsName];
-
-      // Dataset-level license from pre-fetched info
       const dk = row.datasetKey || '';
       if (dk && this.datasetInfoCache[dk]) {
         const info = this.datasetInfoCache[dk];
         if (info && info.license) return info.license;
       }
-
       return 'CC BY 4.0';
     },
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // MAIN PIPELINE
-    // ══════════════════════════════════════════════════════════════════════════
     async run() {
       if (this.loading || !this.canRun()) return;
       this.loading = true;
@@ -1545,15 +1455,9 @@ document.addEventListener('alpine:init', () => {
       try {
         let rows = [], rawCites = [], doiToCitation = {}, rightsMap = {};
 
-        // ── PHASE 0: Get rows ─────────────────────────────────────────────────
         if (this.dataSource === 'api') {
           rows = await this.fetchFromGBIF();
-          // datasetInfoCache is populated inside fetchFromGBIF()
-          // Build rawCites array from dataset info for metadata.contributing_datasets
-          rawCites = Object.values(this.datasetInfoCache)
-            .filter(Boolean)
-            .map(d => d.citation)
-            .filter(Boolean);
+          rawCites = Object.values(this.datasetInfoCache).filter(Boolean).map(d => d.citation).filter(Boolean);
         } else {
           this.statusMsg = 'Reading ZIP…'; this.progress = 5;
           const ab = await this.uploadedFile.arrayBuffer();
@@ -1562,7 +1466,6 @@ document.addEventListener('alpine:init', () => {
           if (!occFile) throw new Error('occurrence.txt not found in ZIP.');
           this.addLog('✅ Found occurrence.txt', 'ok');
 
-          // Read citations.txt — mirrors Colab exactly
           const citFile = zip.file('citations.txt');
           if (citFile) {
             const ct = await citFile.async('string');
@@ -1575,7 +1478,6 @@ document.addEventListener('alpine:init', () => {
             this.addLog(`📄 Loaded ${rawCites.length} citation lines`, 'ok');
           }
 
-          // Read rights.txt — mirrors Colab's rights_map
           const rFile = zip.file('rights.txt');
           if (rFile) {
             const rt = await rFile.async('string');
@@ -1599,16 +1501,11 @@ document.addEventListener('alpine:init', () => {
           });
           this.addLog(`📊 Loaded ${rows.length} records (iNat/BugGuide excluded)`, 'ok');
 
-          // For ZIP mode, also fetch dataset info for DOI resolution
-          // (mirrors Colab's per-dataset GBIF API call inside resolve_dataset_citation)
           this.statusMsg = 'Resolving dataset citations…'; this.progress = 25;
           const zipDatasetKeys = [...new Set(rows.map(r => r.datasetKey).filter(Boolean))];
           await this.preloadDatasetInfo(zipDatasetKeys);
         }
 
-        // ════════════════════════════════════════════════════════════════════════
-        // PHASE 1: Build combined_text for every row (same as Colab)
-        // ════════════════════════════════════════════════════════════════════════
         this.progress = 42; this.statusMsg = 'Building label texts…';
         await new Promise(r => setTimeout(r, 0));
 
@@ -1624,21 +1521,15 @@ document.addEventListener('alpine:init', () => {
             : '';
         }
 
-        // ════════════════════════════════════════════════════════════════════════
-        // PHASE 2: AI batch pass — mirrors Colab batch_ai_extract(unique_texts)
-        // ════════════════════════════════════════════════════════════════════════
         let textToPlantsMap = {};
-
         if (this.opts.aiParse) {
           this.statusMsg = 'Loading RoBERTa model…';
           await new Promise(r => setTimeout(r, 0));
           const modelReady = await this.loadAIModel();
-
           if (modelReady && this._aiPipeline) {
             const uniqueTexts = [...new Set(rows.map(r => r._combinedText).filter(t => t && t.length > 4))];
             this.addLog(`🧠 AI scanning ${uniqueTexts.length} unique label texts (batches of 16)…`);
             this.progress = 48;
-
             textToPlantsMap = await this.batchAiExtract(uniqueTexts, msg => {
               this.statusMsg = msg;
               this.addLog('  ' + msg);
@@ -1649,15 +1540,10 @@ document.addEventListener('alpine:init', () => {
           }
         }
 
-        // ════════════════════════════════════════════════════════════════════════
-        // PHASE 3: Collect all candidate plant names and pre-verify in parallel
-        // Mirrors Colab ThreadPoolExecutor(max_workers=10) pre-verification pass
-        // ════════════════════════════════════════════════════════════════════════
         if (this.opts.verifyPlants) {
           this.statusMsg = 'Pre-verifying plant names via GBIF…';
           this.progress = 57;
           await new Promise(r => setTimeout(r, 0));
-
           const allCandidates = new Set();
           for (const plants of Object.values(textToPlantsMap))
             for (const p of plants) allCandidates.add(p.trim());
@@ -1671,9 +1557,6 @@ document.addEventListener('alpine:init', () => {
           this.addLog(`✅ Plant verification cache built (${Object.keys(this.plantCache).length} names resolved)`, 'ok');
         }
 
-        // ════════════════════════════════════════════════════════════════════════
-        // PHASE 4: Reverse geocoding — fill missing state/locality
-        // ════════════════════════════════════════════════════════════════════════
         if (this.opts.reverseGeocode) {
           const needsGeo = rows.filter(row => {
             const lat = parseFloat(row.decimalLatitude);
@@ -1698,10 +1581,6 @@ document.addEventListener('alpine:init', () => {
           }
         }
 
-        // ════════════════════════════════════════════════════════════════════════
-        // PHASE 5: Assemble occurrence records — fast lookup pass
-        // Mirrors Colab df.iterrows() loop exactly
-        // ════════════════════════════════════════════════════════════════════════
         this.progress = 73; this.statusMsg = 'Assembling occurrence records…';
         await new Promise(r => setTimeout(r, 0));
 
@@ -1717,7 +1596,6 @@ document.addEventListener('alpine:init', () => {
             await new Promise(r => setTimeout(r, 0));
           }
 
-          // ── PART A: State cleaning — mirrors Colab "XXArizona" fix ──
           let rawState = (row.stateProvince || '').trim();
           let stClean = rawState.replace(/^XX/i, '').trim();
           stClean = stClean.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
@@ -1732,7 +1610,6 @@ document.addEventListener('alpine:init', () => {
           const lon = row.decimalLongitude != null ? parseFloat(row.decimalLongitude) : null;
           const hasCoords = lat != null && !isNaN(lat) && lon != null && !isNaN(lon);
 
-          // ── PART B: Distribution ──
           if (!distribution[stClean]) distribution[stClean] = { state_total: 0, counties: {} };
           distribution[stClean].state_total++;
 
@@ -1748,7 +1625,6 @@ document.addEventListener('alpine:init', () => {
             distribution[stClean].counties[cClean].count++;
           }
 
-          // ── Flight period ──
           const mo = parseInt(row.month);
           if (!isNaN(mo) && mo >= 1 && mo <= 12) {
             const mName = MONTH_NAMES[mo-1];
@@ -1757,7 +1633,6 @@ document.addEventListener('alpine:init', () => {
 
           const combinedText = row._combinedText || '';
 
-          // ── PART C: Build local exclusion set — mirrors Colab's local_exclusions ──
           const localExcl = new Set([stLower]);
           if (cClean) localExcl.add(cClean.toLowerCase());
           locality.split(/\s+/).forEach(w => { if (w.length > 2) localExcl.add(w.toLowerCase()); });
@@ -1766,7 +1641,6 @@ document.addEventListener('alpine:init', () => {
           splitNames(row.recordedBy);
           splitNames(row.identifiedBy);
 
-          // ── PART D: Floral host extraction ──
           const floral_hosts = [], seenGenera = new Set();
 
           if (combinedText) {
@@ -1786,7 +1660,7 @@ document.addEventListener('alpine:init', () => {
                 verified = this.plantCache[cLow] || null;
               } else if (candidate.length >= 4 && /^[A-Z][a-z]+/.test(candidate)) {
                 const w2 = candidate.split(' ');
-                verified = { accepted_genus: w2[0], accepted_species: w2[1] || 'sp.', canonical_name: candidate };
+                verified = { accepted_genus: w2[0], accepted_species: w2[1] || 'sp.', canonical_name: candidate, is_synonym: false };
               }
 
               if (verified && verified.accepted_genus) {
@@ -1798,7 +1672,8 @@ document.addEventListener('alpine:init', () => {
                     accepted_genus:   g,
                     accepted_species: verified.accepted_species,
                     canonical_name:   verified.canonical_name,
-                    parse_method:     parseMethod
+                    parse_method:     parseMethod,
+                    is_synonym:       verified.is_synonym || false
                   });
                   seenGenera.add(g);
                   allHostCounts[verified.canonical_name || g] = (allHostCounts[verified.canonical_name || g] || 0) + 1;
@@ -1808,7 +1683,6 @@ document.addEventListener('alpine:init', () => {
           }
           if (floral_hosts.length > 0) floralCount++;
 
-          // ── PART E: Citation & license — unified resolver ──
           const citText    = this.resolveRecordCitation(row, rawCites, doiToCitation);
           const licLabel   = this.resolveRecordLicense(row, rightsMap);
 
@@ -1829,19 +1703,11 @@ document.addEventListener('alpine:init', () => {
           });
         }
 
-        // ── Assemble contributing_datasets list (mirrors Colab format) ──────────
-        // { title, doi, license, citation } per unique dataset
         const contributingDatasets = Object.entries(this.datasetInfoCache)
           .filter(([, v]) => v)
-          .map(([, v]) => ({
-            title:    v.title,
-            doi:      v.doi || null,
-            license:  v.license,
-            citation: v.citation
-          }))
-          .filter((d, i, arr) => arr.findIndex(x => x.title === d.title) === i); // deduplicate by title
+          .map(([, v]) => ({ title: v.title, doi: v.doi || null, license: v.license, citation: v.citation }))
+          .filter((d, i, arr) => arr.findIndex(x => x.title === d.title) === i);
 
-        // ── Assemble flight period ────────────────────────────────────────────
         const totalMo = Object.values(flightPeriod).reduce((a,b)=>a+b,0);
         const flightPeriodFinal = {};
         for (const m of MONTH_NAMES) {
@@ -1853,7 +1719,6 @@ document.addEventListener('alpine:init', () => {
         this.statusMsg = 'Assembling JSON…';
         this.addLog(`✅ ${occurrences.length} records assembled · ${floralCount} with floral data · ${geocodedCount} geocoded`, 'ok');
 
-        // ── Master JSON (matches schema exactly) ──────────────────────────────
         const master = {
           binomial_name: `${this.genus.trim()} ${this.speciesEpithet.trim()}`,
           common_name:   this.commonName.trim(),
@@ -1911,7 +1776,6 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
     parseTSV(text) {
       const lines = text.split('\n');
       if (lines.length < 2) return [];
@@ -1930,10 +1794,8 @@ document.addEventListener('alpine:init', () => {
       return rows;
     },
 
-    // Mirrors Colab's get_license_label() exactly
     getLicense(url) {
       if (!url) return 'CC BY 4.0';
-      // Handle short-form codes like "CC_BY_4_0" or "CC0_1_0"
       if (url.startsWith('CC')) {
         let normalized = url.replace(/_/g, ' ');
         normalized = normalized.replace(/(\d)\s+(\d)/g, '$1.$2');
@@ -1960,9 +1822,6 @@ document.addEventListener('alpine:init', () => {
       URL.revokeObjectURL(a.href);
     },
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // COPY / DOWNLOAD HELPERS (Summary tab)
-    // ══════════════════════════════════════════════════════════════════════════
     async copyText(text) {
       try { await navigator.clipboard.writeText(text); } catch {}
     },
@@ -2007,7 +1866,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ANALYZE TAB — state & functions
+    // ANALYZE TAB
     // ══════════════════════════════════════════════════════════════════════════
     analyzeSource: 'build',
     analyzeUrl: '',
@@ -2037,7 +1896,6 @@ document.addEventListener('alpine:init', () => {
           data = await res.json();
         }
         this.analyzeResults = this.computeAnalysis(data);
-        // Charts render after DOM update
         setTimeout(() => this.renderAnalyzeCharts(), 120);
       } catch(e) {
         this.analyzeError = e.message;
@@ -2046,19 +1904,81 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    // Core analysis — mirrors the Colab notebook exactly
+    // ══════════════════════════════════════════════════════════════════════════
+    // IN-TEXT CITATION PARSER
+    // ══════════════════════════════════════════════════════════════════════════
+    parseInTextRef(citationText) {
+      if (!citationText) return { intext: '', year: 9999, sortKey: '' };
+      const yearMatch = citationText.match(/\((\d{4})\)/);
+      const year = yearMatch ? parseInt(yearMatch[1]) : 9999;
+      const authorPart = citationText.split(/\s*\(\d{4}\)/)[0].trim();
+      const parts = authorPart.split(',').map(s => s.trim()).filter(Boolean);
+      const isPersonal = parts.some(p => /\b[A-Z]{1,3}\s*$/.test(p));
+      let intext;
+      if (isPersonal) {
+        const lastNames = parts.map(p => p.trim().split(/\s+/)[0]);
+        if (lastNames.length === 1)      intext = `${lastNames[0]}, ${year}`;
+        else if (lastNames.length === 2) intext = `${lastNames[0]} & ${lastNames[1]}, ${year}`;
+        else                             intext = `${lastNames[0]} et al., ${year}`;
+      } else {
+        intext = year < 9999 ? `${authorPart}, ${year}` : authorPart;
+      }
+      const sortKey = `${year}_${authorPart.toLowerCase()}`;
+      return { intext, year, sortKey };
+    },
+
+    buildInTextCitation(items) {
+      if (!items || !items.length) return '';
+      const parsed = items.map(item => {
+        const citText = item.citation || item.text || '';
+        return { ...this.parseInTextRef(citText), license: item.license || '' };
+      });
+      parsed.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
+      const refs = parsed.map(p => p.intext).join('; ');
+      const seenLicenses = new Set();
+      const licenses = [];
+      for (const p of parsed) {
+        const lic = (p.license || 'CC BY 4.0').trim();
+        if (lic && !seenLicenses.has(lic)) { seenLicenses.add(lic); licenses.push(lic); }
+      }
+      const licStr = licenses.join(' and ');
+      return `Data derived from (${refs}). Data licensed under ${licStr}.`;
+    },
+
+    async copyInTextCitation() {
+      if (!this.stats?.contributingDatasets?.length) return;
+      const text = this.buildInTextCitation(this.stats.contributingDatasets);
+      await navigator.clipboard.writeText(text);
+      this._flashBtn('btn-intext-cite');
+    },
+
+    async copyFloralInTextCitation() {
+      if (!this.analyzeResults?.floralCitationData?.length) return;
+      const text = this.buildInTextCitation(this.analyzeResults.floralCitationData);
+      await navigator.clipboard.writeText(text);
+      this._flashBtn('btn-intext-floral-cite');
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CORE ANALYSIS — computeAnalysis()
+    // Now also builds taxaFirstOcc for Cell 1B
+    // ══════════════════════════════════════════════════════════════════════════
     computeAnalysis(data) {
-      // 1. Raw flower tally
+      // 1. Raw flower tally (using canonical_name for full species-level display)
       const rawCounts = {};
       for (const occ of data.occurrences || []) {
         for (const h of occ?.ecology?.extracted_floral_hosts || []) {
-          const name = h.accepted_genus || h.canonical_name || h.original_query;
+          // Prefer canonical_name (full species), fall back gracefully
+          const name = h.canonical_name ||
+            (h.accepted_genus && h.accepted_species && h.accepted_species !== 'sp.'
+              ? `${h.accepted_genus} ${h.accepted_species}`
+              : h.accepted_genus || h.original_query);
           if (name) rawCounts[name.trim()] = (rawCounts[name.trim()] || 0) + 1;
         }
       }
       const rawFlowers = Object.keys(rawCounts).sort((a,b) => rawCounts[b] - rawCounts[a]);
 
-      // 2. Dedup by (lat, lon, date) — mirrors Colab
+      // 2. Dedup by (lat, lon, date)
       const events = {};
       for (const occ of data.occurrences || []) {
         if (!(occ?.ecology?.extracted_floral_hosts?.length)) continue;
@@ -2069,7 +1989,10 @@ document.addEventListener('alpine:init', () => {
         const key = `${lat}|${lon}|${date}`;
         if (!events[key]) events[key] = new Set();
         for (const h of occ.ecology.extracted_floral_hosts) {
-          const name = h.accepted_genus || h.canonical_name || h.original_query;
+          const name = h.canonical_name ||
+            (h.accepted_genus && h.accepted_species && h.accepted_species !== 'sp.'
+              ? `${h.accepted_genus} ${h.accepted_species}`
+              : h.accepted_genus || h.original_query);
           if (name) events[key].add(name.trim());
         }
       }
@@ -2085,23 +2008,70 @@ document.addEventListener('alpine:init', () => {
         name, raw: rawCounts[name], dedup: eventCounts[name] || 0
       }));
 
-      // 4. Detailed per-host, per-dataset breakdown (mirrors document)
-      const hostDatasets = {}; // { hostName → { citationText → { count, examples[] } } }
+      // 4. ═══ TAXA FIRST OCCURRENCE MAP (for Cell 1B) ═══════════════════════
+      // For each unique canonical name, find the FIRST occurrence that contains it,
+      // and record: gbifID, citation text, is_synonym flag, in-text reference string.
+      const taxaFirstOcc = {};
+      for (const occ of data.occurrences || []) {
+        if (!(occ?.ecology?.extracted_floral_hosts?.length)) continue;
+        const citText = occ?.citation?.text || '';
+        const gbifID  = occ?.gbifID || '';
+        for (const h of occ.ecology.extracted_floral_hosts) {
+          const name = h.canonical_name ||
+            (h.accepted_genus && h.accepted_species && h.accepted_species !== 'sp.'
+              ? `${h.accepted_genus} ${h.accepted_species}`
+              : h.accepted_genus || h.original_query);
+          if (!name) continue;
+          const n = name.trim();
+          if (!taxaFirstOcc[n]) {
+            const { intext } = this.parseInTextRef(citText);
+            taxaFirstOcc[n] = {
+              gbifID,
+              gbifLink: gbifID ? `https://www.gbif.org/occurrence/${gbifID}` : '',
+              citationText: citText,
+              intextRef: intext,
+              is_synonym: h.is_synonym || false
+            };
+          }
+        }
+      }
+
+      // Alphabetically sorted taxa names
+      const sortedTaxaNames = Object.keys(taxaFirstOcc).sort();
+
+      // Build the formatted preview string (first 5 taxa)
+      const buildTaxaEntry = (name) => {
+        const info = taxaFirstOcc[name];
+        if (!info) return name;
+        const segments = [];
+        if (info.intextRef) segments.push(info.intextRef);
+        if (info.is_synonym) segments.push('old synonym');
+        if (info.gbifID) segments.push(`GBIF record ${info.gbifID}`);
+        return `${name} (${segments.join('; ')})`;
+      };
+
+      const previewParts = sortedTaxaNames.slice(0, 5).map(buildTaxaEntry);
+      const taxaListPreview = previewParts.join(', ') +
+        (sortedTaxaNames.length > 5 ? `, … [${sortedTaxaNames.length} taxa total]` : '.');
+
+      // 5. Detailed per-host, per-dataset breakdown
+      const hostDatasets = {};
       for (const occ of data.occurrences || []) {
         if (!(occ?.ecology?.extracted_floral_hosts?.length)) continue;
         const cite = occ?.citation?.text || 'Unknown dataset';
         const gbif = occ?.gbif_link || '';
-        // Full notes string — this is the combined verbatim label + occurrence remarks etc.
         const rawNotes = (occ?.ecology?.notes || '').trim();
         for (const h of occ.ecology.extracted_floral_hosts) {
-          const name = h.accepted_genus || h.canonical_name || h.original_query;
+          const name = h.canonical_name ||
+            (h.accepted_genus && h.accepted_species && h.accepted_species !== 'sp.'
+              ? `${h.accepted_genus} ${h.accepted_species}`
+              : h.accepted_genus || h.original_query);
           if (!name) continue;
           const n = name.trim();
           if (!hostDatasets[n]) hostDatasets[n] = {};
           if (!hostDatasets[n][cite]) hostDatasets[n][cite] = { count: 0, examples: [] };
           hostDatasets[n][cite].count++;
           if (hostDatasets[n][cite].examples.length < 3) {
-            // Pre-compute displayText here in JS — avoids Alpine template expression bugs
             const displayText = rawNotes || '(no label text available)';
             hostDatasets[n][cite].examples.push({
               displayText,
@@ -2119,15 +2089,14 @@ document.addEventListener('alpine:init', () => {
           .map(([citation, d]) => ({ citation, count: d.count, examples: d.examples }))
       }));
 
-      // 5. Citations contributing floral data — with license tracking
-      const floralCitMap = {}; // citation text → license
+      // 6. Citations contributing floral data
+      const floralCitMap = {};
       for (const occ of data.occurrences || []) {
         if (!(occ?.ecology?.extracted_floral_hosts?.length)) continue;
         const cite = occ?.citation?.text;
         if (cite) floralCitMap[cite.trim()] = occ?.citation?.license || 'CC BY 4.0';
       }
       const floralCitations = Object.keys(floralCitMap).sort();
-      // Rich array for in-text citation building
       const floralCitationData = floralCitations.map(text => ({ text, license: floralCitMap[text] }));
 
       return {
@@ -2138,6 +2107,9 @@ document.addEventListener('alpine:init', () => {
         rawCounts,
         eventCounts,
         compTable,
+        taxaFirstOcc,
+        sortedTaxaNames,
+        taxaListPreview,
         detailedHosts,
         floralCitations,
         floralCitationData
@@ -2145,91 +2117,45 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ══════════════════════════════════════════════════════════════════════════
-    // IN-TEXT CITATION HELPERS
+    // CELL 1B: Copy & Download — Formatted Floral Taxa List
+    // Format: Taxon name (Author, Year; [old synonym;] GBIF record XXXXXXXXXX), …
     // ══════════════════════════════════════════════════════════════════════════
-
-    // Parse a full citation string into { intext, year, sortKey }
-    // e.g. "Bentley A, Osborn R (2026). Snow..." → { intext: "Bentley & Osborn, 2026", year: 2026, sortKey: "2026bentley" }
-    parseInTextRef(citationText) {
-      // Extract year
-      const yearMatch = citationText.match(/\((\d{4})\)/);
-      const year = yearMatch ? parseInt(yearMatch[1]) : 9999;
-
-      // Author portion is everything before " (YYYY)"
-      const authorPart = citationText.split(/\s*\(\d{4}\)/)[0].trim();
-
-      // Split by comma to get candidate name segments
-      const parts = authorPart.split(',').map(s => s.trim()).filter(Boolean);
-
-      // Detect personal names: a segment ends with 1-3 uppercase initials
-      // e.g. "Bentley A", "Ikerd H I", "Griswold T"
-      const isPersonal = parts.some(p => /\b[A-Z]{1,3}\s*$/.test(p));
-
-      let intext;
-      if (isPersonal) {
-        // Last name = first word of each comma-separated segment
-        const lastNames = parts.map(p => p.trim().split(/\s+/)[0]);
-        if (lastNames.length === 1)      intext = `${lastNames[0]}, ${year}`;
-        else if (lastNames.length === 2) intext = `${lastNames[0]} & ${lastNames[1]}, ${year}`;
-        else                             intext = `${lastNames[0]} et al., ${year}`;
-      } else {
-        // Institutional — use full author part as-is
-        intext = `${authorPart}, ${year}`;
-      }
-
-      // Sort key: year first, then alpha by first author/institution word
-      const sortKey = `${year}_${authorPart.toLowerCase()}`;
-      return { intext, year, sortKey };
-    },
-
-    // Build a full in-text citation string from an array of { citation/text, license }
-    // items: [{ citation: "...", license: "CC BY 4.0" }, ...]  OR  [{ text: "...", license: "..." }]
-    buildInTextCitation(items) {
-      if (!items || !items.length) return '';
-
-      // Parse and sort: by year ASC, then alpha
-      const parsed = items.map(item => {
-        const citText = item.citation || item.text || '';
-        return { ...this.parseInTextRef(citText), license: item.license || '' };
+    _buildTaxaListString() {
+      if (!this.analyzeResults?.sortedTaxaNames?.length) return '';
+      const parts = this.analyzeResults.sortedTaxaNames.map(name => {
+        const info = this.analyzeResults.taxaFirstOcc[name];
+        if (!info) return name;
+        const segments = [];
+        if (info.intextRef) segments.push(info.intextRef);
+        if (info.is_synonym) segments.push('old synonym');
+        if (info.gbifID) segments.push(`GBIF record ${info.gbifID}`);
+        return segments.length ? `${name} (${segments.join('; ')})` : name;
       });
-      parsed.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
-
-      // Build citation list
-      const refs = parsed.map(p => p.intext).join('; ');
-
-      // Deduplicated license list
-      const seenLicenses = new Set();
-      const licenses = [];
-      for (const p of parsed) {
-        const lic = (p.license || 'CC BY 4.0').trim();
-        if (lic && !seenLicenses.has(lic)) { seenLicenses.add(lic); licenses.push(lic); }
-      }
-      const licStr = licenses.join(' and ');
-
-      return `Data derived from (${refs}). Data licensed under ${licStr}.`;
+      return parts.join(', ') + '.';
     },
 
-    // Copy in-text for Summary tab (all contributing datasets)
-    async copyInTextCitation() {
-      if (!this.stats?.contributingDatasets?.length) return;
-      const text = this.buildInTextCitation(this.stats.contributingDatasets);
-      await navigator.clipboard.writeText(text);
-      this._flashBtn('btn-intext-cite');
+    async copyFloralTaxaList() {
+      const text = this._buildTaxaListString();
+      if (!text) return;
+      try { await navigator.clipboard.writeText(text); } catch(e) { console.error(e); }
+      this._flashBtn('btn-copy-taxa-list');
     },
 
-    // Copy in-text for Analyze tab Cell 5 (floral citations only)
-    async copyFloralInTextCitation() {
-      if (!this.analyzeResults?.floralCitationData?.length) return;
-      const text = this.buildInTextCitation(this.analyzeResults.floralCitationData);
-      await navigator.clipboard.writeText(text);
-      this._flashBtn('btn-intext-floral-cite');
+    downloadTaxaListTxt() {
+      const text = this._buildTaxaListString();
+      if (!text) return;
+      const name = (this.analyzeResults?.binomial_name || 'species').replace(/\s+/g, '_');
+      this._downloadText(text, `${name}_floral_taxa_list.txt`);
     },
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // CHARTS
+    // ══════════════════════════════════════════════════════════════════════════
     renderAnalyzeCharts() {
       if (!this.analyzeResults) return;
       const top = this.analyzeResults.rawFlowers.slice(0, 15);
-      const rawVals  = top.map(f => this.analyzeResults.rawCounts[f]);
-      const dedupVals= top.map(f => this.analyzeResults.eventCounts[f] || 0);
+      const rawVals   = top.map(f => this.analyzeResults.rawCounts[f]);
+      const dedupVals = top.map(f => this.analyzeResults.eventCounts[f] || 0);
 
       const baseOpts = (datasets) => ({
         type: 'bar',
@@ -2259,10 +2185,7 @@ document.addEventListener('alpine:init', () => {
               border: { display: false }
             },
             y: {
-              ticks: {
-                font: { size: 11, style: 'italic', family: 'Georgia, serif' },
-                color: '#334155'
-              },
+              ticks: { font: { size: 11, style: 'italic', family: 'Georgia, serif' }, color: '#334155' },
               grid: { display: false },
               border: { display: false }
             }
@@ -2355,7 +2278,6 @@ document.addEventListener('alpine:init', () => {
   }));
 });
 
-// ── Tab switching ──────────────────────────────────────────────────────────
 const PANELS = ['build','preview','summary','guide','analyze'];
 function showTab(name) {
   PANELS.forEach(id => {
@@ -2371,7 +2293,6 @@ function showTab(name) {
       tab.classList.add('tab-inactive');
     }
   });
-  // Render charts after DOM is visible
   if (name === 'analyze') {
     setTimeout(() => {
       const app = Alpine.$data(document.querySelector('[x-data="app"]'));
