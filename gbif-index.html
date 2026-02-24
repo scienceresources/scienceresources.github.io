@@ -23,7 +23,7 @@
     box-shadow: 0 16px 32px -8px rgba(0,0,0,0.1);
   }
   .tool-card-blue:hover  { border-color: #93c5fd; }
-  .tool-card-purple:hover { border-color: rgb(183, 106, 255); }
+.tool-card-amber:hover { border-color: oklch(82.8% 0.189 84.429) }
 
   .feature-pill {
     display: inline-flex;
@@ -90,6 +90,12 @@
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
         Build and export Json bee species APIs using GBIF data. Use AI interpretation to find flower records from historic lables and do analyses in the browser.
       </p>
+            <div class="flex flex-wrap gap-2">
+        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-amber-400 text-[9px]"></i>Json</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-amber-400 text-[9px]"></i>AI flower records</span>
+        <span class="feature-pill"><i class="fa-solid fa-code-compare text-amber-400 text-[9px]"></i>Citation generator</span>
+      </div>
+    </a>
 
         <!-- SeqLab -->
         <a href="gbif-csv.html"
@@ -108,9 +114,9 @@
       </p>
 
       <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-purple-400 text-[9px]"></i>Fragment Aligner</span>
-        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-purple-400 text-[9px]"></i>DNA → Amino Acid</span>
-        <span class="feature-pill"><i class="fa-solid fa-code-compare text-purple-400 text-[9px]"></i>Protein Comparator</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-amber-400 text-[9px]"></i>CSV</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-amber-400 text-[9px]"></i>TSV</span>
+        <span class="feature-pill"><i class="fa-solid fa-code-compare text-amber-400 text-[9px]"></i>Filter</span>
       </div>
     </a>
 
