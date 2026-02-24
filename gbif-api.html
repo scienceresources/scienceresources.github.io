@@ -1,0 +1,2384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBIF → Species API Builder</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="icon" type="image/png" href="favicon4.png">
+     <link rel="apple-touch-icon" href="favicon4.png">
+
+<!-- Transformers.js — deepset/roberta-base-squad2 in-browser, no API key needed -->
+<script type="module">
+  (async () => {
+    try {
+      const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+      env.allowLocalModels = false;
+      env.useBrowserCache = true;
+      // Point directly at HuggingFace hub — public models don't need auth
+      env.remoteHost = 'https://huggingface.co/';
+      env.remotePathTemplate = '{model}/resolve/{revision}/';
+      window._transformersPipeline = pipeline;
+      window._transformersEnv = env;
+      window._transformersReady = true;
+      window.dispatchEvent(new Event('transformers-ready'));
+    } catch(e) {
+      console.warn('Transformers.js module failed to import:', e);
+      window._transformersReady = false;
+      window._transformersError = e.message;
+      window.dispatchEvent(new Event('transformers-ready'));
+    }
+  })();
+</script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+  [x-cloak] { display: none !important; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .seq-mono {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    white-space: pre;
+    letter-spacing: 0.04em;
+  }
+  .tab-active   { border-bottom: 2px solid #d97706; color: #b45309 !important; background: #fffbeb; }
+  .tab-inactive { border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #334155; background: #f8fafc; }
+
+  .source-option {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 14px 16px; border: 1px solid #e2e8f0;
+    border-radius: 12px; cursor: pointer;
+    transition: all 0.15s; background: white;
+  }
+  .source-option:has(input:checked) { border-color: #d97706; background: #fffbeb; }
+  .source-option input { accent-color: #d97706; margin-top: 2px; }
+
+  .check-option {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px; border: 1px solid #e2e8f0;
+    border-radius: 10px; cursor: pointer;
+    transition: all 0.15s; background: white;
+  }
+  .check-option:has(input:checked) { border-color: #d97706; background: #fffbeb; }
+  .check-option input { accent-color: #d97706; margin-top: 2px; }
+
+  .drop-zone { transition: all 0.2s; }
+  .drop-zone.dragging { border-color: #d97706 !important; background: #fffbeb !important; }
+
+  .progress-bar { transition: width 0.3s ease; }
+
+  .json-preview {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    white-space: pre;
+    overflow-x: auto;
+    line-height: 1.6;
+  }
+
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+  .bar-chart-row { display: flex; align-items: center; gap: 10px; }
+
+  .suggest-item { padding: 8px 14px; cursor: pointer; font-size: 12px; transition: background 0.1s; border-bottom: 1px solid #f1f5f9; }
+  .suggest-item:hover { background: #fffbeb; }
+  .suggest-item:last-child { border-bottom: none; }
+
+  .copy-btn { transition: all 0.15s; }
+  .copy-btn.copied { background: #dcfce7 !important; border-color: #86efac !important; color: #16a34a !important; }
+  .host-card { border-left: 3px solid #f59e0b; }
+  .cell-header { background: #1e293b; border-bottom: 1px solid #334155; }
+  .cell-label { background: #f59e0b; color: #1e293b; font-size: 9px; font-weight: 900; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 4px; }
+  .notebook-cell { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  canvas { max-height: 360px; }
+</style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-24">
+
+<!-- ── HEADER ───────────────────────────────────────────────────────────── -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+    <div class="flex items-center gap-3">
+      <div class="bg-amber-100 p-2 rounded-lg">
+        <i class="fa-solid fa-database text-amber-600 text-xl"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold text-slate-900 leading-tight">GBIF → Species API Builder</h1>
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Darwin Core · JSON Export · AI-Enhanced</p>
+      </div>
+    </div>
+    <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+      GBIF Species Match API · BigDataCloud Geocoding · RoBERTa QA
+    </p>
+  </div>
+
+  <!-- Tab row -->
+  <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap" x-data>
+    <button onclick="showTab('build')" id="tab-build"
+      class="tab-active text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-hammer mr-2 opacity-70"></i>Build JSON
+    </button>
+    <button onclick="showTab('preview')" id="tab-preview"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-code mr-2 opacity-70"></i>Preview JSON
+    </button>
+    <button onclick="showTab('summary')" id="tab-summary"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-chart-bar mr-2 opacity-70"></i>Summary
+    </button>
+    <button onclick="showTab('guide')" id="tab-guide"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-book-open mr-2 opacity-70"></i>How To Use
+    </button>
+    <button onclick="showTab('analyze')" id="tab-analyze"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-flask mr-2 opacity-70"></i>Analyze
+    </button>
+  </div>
+</header>
+
+<!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-5" x-data="app">
+
+  <!-- ══ BUILD PANEL ════════════════════════════════════════════════════════ -->
+  <div id="panel-build" class="space-y-5">
+
+    <!-- Step 1: Species Info -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-circle-1 mr-1 text-amber-400"></i>Species Information
+      </p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5">
+        Taxonomy fields populate the JSON structure. Genus + species epithet are required.
+      </p>
+      <div class="grid sm:grid-cols-3 gap-4 mb-4">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <i class="fa-solid fa-bug mr-1 text-amber-400"></i>Genus *
+          </label>
+          <input x-model="genus" type="text" placeholder="e.g. Melissodes"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <i class="fa-solid fa-tag mr-1 text-amber-400"></i>Species Epithet *
+          </label>
+          <input x-model="speciesEpithet" type="text" placeholder="e.g. agilis"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <i class="fa-solid fa-comment mr-1 text-amber-400"></i>Common Name
+          </label>
+          <input x-model="commonName" type="text" placeholder="e.g. Agile Long-horned Bee"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        </div>
+      </div>
+      <div class="grid sm:grid-cols-4 gap-3">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Subgenus</label>
+          <input x-model="subgenus" type="text" placeholder="e.g. Eumelissodes"
+            class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Family</label>
+          <input x-model="family" type="text" placeholder="Apidae"
+            class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Tribe</label>
+          <input x-model="tribe" type="text" placeholder="Eucerini"
+            class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Project Name</label>
+          <input x-model="projectName" type="text" placeholder="The Melissodes Project"
+            class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Data Source -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-circle-2 mr-1 text-amber-400"></i>Data Source
+      </p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5">
+        Fetch directly from the GBIF API by typing a taxon name, or upload a Darwin Core Archive ZIP.
+      </p>
+
+      <!-- Source radio -->
+      <div class="grid sm:grid-cols-2 gap-3 mb-5">
+        <label class="source-option">
+          <input type="radio" x-model="dataSource" value="api">
+          <div>
+            <p class="font-bold text-sm text-slate-700 mb-0.5"><i class="fa-solid fa-globe mr-1.5 text-blue-400"></i>GBIF API Live Fetch</p>
+            <p class="text-xs text-slate-400">Search by taxon name — dataset citations & licences fetched automatically</p>
+          </div>
+        </label>
+        <label class="source-option">
+          <input type="radio" x-model="dataSource" value="zip">
+          <div>
+            <p class="font-bold text-sm text-slate-700 mb-0.5"><i class="fa-solid fa-file-zipper mr-1.5 text-blue-400"></i>Upload DwC-A ZIP</p>
+            <p class="text-xs text-slate-400">Upload a Darwin Core Archive downloaded from GBIF</p>
+          </div>
+        </label>
+      </div>
+
+      <!-- API panel -->
+      <div x-show="dataSource === 'api'" class="space-y-4">
+        <div class="relative">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+            <i class="fa-solid fa-magnifying-glass mr-1 text-slate-300"></i>Search Taxon Name
+          </label>
+          <div class="flex gap-3">
+            <input x-model="taxonSearch" @input.debounce.400ms="searchTaxon()" @keydown.enter="searchTaxon()"
+              type="text" placeholder="e.g. Melissodes agilis"
+              class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+            <button @click="searchTaxon()" :disabled="taxonSearching"
+              class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+              <i class="fa-solid text-xs" :class="taxonSearching ? 'fa-circle-notch animate-spin' : 'fa-search'"></i>
+              Search
+            </button>
+          </div>
+          <!-- Dropdown suggestions -->
+          <div x-show="taxonSuggestions.length > 0" x-cloak
+            style="position:absolute;top:100%;left:0;right:0;z-index:50;margin-top:4px;"
+            class="bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+            <template x-for="s in taxonSuggestions" :key="s.key">
+              <div class="suggest-item" @click="selectTaxon(s)">
+                <span class="font-mono italic text-slate-800" x-text="s.canonicalName || s.scientificName"></span>
+                <span class="text-slate-400 ml-2 text-[11px]" x-text="s.rank + (s.family ? ' · ' + s.family : '')"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Selected taxon badge -->
+        <div x-show="selectedTaxon" x-cloak
+          class="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3 gap-3">
+          <div>
+            <p class="text-sm font-bold italic text-green-800" x-text="selectedTaxon?.canonicalName"></p>
+            <p class="text-[10px] text-green-600 font-mono mt-0.5" x-text="'GBIF key: ' + selectedTaxon?.key + ' · ' + (selectedTaxon?.rank||'')"></p>
+          </div>
+          <button @click="selectedTaxon=null;taxonSuggestions=[];"
+            class="text-slate-400 hover:text-red-500 transition-colors px-2 py-1 rounded hover:bg-red-50">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <i class="fa-solid fa-hashtag mr-1 text-slate-300"></i>Max Records
+              <span class="normal-case font-normal text-slate-300 ml-1">(leave blank for all)</span>
+            </label>
+            <input x-model="apiMaxRecords" type="number" min="100" step="100" placeholder="All records (up to 100,000)"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+            <p class="text-[10px] text-slate-400 mt-1.5">GBIF caps at 100,000. Leave empty to fetch all matching records.</p>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+              <i class="fa-solid fa-flag mr-1 text-slate-300"></i>Country Filter
+              <span class="normal-case font-normal text-slate-300 ml-1">(ISO 2-letter, optional)</span>
+            </label>
+            <input x-model="apiCountry" type="text" placeholder="US — or leave blank for all countries"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+          </div>
+        </div>
+
+        <!-- Citation notice for API mode -->
+        <div class="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <i class="fa-solid fa-circle-info text-blue-400 mt-0.5 shrink-0 text-sm"></i>
+          <p class="text-xs text-blue-700">
+            <strong>API mode citations:</strong> Dataset metadata, DOIs, and licences are automatically fetched from GBIF's dataset API for every unique dataset in your results — same data as the ZIP's <code class="bg-blue-100 px-1 rounded font-mono text-[10px]">citations.txt</code> and <code class="bg-blue-100 px-1 rounded font-mono text-[10px]">rights.txt</code>.
+          </p>
+        </div>
+
+        <!-- Exclusion notice -->
+        <div class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
+          <i class="fa-solid fa-ban text-red-400 mt-0.5 shrink-0 text-sm"></i>
+          <p class="text-xs text-red-700">
+            <strong>Always excluded:</strong> iNaturalist Research-Grade and BugGuide datasets are filtered out automatically at the fetch level to ensure specimen-based data quality.
+          </p>
+        </div>
+      </div>
+
+      <!-- ZIP Upload panel -->
+      <div x-show="dataSource === 'zip'">
+        <div class="drop-zone border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-all"
+          @dragover.prevent="$el.classList.add('dragging')"
+          @dragleave.prevent="$el.classList.remove('dragging')"
+          @drop.prevent="$el.classList.remove('dragging'); handleFileDrop($event)"
+          @click="$refs.fileInput.click()">
+          <input type="file" x-ref="fileInput" accept=".zip" class="hidden" @change="handleFileSelect($event)">
+          <template x-if="!uploadedFile">
+            <div>
+              <i class="fa-solid fa-cloud-arrow-up text-4xl text-slate-300 mb-3"></i>
+              <p class="text-sm font-bold text-slate-500">Drop GBIF DwC-A ZIP here</p>
+              <p class="text-xs text-slate-400 mt-1">or click to browse · .zip only · processed entirely in-browser</p>
+            </div>
+          </template>
+          <template x-if="uploadedFile">
+            <div>
+              <i class="fa-solid fa-file-zipper text-3xl text-amber-500 mb-2"></i>
+              <p class="text-sm font-bold text-slate-700" x-text="uploadedFile.name"></p>
+              <p class="text-xs text-slate-400 mt-1" x-text="formatBytes(uploadedFile.size)"></p>
+              <p class="text-xs text-green-600 font-semibold mt-1.5"><i class="fa-solid fa-check mr-1"></i>Ready to process</p>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Processing Options -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-circle-3 mr-1 text-amber-400"></i>Processing Options
+      </p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5">
+        Configure geocoding, floral host extraction, and data quality filters.
+      </p>
+
+      <div class="grid sm:grid-cols-2 gap-3 mb-5">
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.reverseGeocode">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-location-dot mr-1 text-blue-400"></i>Reverse-geocode coordinates</p>
+            <p class="text-xs text-slate-400 mt-0.5">Fills missing state and locality fields for every record with lat/lon using BigDataCloud (no key required)</p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.aiParse">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-wand-magic-sparkles mr-1 text-purple-400"></i>AI floral host parser <span class="text-[10px] font-normal not-italic text-purple-400 ml-1">(RoBERTa · no key needed)</span></p>
+            <p class="text-xs text-slate-400 mt-0.5">Runs <code class="bg-slate-100 px-1 rounded text-[10px] font-mono">deepset/roberta-base-squad2</code> locally in your browser — same model as the Colab notebook. Downloads ~90 MB on first use.</p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.verifyPlants">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-leaf mr-1 text-green-400"></i>Verify plants via GBIF API</p>
+            <p class="text-xs text-slate-400 mt-0.5">Cross-references extracted plant names against the GBIF Species Match API for accuracy</p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.extractFromRemarks">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-align-left mr-1 text-slate-400"></i>Scan occurrence remarks</p>
+            <p class="text-xs text-slate-400 mt-0.5">Parse <code class="bg-slate-100 px-1 rounded text-[10px] font-mono">occurrenceRemarks</code>, <code class="bg-slate-100 px-1 rounded text-[10px] font-mono">verbatimLabel</code>, <code class="bg-slate-100 px-1 rounded text-[10px] font-mono">associatedTaxa</code></p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.fixCounties">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-scissors mr-1 text-slate-400"></i>Fix duplicate county names</p>
+            <p class="text-xs text-slate-400 mt-0.5">Detects and corrects doubled county strings like "KentKent" → "Kent"</p>
+          </div>
+        </label>
+        <label class="check-option">
+          <input type="checkbox" x-model="opts.skipGeoBlacklist">
+          <div>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-filter mr-1 text-slate-400"></i>Filter ambiguous state names</p>
+            <p class="text-xs text-slate-400 mt-0.5">Skips records with "unknown", "none", numeric, or single-character state values</p>
+          </div>
+        </label>
+      </div>
+
+      <!-- RoBERTa model status -->
+      <div x-show="opts.aiParse" x-cloak class="bg-slate-900 rounded-xl p-4">
+        <div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full shrink-0 transition-colors"
+            :class="aiModelStatus === 'ready' ? 'bg-green-400' : aiModelStatus === 'loading' ? 'bg-amber-400 animate-pulse' : aiModelStatus === 'error' ? 'bg-red-400' : 'bg-slate-600'"></div>
+          <div class="flex-1">
+            <p class="text-[11px] font-bold text-slate-300">
+              <span x-text="aiModelStatus === 'ready' ? '✓ RoBERTa model loaded and ready' : aiModelStatus === 'loading' ? 'Downloading model… this may take a moment' : aiModelStatus === 'error' ? '✗ Model failed to load — regex fallback will be used' : 'Model will load when processing starts'"></span>
+            </p>
+            <p class="text-[10px] text-slate-500 mt-0.5"><code class="text-green-500 font-mono">deepset/roberta-base-squad2</code> · runs entirely in your browser · no API key · no data leaves your machine</p>
+          </div>
+          <button x-show="aiModelStatus === 'idle' || aiModelStatus === 'error'" @click="loadAIModel()"
+            class="text-[11px] font-bold text-amber-400 hover:text-amber-300 border border-amber-800 hover:border-amber-600 px-3 py-1.5 rounded-lg transition-all shrink-0">
+            Load Now
+          </button>
+        </div>
+        <div x-show="aiModelStatus === 'loading'" class="mt-3">
+          <div class="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+            <div class="h-1.5 bg-amber-400 rounded-full animate-pulse" style="width:100%"></div>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1.5" x-text="aiModelLoadMsg || 'Fetching model weights from HuggingFace CDN…'"></p>
+        </div>
+        <!-- CORS / network error help -->
+        <div x-show="aiModelStatus === 'error'" x-cloak class="mt-3 bg-slate-800 rounded-lg p-3">
+          <p class="text-[10px] text-amber-300 font-bold mb-1">Common causes &amp; fixes:</p>
+          <ul class="text-[10px] text-slate-400 space-y-0.5 list-disc list-inside">
+            <li>Serve this file via a local HTTP server (not <code class="text-green-400">file://</code>)</li>
+            <li>Try: <code class="text-green-400">python -m http.server 8080</code> in the same folder</li>
+            <li>Or host on GitHub Pages / Netlify / any HTTPS origin</li>
+            <li>HuggingFace CDN requires HTTPS — <code class="text-amber-400">file://</code> origins are blocked by CORS</li>
+          </ul>
+          <p class="text-[10px] text-slate-400 mt-1.5">Regex-based extraction will be used as fallback — no functionality lost.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Run -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div class="flex flex-wrap gap-3 items-center mb-5">
+        <button @click="run()"
+          :disabled="loading || !canRun()"
+          :class="(loading || !canRun()) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-700 active:scale-95'"
+          class="bg-amber-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch animate-spin' : 'fa-play'"></i>
+          <span x-text="loading ? 'Processing…' : 'Build JSON'"></span>
+        </button>
+        <template x-if="jsonOutput && !loading">
+          <button @click="downloadJSON()"
+            class="bg-green-600 hover:bg-green-700 active:scale-95 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+            <i class="fa-solid fa-download text-xs"></i>Download JSON
+          </button>
+        </template>
+        <template x-if="jsonOutput && !loading">
+          <button onclick="showTab('summary')"
+            class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+            View Summary <i class="fa-solid fa-arrow-right text-xs"></i>
+          </button>
+        </template>
+        <template x-if="loading">
+          <p class="text-xs text-slate-500 italic" x-text="statusMsg"></p>
+        </template>
+      </div>
+
+      <!-- Progress bar -->
+      <template x-if="loading || jsonOutput">
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" x-text="loading ? 'Processing…' : '✓ Complete'"></p>
+            <p class="text-[10px] font-mono text-slate-400" x-text="progress + '%'"></p>
+          </div>
+          <div class="h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+            <div class="progress-bar h-2 rounded-full" :style="'width:' + progress + '%'"
+              :class="loading ? 'bg-amber-400' : 'bg-green-500'"></div>
+          </div>
+          <div class="flex flex-wrap gap-5" x-show="stats">
+            <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Records</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="(stats?.total||0).toLocaleString()"></p></div>
+            <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Processed</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="(stats?.processed||0).toLocaleString()"></p></div>
+            <div><p class="text-[9px] text-amber-500 uppercase tracking-widest">Floral Records</p><p class="font-bold text-amber-600 font-mono text-lg" x-text="(stats?.floralHosts||0).toLocaleString()"></p></div>
+            <div><p class="text-[9px] text-green-500 uppercase tracking-widest">Geocoded</p><p class="font-bold text-green-600 font-mono text-lg" x-text="(stats?.geocoded||0).toLocaleString()"></p></div>
+            <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">States</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="stats?.states||0"></p></div>
+            <div><p class="text-[9px] text-blue-400 uppercase tracking-widest">Datasets</p><p class="font-bold text-blue-600 font-mono text-lg" x-text="stats?.datasets||0"></p></div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Error -->
+      <template x-if="error">
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 mt-4 flex items-start gap-3">
+          <i class="fa-solid fa-triangle-exclamation text-red-400 mt-0.5 shrink-0"></i>
+          <div>
+            <p class="text-sm font-bold text-red-700">Processing Failed</p>
+            <p class="text-xs text-red-600 mt-1" x-text="error"></p>
+          </div>
+        </div>
+      </template>
+
+      <!-- Log -->
+      <template x-if="log.length">
+        <div class="mt-4 bg-slate-900 rounded-xl p-4 max-h-48 overflow-y-auto">
+          <template x-for="(entry, i) in log" :key="i">
+            <p class="seq-mono leading-relaxed"
+              :class="entry.type === 'ok' ? 'text-green-400' : entry.type === 'warn' ? 'text-amber-400' : 'text-slate-500'"
+              x-text="entry.msg"></p>
+          </template>
+        </div>
+      </template>
+    </div>
+
+  </div><!-- /build -->
+
+  <!-- ══ PREVIEW PANEL ══════════════════════════════════════════════════════ -->
+  <div id="panel-preview" class="hidden fade-in">
+    <template x-if="jsonOutput">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">JSON Output Preview</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">Showing first 200 occurrences · download for the complete file</p>
+          </div>
+          <button @click="downloadJSON()"
+            class="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg transition-all bg-white">
+            <i class="fa-solid fa-download text-[10px]"></i>Download Full JSON
+          </button>
+        </div>
+        <div class="p-4 bg-slate-950 overflow-x-auto max-h-[72vh]">
+          <pre class="json-preview text-slate-300" x-text="jsonPreview"></pre>
+        </div>
+      </div>
+    </template>
+    <template x-if="!jsonOutput">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <i class="fa-solid fa-code text-4xl text-slate-200 mb-3"></i>
+        <p class="text-sm text-slate-400">No output yet — run the builder first.</p>
+      </div>
+    </template>
+  </div><!-- /preview -->
+
+  <!-- ══ SUMMARY PANEL ══════════════════════════════════════════════════════ -->
+  <div id="panel-summary" class="hidden fade-in space-y-5">
+    <template x-if="stats">
+      <div class="space-y-5">
+        <!-- Hero stats -->
+        <div class="grid grid-cols-2 sm:grid-cols-6 gap-4">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 text-center">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Records</p>
+            <p class="text-3xl font-black text-slate-700 font-mono" x-text="(stats.total||0).toLocaleString()"></p>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-amber-200 p-5 text-center">
+            <p class="text-[9px] font-bold text-amber-400 uppercase tracking-widest mb-1">Floral Records</p>
+            <p class="text-3xl font-black text-amber-600 font-mono" x-text="(stats.floralHosts||0).toLocaleString()"></p>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-green-200 p-5 text-center">
+            <p class="text-[9px] font-bold text-green-400 uppercase tracking-widest mb-1">Geocoded</p>
+            <p class="text-3xl font-black text-green-600 font-mono" x-text="(stats.geocoded||0).toLocaleString()"></p>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 text-center">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">States</p>
+            <p class="text-3xl font-black text-slate-700 font-mono" x-text="stats.states||0"></p>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-blue-200 p-5 text-center">
+            <p class="text-[9px] font-bold text-blue-400 uppercase tracking-widest mb-1">Datasets</p>
+            <p class="text-3xl font-black text-blue-700 font-mono" x-text="stats.datasets||0"></p>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 text-center">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Plant Taxa</p>
+            <p class="text-3xl font-black text-slate-700 font-mono" x-text="stats.plantTaxa||0"></p>
+          </div>
+        </div>
+
+        <!-- Flight period tiles only -->
+        <template x-if="stats.flightPeriod && Object.keys(stats.flightPeriod).length">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">
+              <i class="fa-solid fa-calendar mr-1.5"></i>Flight Period by Month
+            </p>
+            <div class="flex flex-wrap gap-2">
+              <template x-for="[month, data] in Object.entries(stats.flightPeriod)" :key="month">
+                <div class="flex-1 min-w-[52px] text-center">
+                  <div class="bg-amber-50 border border-amber-100 rounded-lg p-2">
+                    <p class="text-[9px] font-bold text-amber-400 uppercase tracking-widest" x-text="month.slice(0,3)"></p>
+                    <p class="text-xl font-black text-amber-700 font-mono mt-0.5" x-text="data.count"></p>
+                    <p class="text-[9px] text-amber-400 font-mono" x-text="data.percentage + '%'"></p>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Floral hosts ranked list (no chart) -->
+        <template x-if="stats.topHosts && stats.topHosts.length">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <i class="fa-solid fa-seedling mr-1.5"></i>Top Floral Hosts
+              </p>
+              <div class="flex gap-2">
+                <button @click="copyFloralRecords()" id="btn-copy-floral"
+                  class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                  <i class="fa-solid fa-copy text-[10px]"></i>Copy CSV
+                </button>
+                <button @click="downloadFloralCSV()"
+                  class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                  <i class="fa-solid fa-download text-[10px]"></i>Download CSV
+                </button>
+              </div>
+            </div>
+            <div class="p-5 space-y-2">
+              <template x-for="(h, i) in stats.topHosts" :key="i">
+                <div class="bar-chart-row">
+                  <span class="text-[10px] font-black font-mono text-slate-300 w-5 text-right shrink-0" x-text="i+1"></span>
+                  <span class="italic text-sm text-slate-800 flex-1 truncate" x-text="h.name"></span>
+                  <div class="w-32 bg-slate-100 rounded-full h-2.5 overflow-hidden shrink-0">
+                    <div class="h-2.5 rounded-full bg-amber-400 progress-bar" :style="'width:' + ((h.count / stats.topHosts[0].count) * 100) + '%'"></div>
+                  </div>
+                  <span class="text-xs font-bold font-mono text-slate-600 w-8 text-right shrink-0" x-text="h.count"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+        <template x-if="stats.contributingDatasets && stats.contributingDatasets.length">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <i class="fa-solid fa-database mr-1.5"></i>Contributing Datasets
+                <span class="text-slate-300 font-normal normal-case ml-1" x-text="'(' + stats.contributingDatasets.length + ' total)'"></span>
+              </p>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button @click="copyCitations()" id="btn-copy-cite"
+                  class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                  <i class="fa-solid fa-copy text-[10px]"></i>Copy All Citations
+                </button>
+                <button @click="copyInTextCitation()" id="btn-intext-cite"
+                  class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                  <i class="fa-solid fa-quote-left text-[10px]"></i>Copy In-text
+                </button>
+              </div>
+            </div>
+            <div class="p-5 space-y-2 max-h-72 overflow-y-auto">
+              <template x-for="(ds, i) in stats.contributingDatasets" :key="i">
+                <div class="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-slate-700 truncate" x-text="ds.title"></p>
+                    <p class="text-[10px] text-slate-500 mt-0.5 leading-relaxed" x-text="ds.citation"></p>
+                    <p class="text-[10px] text-slate-400 font-mono mt-0.5" x-text="ds.license + (ds.doi ? ' · doi.org/' + ds.doi : '')"></p>
+                  </div>
+                  <span class="text-[10px] font-bold font-mono shrink-0 px-2 py-0.5 rounded mt-0.5"
+                    :class="ds.license.includes('CC0') ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'"
+                    x-text="ds.license"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Distribution table -->
+        <template x-if="stats.distribution && Object.keys(stats.distribution).length">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <i class="fa-solid fa-map mr-1.5"></i>Distribution by State / Province
+              </p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-100 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                    <th class="px-4 py-2.5 text-left">State / Province</th>
+                    <th class="px-4 py-2.5 text-right">Records</th>
+                    <th class="px-4 py-2.5 text-right">Counties</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50">
+                  <template x-for="[state, data] in Object.entries(stats.distribution).sort((a,b) => b[1].state_total - a[1].state_total).slice(0,30)" :key="state">
+                    <tr class="hover:bg-slate-50">
+                      <td class="px-4 py-2.5 font-semibold text-slate-700" x-text="state"></td>
+                      <td class="px-4 py-2.5 text-right font-mono font-bold text-slate-700" x-text="(data.state_total||0).toLocaleString()"></td>
+                      <td class="px-4 py-2.5 text-right font-mono text-slate-400" x-text="Object.keys(data.counties||{}).length"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+    <template x-if="!stats">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <i class="fa-solid fa-chart-bar text-4xl text-slate-200 mb-3"></i>
+        <p class="text-sm text-slate-400">No data yet — run the builder first.</p>
+      </div>
+    </template>
+  </div><!-- /summary -->
+
+  <!-- ══ ANALYZE PANEL ═════════════════════════════════════════════════════ -->
+  <div id="panel-analyze" class="hidden fade-in space-y-5">
+
+    <!-- Data source selector -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-flask mr-1 text-amber-400"></i>Analysis Data Source
+      </p>
+      <p class="text-sm text-slate-500 mb-5">Analyze the current build, upload a saved JSON file, or fetch from a URL.</p>
+      <div class="grid sm:grid-cols-3 gap-3 mb-4">
+        <label class="source-option">
+          <input type="radio" x-model="analyzeSource" value="build">
+          <div>
+            <p class="font-bold text-sm text-slate-700"><i class="fa-solid fa-hammer mr-1.5 text-amber-400"></i>Current Build</p>
+            <p class="text-xs text-slate-400">Use the JSON just built</p>
+          </div>
+        </label>
+        <label class="source-option">
+          <input type="radio" x-model="analyzeSource" value="file">
+          <div>
+            <p class="font-bold text-sm text-slate-700"><i class="fa-solid fa-file-code mr-1.5 text-blue-400"></i>Upload JSON File</p>
+            <p class="text-xs text-slate-400">Load a saved species JSON</p>
+          </div>
+        </label>
+        <label class="source-option">
+          <input type="radio" x-model="analyzeSource" value="url">
+          <div>
+            <p class="font-bold text-sm text-slate-700"><i class="fa-solid fa-globe mr-1.5 text-green-400"></i>Fetch from URL</p>
+            <p class="text-xs text-slate-400">e.g. themelissodesproject.wildref.org API</p>
+          </div>
+        </label>
+      </div>
+
+      <div x-show="analyzeSource === 'file'" class="mb-4">
+        <input type="file" x-ref="analyzeFileInput" accept=".json" class="hidden" @change="handleAnalyzeFile($event)">
+        <div class="drop-zone border-2 border-dashed border-slate-300 rounded-xl p-5 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-all"
+          @click="$refs.analyzeFileInput.click()">
+          <template x-if="!analyzeUploadedFile">
+            <div>
+              <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-300 mb-2"></i>
+              <p class="text-sm text-slate-500 font-bold">Drop species JSON here or click to browse</p>
+            </div>
+          </template>
+          <template x-if="analyzeUploadedFile">
+            <p class="text-sm font-bold text-green-700"><i class="fa-solid fa-check mr-1"></i><span x-text="analyzeUploadedFile.name"></span></p>
+          </template>
+        </div>
+      </div>
+
+      <div x-show="analyzeSource === 'url'" class="mb-4 flex gap-3">
+        <input x-model="analyzeUrl" type="text" placeholder="https://themelissodesproject.wildref.org/api/…/stearnsi.json"
+          class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+      </div>
+
+      <button @click="runAnalysis()"
+        :disabled="analyzeLoading"
+        :class="analyzeLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-700 active:scale-95'"
+        class="bg-amber-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+        <i class="fa-solid text-xs" :class="analyzeLoading ? 'fa-circle-notch animate-spin' : 'fa-play'"></i>
+        <span x-text="analyzeLoading ? 'Analysing…' : 'Run Analysis'"></span>
+      </button>
+
+      <template x-if="analyzeError">
+        <p class="text-sm text-red-600 mt-3 flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation"></i><span x-text="analyzeError"></span>
+        </p>
+      </template>
+    </div>
+
+    <template x-if="analyzeResults">
+      <div class="space-y-5">
+
+        <!-- Cell 1: Summary Stats -->
+        <div class="notebook-cell">
+          <div class="cell-header px-5 py-3 flex items-center gap-3">
+            <span class="cell-label">CELL 1</span>
+            <span class="text-sm font-bold text-slate-200">Summary Statistics</span>
+          </div>
+          <div class="bg-white p-5">
+            <p class="text-sm font-bold italic text-slate-700 mb-3" x-text="analyzeResults.binomial_name"></p>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              <div class="bg-slate-50 rounded-lg p-3 text-center">
+                <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Total Floral Records</p>
+                <p class="text-2xl font-black text-amber-600 font-mono" x-text="analyzeResults.totalFloral.toLocaleString()"></p>
+              </div>
+              <div class="bg-slate-50 rounded-lg p-3 text-center">
+                <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Unique Events</p>
+                <p class="text-2xl font-black text-blue-600 font-mono" x-text="analyzeResults.uniqueEvents.toLocaleString()"></p>
+                <p class="text-[9px] text-slate-400">(lat + lon + date)</p>
+              </div>
+              <div class="bg-slate-50 rounded-lg p-3 text-center">
+                <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Unique Plant Taxa</p>
+                <p class="text-2xl font-black text-green-600 font-mono" x-text="analyzeResults.rawFlowers.length.toLocaleString()"></p>
+              </div>
+              <div class="bg-slate-50 rounded-lg p-3 text-center">
+                <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Datasets with Flora</p>
+                <p class="text-2xl font-black text-purple-600 font-mono" x-text="analyzeResults.floralCitations.length.toLocaleString()"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cell 2: Dual Bar Charts -->
+        <div class="notebook-cell">
+          <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3">
+              <span class="cell-label">CELL 2</span>
+              <span class="text-sm font-bold text-slate-200">Floral Host Distribution — Raw vs. Deduplicated</span>
+            </div>
+            <div class="flex gap-2">
+              <button @click="copyAnalysisChart()" id="btn-copy-chart"
+                class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg transition-all">
+                <i class="fa-solid fa-copy mr-1 text-[10px]"></i>Copy Table
+              </button>
+              <button @click="downloadAnalysisCSV()"
+                class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all">
+                <i class="fa-solid fa-download mr-1 text-[10px]"></i>Download CSV
+              </button>
+            </div>
+          </div>
+          <div class="bg-white p-5">
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="w-2.5 h-2.5 rounded-sm bg-amber-400 shrink-0"></span>
+                  <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Specimen Records (Raw)</p>
+                </div>
+                <div style="height:300px; position:relative;">
+                  <canvas id="rawChart"></canvas>
+                </div>
+              </div>
+              <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="w-2.5 h-2.5 rounded-sm bg-slate-400 shrink-0"></span>
+                  <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Deduplicated (Lat / Lon / Date)</p>
+                </div>
+                <div style="height:300px; position:relative;">
+                  <canvas id="dedupChart"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cell 3: Comparative Table -->
+        <div class="notebook-cell">
+          <div class="cell-header px-5 py-3 flex items-center gap-3">
+            <span class="cell-label">CELL 3</span>
+            <span class="text-sm font-bold text-slate-200">Comparative Table</span>
+          </div>
+          <div class="bg-white overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="bg-slate-50 border-b border-slate-100 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  <th class="px-4 py-2.5 text-left">Flower Taxon</th>
+                  <th class="px-4 py-2.5 text-right">Raw Total</th>
+                  <th class="px-4 py-2.5 text-right">Dedup Events</th>
+                  <th class="px-4 py-2.5 text-right">Δ</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-50">
+                <template x-for="row in analyzeResults.compTable" :key="row.name">
+                  <tr class="hover:bg-amber-50">
+                    <td class="px-4 py-2 font-semibold italic text-slate-800" x-text="row.name"></td>
+                    <td class="px-4 py-2 text-right font-mono font-bold text-amber-700" x-text="row.raw"></td>
+                    <td class="px-4 py-2 text-right font-mono font-bold text-blue-700" x-text="row.dedup"></td>
+                    <td class="px-4 py-2 text-right font-mono text-slate-400" x-text="row.raw - row.dedup"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Cell 4: Detailed Floral Host Breakdown -->
+        <div class="notebook-cell">
+          <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3">
+              <span class="cell-label">CELL 4</span>
+              <span class="text-sm font-bold text-slate-200">Detailed Floral Host Breakdown (per Dataset)</span>
+            </div>
+            <button @click="downloadDetailedReport()"
+              class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all">
+              <i class="fa-solid fa-download mr-1 text-[10px]"></i>Download .txt Report
+            </button>
+          </div>
+          <div class="bg-white divide-y divide-slate-100">
+            <template x-for="host in analyzeResults.detailedHosts" :key="host.name">
+              <div class="p-5 host-card ml-0" style="border-left:3px solid #f59e0b">
+                <div class="flex items-center gap-3 mb-3">
+                  <i class="fa-solid fa-seedling text-amber-500"></i>
+                  <p class="font-black italic text-slate-800 text-base" x-text="host.name"></p>
+                  <span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full" x-text="host.totalCount + ' record' + (host.totalCount > 1 ? 's' : '')"></span>
+                </div>
+                <template x-for="ds in host.datasets" :key="ds.citation">
+                  <div class="ml-6 mb-4 last:mb-0">
+                    <div class="flex items-start gap-2 mb-2">
+                      <i class="fa-solid fa-book text-slate-300 text-xs mt-0.5 shrink-0"></i>
+                      <div>
+                        <p class="text-xs font-semibold text-slate-600" x-text="ds.citation"></p>
+                        <p class="text-[10px] text-slate-400" x-text="'(' + ds.count + ' occurrence' + (ds.count > 1 ? 's' : '') + ')'"></p>
+                      </div>
+                    </div>
+                    <div class="ml-5 space-y-1.5">
+                      <template x-for="(ex, ei) in ds.examples.slice(0, 3)" :key="ei">
+                        <div class="bg-slate-50 rounded-lg p-2.5 text-[11px] border border-slate-100">
+                          <div class="flex items-start gap-2">
+                            <span class="text-slate-300 font-mono shrink-0 mt-0.5" x-text="'Ex. ' + (ei+1)"></span>
+                            <div class="flex-1 min-w-0">
+                              <!-- Extracted query label -->
+                              <p class="text-[10px] font-bold text-amber-600 mb-1" x-show="ex.original_query">
+                                <i class="fa-solid fa-crosshairs mr-1 opacity-60"></i>
+                                Extracted: <span class="italic font-mono" x-text="ex.original_query"></span>
+                              </p>
+                              <!-- Full verbatim label / notes text — shown entirely as-is -->
+                              <p class="text-slate-600 leading-relaxed font-mono text-[10px] whitespace-pre-wrap break-words"
+                                x-show="ex.displayText"
+                                x-text="ex.displayText"></p>
+                              <a :href="ex.gbif_link" target="_blank"
+                                class="text-amber-500 hover:text-amber-700 hover:underline font-mono text-[10px] mt-1 block"
+                                x-text="ex.gbif_link"></a>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                      <p x-show="ds.count > 3" class="text-[10px] text-slate-400 italic ml-1" x-text="'… and ' + (ds.count - 3) + ' more occurrence' + (ds.count - 3 > 1 ? 's' : '')"></p>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Cell 5: Citations Contributing Floral Data -->
+        <div class="notebook-cell">
+          <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3">
+              <span class="cell-label">CELL 5</span>
+              <span class="text-sm font-bold text-slate-200">Citations Contributing Floral Data</span>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button @click="copyFloralCitations()" id="btn-copy-floral-cite"
+                class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-blue-500 px-3 py-1.5 rounded-lg transition-all">
+                <i class="fa-solid fa-copy mr-1 text-[10px]"></i>Copy All
+              </button>
+              <button @click="copyFloralInTextCitation()" id="btn-intext-floral-cite"
+                class="copy-btn text-[11px] font-bold text-slate-400 hover:text-amber-300 border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all">
+                <i class="fa-solid fa-quote-left mr-1 text-[10px]"></i>Copy In-text
+              </button>
+            </div>
+          </div>
+          <div class="bg-white divide-y divide-slate-50">
+            <template x-for="(cite, i) in analyzeResults.floralCitations" :key="i">
+              <div class="px-5 py-3 flex items-start gap-3">
+                <span class="text-[10px] font-black font-mono text-slate-300 w-5 shrink-0 mt-0.5" x-text="i+1+'. '"></span>
+                <p class="text-xs text-slate-700 leading-relaxed flex-1" x-text="cite"></p>
+                <button @click="copyText(cite)"
+                  class="text-slate-300 hover:text-slate-600 shrink-0 ml-2 transition-colors" title="Copy">
+                  <i class="fa-solid fa-copy text-xs"></i>
+                </button>
+              </div>
+            </template>
+            <div class="px-5 py-3 bg-slate-50">
+              <p class="text-[10px] font-bold text-slate-500">Total contributing datasets: <span class="text-slate-700" x-text="analyzeResults.floralCitations.length"></span></p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </template>
+
+    <template x-if="!analyzeResults && !analyzeLoading">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <i class="fa-solid fa-flask text-4xl text-slate-200 mb-3"></i>
+        <p class="text-sm text-slate-400">Select a data source above and click <strong>Run Analysis</strong>.</p>
+      </div>
+    </template>
+
+  </div><!-- /analyze -->
+
+  <!-- ══ GUIDE PANEL ════════════════════════════════════════════════════════ -->
+  <div id="panel-guide" class="hidden fade-in space-y-5">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5">
+        <i class="fa-solid fa-circle-question mr-1.5"></i>How to Use This Tool
+      </p>
+      <div class="space-y-5 text-sm text-slate-600 leading-relaxed">
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">1</div>
+          <div>
+            <p class="font-bold text-slate-700 mb-1">Fill in Species Details</p>
+            <p>Enter genus (e.g. <em>Melissodes</em>), species epithet (e.g. <em>agilis</em>), and optionally common name, subgenus, family, tribe, and project name.</p>
+          </div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">2</div>
+          <div>
+            <p class="font-bold text-slate-700 mb-1">Choose Your Data Source</p>
+            <p><strong>GBIF API:</strong> Type a taxon name, pick from suggestions, and the tool pages through GBIF automatically. Leave Max Records blank to fetch everything. iNaturalist and BugGuide are always excluded. Dataset citations and licences are fetched from the GBIF dataset API automatically — no ZIP needed.<br><br>
+            <strong>Upload ZIP:</strong> Download a Darwin Core Archive from <a href="https://www.gbif.org/occurrence/search" target="_blank" class="text-amber-600 hover:underline">gbif.org</a> and upload the .zip. Citations are read from the embedded <code class="bg-slate-100 px-1 rounded text-xs font-mono">citations.txt</code> and <code class="bg-slate-100 px-1 rounded text-xs font-mono">rights.txt</code>.</p>
+          </div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">3</div>
+          <div>
+            <p class="font-bold text-slate-700 mb-1">Configure Options</p>
+            <p><strong><i class="fa-solid fa-location-dot text-blue-400 mr-1"></i>Reverse Geocoding:</strong> For every record with lat/lon coordinates, fills in missing state and locality using BigDataCloud's free API. Geocoded records get a <code class="bg-slate-100 px-1 rounded font-mono text-xs">geocode_source</code> flag.<br><br>
+            <strong><i class="fa-solid fa-wand-magic-sparkles text-purple-400 mr-1"></i>AI Parser:</strong> Runs <code class="bg-slate-100 px-1 rounded font-mono text-xs">deepset/roberta-base-squad2</code> directly in your browser using Transformers.js. <strong>Requires serving over HTTP/HTTPS</strong> — the model cannot be downloaded from <code class="bg-slate-100 px-1 rounded font-mono text-xs">file://</code> due to browser CORS rules. Run <code class="bg-slate-100 px-1 rounded font-mono text-xs">python -m http.server 8080</code> and open <code class="bg-slate-100 px-1 rounded font-mono text-xs">http://localhost:8080</code> to enable it.</p>
+          </div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-green-100 text-green-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-download text-xs"></i>
+          </div>
+          <div>
+            <p class="font-bold text-slate-700 mb-1">Build & Download</p>
+            <p>Click <strong>Build JSON</strong>. The output is saved as <code class="bg-slate-100 px-1.5 rounded font-mono text-xs">{species}.json</code> and matches the Species API schema exactly.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Output JSON Schema</p>
+      <div class="bg-slate-950 rounded-xl p-5 overflow-x-auto">
+        <pre class="seq-mono text-slate-300 leading-relaxed text-[11px]">{
+  "binomial_name": "Melissodes agilis",
+  "common_name":   "Agile Long-horned Bee",
+  "taxonomy":      { "family", "subfamily", "tribe", "genus", "subgenus", "species" },
+  "flight_period": { "June": { "count": 42, "percentage": 31.11 }, … },
+  "distribution":  {
+    "Arizona": { "state_total": 12, "counties": { "Pima": { "count": 5 } } }
+  },
+  "occurrences":   [{
+    "gbifID":    "…",
+    "gbif_link": "https://www.gbif.org/occurrence/…",
+    "location":  {
+      "state":          "Arizona",
+      "county":         "Pima",
+      "locality":       "Tucson, near Saguaro NP",  ← filled by geocoding if missing
+      "coordinates":    { "lat": 32.254, "lon": -110.974 },
+      "geocode_source": "coordinates"                ← added when reverse-geocoded
+    },
+    "temporal":  { "date", "month", "year" },
+    "collector": { "recordedBy", "identifiedBy" },
+    "ecology":   {
+      "notes": "Nectaring on Helianthus annuus…",
+      "extracted_floral_hosts": [{
+        "original_query":   "Helianthus",
+        "accepted_genus":   "Helianthus",
+        "accepted_species": "annuus",
+        "canonical_name":   "Helianthus annuus",
+        "parse_method":     "ai"         ← or "gbif_api"
+      }]
+    },
+    "citation":  { "text": "…", "license": "CC BY 4.0" }
+  }],
+  "metadata":      {
+    "project_name":       "…",
+    "total_records":      N,
+    "processed_records":  N,
+    "geocoded_records":   N,
+    "excluded_datasets":  ["iNaturalist Research-Grade", "BugGuide"],
+    "contributing_datasets": [{
+      "title":   "Museum Dataset",
+      "doi":     "10.15468/…",
+      "license": "CC BY 4.0",
+      "citation": "Smith et al. (2024) …"
+    }]
+  }
+}</pre>
+      </div>
+    </div>
+  </div><!-- /guide -->
+
+</main>
+
+<!-- ── ALPINE DATA ─────────────────────────────────────────────────────────── -->
+<script>
+// ── CONSTANTS ─────────────────────────────────────────────────────────────
+const EXCLUDED_DATASET_KEYS = new Set([
+  '50c9509d-22c7-4a22-a47d-8c48425ef4a7', // iNaturalist
+  '7f5e4129-0717-428e-876a-464fbd5d9a47', // BugGuide
+]);
+const EXCLUDED_PUBLISHERS = ['inaturalist', 'bugguide'];
+
+const PLANT_BLACKLIST = new Set([
+  'dirt','farm','road','lake','mount','county','island','lawn','north','south','east','west',
+  'park','beach','station','creek','valley','point','side','trap','pan','blue','bowl',
+  'male','female','bee','bees','collector','label','unknown','open','near','from','with',
+  'and','or','the','a','an','in','to','for','of','by','street','avenue','hwy','rd',
+  'pollen','dna','blast','its','usa','florida','california','texas','kansas','arizona',
+  'mexico','canada','colorado','nebraska','oklahoma','utah','nevada','oregon','washington',
+  'feet','mile','miles','km','meters','above','below','along','across','behind',
+  'large','small','yellow','white','red','pink','purple','blue','green','brown',
+  'dry','wet','sandy','rocky','clay','salt','fresh','deep','shallow','dense','sparse'
+]);
+const GEO_BLACKLIST = new Set(['usa','united states','mexico','canada','unknown','none','nan']);
+
+// ── ALPINE APP ────────────────────────────────────────────────────────────
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    // UI
+    loading: false, statusMsg: '', progress: 0, error: null,
+    log: [], jsonOutput: null, jsonPreview: '', stats: null,
+
+    // Species
+    genus: 'Melissodes', speciesEpithet: '', commonName: '',
+    subgenus: '', family: 'Apidae', tribe: 'Eucerini',
+    projectName: 'The Melissodes Project',
+
+    // Source
+    dataSource: 'api', uploadedFile: null,
+
+    // GBIF API
+    taxonSearch: '', taxonSearching: false,
+    taxonSuggestions: [], selectedTaxon: null,
+    apiMaxRecords: '', apiCountry: 'US',
+
+    // AI
+    aiModelStatus: 'idle', aiModelLoadMsg: '', _aiPipeline: null,
+
+    // Options
+    opts: {
+      reverseGeocode: true, aiParse: false, verifyPlants: true,
+      extractFromRemarks: true, fixCounties: true, skipGeoBlacklist: true
+    },
+
+    // Caches
+    geoCache: {}, plantCache: {}, aiCache: {},
+    datasetInfoCache: {},  // NEW: { datasetKey → { title, doi, license, citation } }
+
+    // ── Validation ──────────────────────────────────────────────────────────
+    canRun() {
+      if (!this.genus.trim() || !this.speciesEpithet.trim()) return false;
+      if (this.dataSource === 'api') return !!this.selectedTaxon;
+      return !!this.uploadedFile;
+    },
+
+    // ── File handling ────────────────────────────────────────────────────────
+    handleFileSelect(e) { const f = e.target.files[0]; if (f) this.uploadedFile = f; },
+    handleFileDrop(e)   { const f = e.dataTransfer.files[0]; if (f && f.name.endsWith('.zip')) this.uploadedFile = f; },
+    formatBytes(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+      return (b/1048576).toFixed(1) + ' MB';
+    },
+
+    // ── Logging ──────────────────────────────────────────────────────────────
+    addLog(msg, type='info') {
+      this.log.push({ msg, type });
+      if (this.log.length > 400) this.log.shift();
+    },
+
+    // ── GBIF Taxon Search ─────────────────────────────────────────────────────
+    async searchTaxon() {
+      const q = this.taxonSearch.trim();
+      if (!q || q.length < 2) { this.taxonSuggestions = []; return; }
+      this.taxonSearching = true;
+      try {
+        const url = `https://api.gbif.org/v1/species/suggest?q=${encodeURIComponent(q)}&limit=12&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`;
+        const res = await fetch(url);
+        const data = await res.json();
+        this.taxonSuggestions = data.filter(s => s.rank === 'SPECIES' || s.rank === 'SUBSPECIES').slice(0, 8);
+      } catch(e) {
+        this.addLog('Taxon search error: ' + e.message, 'warn');
+      } finally { this.taxonSearching = false; }
+    },
+
+    selectTaxon(s) {
+      this.selectedTaxon = s;
+      this.taxonSuggestions = [];
+      this.taxonSearch = s.canonicalName || s.scientificName;
+      if (!this.genus.trim() && s.genus) this.genus = s.genus;
+      if (!this.speciesEpithet.trim() && s.species)
+        this.speciesEpithet = s.species.replace(s.genus + ' ', '').trim();
+      this.addLog(`✅ Selected: ${s.canonicalName} (key: ${s.key})`, 'ok');
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // DATASET INFO FETCHER — mirrors Colab's resolve_dataset_citation() but
+    // works for API mode by calling GBIF's /v1/dataset/{key} endpoint.
+    // Returns { title, doi, license, citation } for a datasetKey.
+    // ══════════════════════════════════════════════════════════════════════════
+    async fetchDatasetInfo(datasetKey) {
+      if (!datasetKey) return null;
+      if (this.datasetInfoCache[datasetKey]) return this.datasetInfoCache[datasetKey];
+      try {
+        const res = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) { this.datasetInfoCache[datasetKey] = null; return null; }
+        const d = await res.json();
+
+        // Build human-readable citation — mirrors Colab's citation logic
+        const title = d.title || 'GBIF Dataset';
+        const doi = d.doi || null;
+        const doiUrl = doi ? `https://doi.org/${doi}` : null;
+        const pubOrg = d.publishingOrganizationKey || null;
+
+        // Prefer the dataset's own citation block if available
+        let citationText = d.citation?.text || null;
+        if (!citationText && doi) citationText = `${title} [Dataset]. GBIF. ${doiUrl}`;
+        if (!citationText) citationText = `${title} (via GBIF.org)`;
+
+        // Resolve license — mirrors Colab's get_license_label()
+        const rawLicense = d.license || '';
+        const licenseLabel = this.getLicense(rawLicense);
+
+        const info = { title, doi, doiUrl, license: licenseLabel, citation: citationText };
+        this.datasetInfoCache[datasetKey] = info;
+        return info;
+      } catch(e) {
+        this.datasetInfoCache[datasetKey] = null;
+        return null;
+      }
+    },
+
+    // Pre-fetch all dataset info in parallel (mirrors Colab ThreadPoolExecutor for citations)
+    async preloadDatasetInfo(datasetKeys) {
+      const PARALLEL = 10;
+      const keys = [...new Set(datasetKeys)].filter(Boolean);
+      this.addLog(`📚 Fetching metadata for ${keys.length} unique datasets…`);
+      for (let i = 0; i < keys.length; i += PARALLEL) {
+        const batch = keys.slice(i, i + PARALLEL);
+        await Promise.all(batch.map(k => this.fetchDatasetInfo(k)));
+        if (i % 20 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+      const resolved = Object.values(this.datasetInfoCache).filter(Boolean).length;
+      this.addLog(`✅ Dataset metadata resolved (${resolved}/${keys.length} found)`, 'ok');
+    },
+
+    // ── Fetch from GBIF API ──────────────────────────────────────────────────
+    async fetchFromGBIF() {
+      const key = this.selectedTaxon.key;
+      const rawMax = parseInt(this.apiMaxRecords);
+      const maxRecs = (!this.apiMaxRecords || isNaN(rawMax) || rawMax <= 0) ? 100000 : Math.min(rawMax, 100000);
+      const limit = 300;
+      let offset = 0, allResults = [], totalCount = null;
+      this.addLog(`📡 Fetching occurrences for taxonKey=${key}…`);
+
+      while (allResults.length < maxRecs) {
+        const countryParam = this.apiCountry.trim() ? `&country=${encodeURIComponent(this.apiCountry.trim())}` : '';
+        const url = `https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&limit=${limit}&offset=${offset}&basisOfRecord=PRESERVED_SPECIMEN&basisOfRecord=MATERIAL_SAMPLE&basisOfRecord=HUMAN_OBSERVATION${countryParam}`;
+        this.statusMsg = `Fetching page ${Math.floor(offset/limit)+1}… (${allResults.length} records so far)`;
+        this.progress = 10 + Math.min(25, Math.round((allResults.length / maxRecs) * 25));
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`GBIF API returned ${res.status}`);
+        const data = await res.json();
+
+        if (totalCount === null) {
+          totalCount = data.count;
+          this.addLog(`📊 GBIF reports ${totalCount.toLocaleString()} total records`, 'ok');
+          if (totalCount === 0) throw new Error('No occurrences found for this taxon with the current filters.');
+        }
+
+        const filtered = data.results.filter(r => {
+          if (EXCLUDED_DATASET_KEYS.has(r.datasetKey)) return false;
+          const pub = (r.publishingOrgKey || r.publisher || r.datasetName || '').toLowerCase();
+          return !EXCLUDED_PUBLISHERS.some(ex => pub.includes(ex));
+        });
+
+        allResults.push(...filtered);
+        this.addLog(`  Page ${Math.floor(offset/limit)+1}: +${filtered.length} records (${data.results.length - filtered.length} excluded)`);
+
+        if (data.endOfRecords || data.results.length === 0 || allResults.length >= maxRecs) break;
+        offset += limit;
+        await new Promise(r => setTimeout(r, 80));
+      }
+
+      const capped = allResults.slice(0, maxRecs);
+      this.addLog(`✅ Fetched ${capped.length} records after exclusions`, 'ok');
+
+      // ── Preload all dataset info in parallel NOW (before processing) ──
+      // This is the API-mode equivalent of reading citations.txt + rights.txt from a ZIP.
+      this.statusMsg = 'Fetching dataset citations & licences…';
+      this.progress = 38;
+      const allDatasetKeys = [...new Set(capped.map(r => r.datasetKey).filter(Boolean))];
+      await this.preloadDatasetInfo(allDatasetKeys);
+
+      return capped.map(r => ({
+        gbifID:             String(r.gbifID || r.key || ''),
+        stateProvince:      r.stateProvince || '',
+        county:             r.county || '',
+        locality:           r.locality || r.verbatimLocality || '',
+        decimalLatitude:    r.decimalLatitude  != null ? String(r.decimalLatitude)  : null,
+        decimalLongitude:   r.decimalLongitude != null ? String(r.decimalLongitude) : null,
+        month:              r.month  != null ? String(r.month)  : null,
+        year:               r.year   != null ? String(r.year)   : null,
+        eventDate:          r.eventDate  || null,
+        recordedBy:         r.recordedBy  || '',
+        identifiedBy:       r.identifiedBy || '',
+        occurrenceRemarks:  r.occurrenceRemarks || '',
+        verbatimLabel:      r.verbatimLabel || '',
+        associatedTaxa:     r.associatedTaxa || '',
+        fieldNotes:         r.fieldNotes || '',
+        datasetKey:         r.datasetKey  || '',
+        datasetName:        r.datasetTitle || r.datasetName || '',
+        institutionCode:    r.institutionCode || '',
+        // Store the per-record license from GBIF directly — mirrors Colab's license_val = clean_val(row.get('license'))
+        license:            r.license || '',
+      }));
+    },
+
+    // ── Reverse geocoding ─────────────────────────────────────────────────────
+    async reverseGeocode(lat, lon) {
+      const key = `${parseFloat(lat).toFixed(3)},${parseFloat(lon).toFixed(3)}`;
+      if (this.geoCache[key]) return this.geoCache[key];
+      try {
+        const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        const data = await res.json();
+        const result = {
+          state:   data.principalSubdivision || null,
+          locality: data.locality || data.city || null,
+          country:  data.countryName || null
+        };
+        this.geoCache[key] = result;
+        return result;
+      } catch { return null; }
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ROBERTA QA MODEL — deepset/roberta-base-squad2 via Transformers.js
+    // Mirrors Colab: pipeline('question-answering', model='deepset/roberta-base-squad2')
+    // IMPORTANT: Requires HTTP/HTTPS origin — file:// is blocked by CORS.
+    //            Falls back to regex extraction silently if unavailable.
+    // ══════════════════════════════════════════════════════════════════════════
+    async loadAIModel() {
+      if (this._aiPipeline) return true;
+      if (this.aiModelStatus === 'loading') return false;
+      this.aiModelStatus = 'loading';
+      this.aiModelLoadMsg = 'Waiting for Transformers.js…';
+
+      // Wait for ES module to initialise
+      if (!window._transformersReady) {
+        try {
+          await new Promise((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error('Transformers.js failed to load within 25s')), 25000);
+            window.addEventListener('transformers-ready', () => { clearTimeout(t); resolve(); }, { once: true });
+          });
+        } catch(e) {
+          this.aiModelStatus = 'error';
+          this.aiModelLoadMsg = e.message;
+          this.addLog('⚠ Transformers.js load timeout: ' + e.message, 'warn');
+          return false;
+        }
+      }
+
+      if (!window._transformersPipeline) {
+        this.aiModelStatus = 'error';
+        this.aiModelLoadMsg = window._transformersError || 'Transformers.js module import failed (CORS / file:// origin?)';
+        this.addLog('⚠ Transformers.js unavailable: ' + this.aiModelLoadMsg, 'warn');
+        return false;
+      }
+
+      try {
+        this.aiModelLoadMsg = 'Downloading model weights (~90 MB, cached after first load)…';
+
+        // Try primary model: Xenova/roberta-base-squad2
+        // Falls back to Xenova/distilbert-base-uncased-distilled-squad if auth issues
+        const MODELS_TO_TRY = [
+          'Xenova/roberta-base-squad2',
+          'Xenova/distilbert-base-cased-distilled-squad',
+        ];
+
+        for (const modelId of MODELS_TO_TRY) {
+          try {
+            this.aiModelLoadMsg = `Trying ${modelId}…`;
+            this._aiPipeline = await window._transformersPipeline(
+              'question-answering',
+              modelId,
+              {
+                progress_callback: (p) => {
+                  if (p.status === 'downloading') {
+                    const pct = p.total ? Math.round((p.loaded / p.total) * 100) : '?';
+                    this.aiModelLoadMsg = `${modelId}: ${p.file} — ${pct}%`;
+                  } else if (p.status === 'loading') {
+                    this.aiModelLoadMsg = `Loading ${p.file}…`;
+                  }
+                }
+              }
+            );
+            this.aiModelStatus = 'ready';
+            this.aiModelLoadMsg = '';
+            this.addLog(`✅ QA model loaded (${modelId})`, 'ok');
+            return true;
+          } catch(modelErr) {
+            this.addLog(`⚠ ${modelId} failed: ${modelErr.message} — trying next…`, 'warn');
+            this._aiPipeline = null;
+          }
+        }
+
+        throw new Error('All model variants failed. Serve via HTTP (not file://) and retry.');
+      } catch(e) {
+        this.aiModelStatus = 'error';
+        this.aiModelLoadMsg = e.message;
+        this.addLog('⚠ AI model unavailable: ' + e.message, 'warn');
+        return false;
+      }
+    },
+
+    // ── Batch AI extraction — mirrors Colab batch_ai_extract() exactly ────────
+    // Processes unique_texts in batches of 16, same question, same score threshold
+    async batchAiExtract(uniqueTexts, onProgress) {
+      if (!uniqueTexts.length || !this._aiPipeline) return {};
+      const QUESTION = 'What are the botanical or common names of the plants or flowers the insect was visiting?';
+      const BATCH_SIZE = 16;
+      const results = {};
+
+      for (let i = 0; i < uniqueTexts.length; i += BATCH_SIZE) {
+        const batch = uniqueTexts.slice(i, i + BATCH_SIZE);
+        if (onProgress) onProgress(`AI scanning labels ${i+1}–${Math.min(i+BATCH_SIZE, uniqueTexts.length)} of ${uniqueTexts.length}…`);
+        await new Promise(r => setTimeout(r, 0));
+
+        const inputs = batch
+          .filter(t => t && t.length > 4)
+          .map(t => ({ question: QUESTION, context: t.slice(0, 800) }));
+        if (!inputs.length) continue;
+
+        try {
+          let outputs = await this._aiPipeline(inputs);
+          if (!Array.isArray(outputs)) outputs = [outputs];
+
+          inputs.forEach((inp, idx) => {
+            const out = outputs[idx];
+            if (!out || out.score <= 0.01) return;
+            const parts = out.answer
+              .split(/[,|;]|\band\b/i)
+              .map(p => p.trim())
+              .filter(p => p.length > 2);
+            if (parts.length) results[inp.context] = parts;
+          });
+        } catch(e) {
+          this.addLog(`⚠ AI batch ${Math.floor(i/BATCH_SIZE)+1} error: ${e.message}`, 'warn');
+        }
+      }
+      return results;
+    },
+
+    // ── Pre-verify all plant candidates in parallel ────────────────────────────
+    // Mirrors Colab ThreadPoolExecutor(max_workers=10)
+    async preVerifyAllPlants(candidates) {
+      const PARALLEL = 10;
+      const names = [...candidates];
+      for (let i = 0; i < names.length; i += PARALLEL) {
+        await Promise.all(names.slice(i, i + PARALLEL).map(n => this.verifyPlant(n)));
+        if (i % 50 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+    },
+
+    // ── GBIF plant verification — mirrors Colab BotanicalValidator.verify() ──
+    async verifyPlant(name) {
+      if (!name || name.length < 3) return null;
+      name = name.replace(/^(nectaring on|flowers of|on|visiting|at|found on|blast to|host|label)\s+/i, '')
+                 .replace(/[.,;:!?|]+$/, '').trim();
+      const low = name.toLowerCase();
+      if (PLANT_BLACKLIST.has(low.split(' ')[0])) { this.plantCache[low] = null; return null; }
+      if (this.plantCache[low] !== undefined) return this.plantCache[low];
+      try {
+        const url = `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(name)}&kingdom=Plantae&strict=true`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        const data = await res.json();
+        if (data.kingdom === 'Plantae' && data.matchType !== 'NONE') {
+          if (data.confidence < 90 && data.matchType === 'FUZZY') { this.plantCache[low] = null; return null; }
+          const genus = data.genus || name.split(' ')[0];
+          let species = 'sp.', canonical = data.canonicalName || name;
+          if (data.species) {
+            const parts = data.species.split(' ');
+            if (parts.length >= 2) {
+              species = parts[1].toLowerCase();
+              canonical = `${genus} ${species}`;
+            }
+          }
+          const result = { accepted_genus: genus, accepted_species: species, canonical_name: canonical };
+          this.plantCache[low] = result;
+          return result;
+        }
+      } catch {}
+      this.plantCache[low] = null;
+      return null;
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CITATION RESOLVER — unified for both API and ZIP modes
+    // Mirrors Colab's resolve_dataset_citation() with datasetKey lookup
+    // ══════════════════════════════════════════════════════════════════════════
+    resolveRecordCitation(row, rawCites, doiToCitation) {
+      const dk = row.datasetKey || '';
+
+      // ── API mode: use pre-fetched dataset info ──
+      if (this.dataSource === 'api' && dk && this.datasetInfoCache[dk]) {
+        return this.datasetInfoCache[dk].citation || `${row.datasetName || 'GBIF Dataset'} (via GBIF.org)`;
+      }
+
+      // ── ZIP mode: mirrors Colab resolve_dataset_citation() exactly ──
+      // 1. Try datasetKey → DOI → citation text match
+      if (dk && this.datasetInfoCache[dk]) {
+        const cached = this.datasetInfoCache[dk];
+        if (cached) return cached.citation;
+      }
+
+      // 2. Try matching by dataset name / institution code against citations.txt lines
+      const dsName = (row.datasetName || '').toLowerCase();
+      const inst   = (row.institutionCode || '').toLowerCase();
+      const identifiers = [dsName, inst].filter(Boolean);
+
+      for (const cite of rawCites) {
+        if (cite.startsWith('When using')) continue;
+        const citeLow = cite.toLowerCase();
+        if (identifiers.some(id => id && citeLow.includes(id))) return cite;
+      }
+
+      // 3. Fallback
+      return row.datasetName ? `${row.datasetName} (via GBIF.org)` : 'GBIF Dataset (via GBIF.org)';
+    },
+
+    // Resolve license for a record — checks per-record field first, then dataset info
+    resolveRecordLicense(row, rightsMap) {
+      // Per-record license field (from occurrence API or TSV)
+      if (row.license) return this.getLicense(row.license);
+
+      // ZIP rights map
+      const dsName = row.datasetName || '';
+      if (rightsMap && rightsMap[dsName]) return rightsMap[dsName];
+
+      // Dataset-level license from pre-fetched info
+      const dk = row.datasetKey || '';
+      if (dk && this.datasetInfoCache[dk]) {
+        const info = this.datasetInfoCache[dk];
+        if (info && info.license) return info.license;
+      }
+
+      return 'CC BY 4.0';
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // MAIN PIPELINE
+    // ══════════════════════════════════════════════════════════════════════════
+    async run() {
+      if (this.loading || !this.canRun()) return;
+      this.loading = true;
+      this.error = null;
+      this.log = [];
+      this.jsonOutput = null;
+      this.stats = null;
+      this.progress = 0;
+      this.geoCache = {};
+      this.plantCache = {};
+      this.aiCache = {};
+      this.datasetInfoCache = {};
+
+      try {
+        let rows = [], rawCites = [], doiToCitation = {}, rightsMap = {};
+
+        // ── PHASE 0: Get rows ─────────────────────────────────────────────────
+        if (this.dataSource === 'api') {
+          rows = await this.fetchFromGBIF();
+          // datasetInfoCache is populated inside fetchFromGBIF()
+          // Build rawCites array from dataset info for metadata.contributing_datasets
+          rawCites = Object.values(this.datasetInfoCache)
+            .filter(Boolean)
+            .map(d => d.citation)
+            .filter(Boolean);
+        } else {
+          this.statusMsg = 'Reading ZIP…'; this.progress = 5;
+          const ab = await this.uploadedFile.arrayBuffer();
+          const zip = await JSZip.loadAsync(ab);
+          const occFile = zip.file('occurrence.txt');
+          if (!occFile) throw new Error('occurrence.txt not found in ZIP.');
+          this.addLog('✅ Found occurrence.txt', 'ok');
+
+          // Read citations.txt — mirrors Colab exactly
+          const citFile = zip.file('citations.txt');
+          if (citFile) {
+            const ct = await citFile.async('string');
+            for (const line of ct.split('\n')) {
+              const l = line.trim(); if (!l) continue;
+              rawCites.push(l);
+              const m = l.match(/doi\.org\/([^\s]+)/i);
+              if (m) doiToCitation[m[1].toLowerCase()] = l;
+            }
+            this.addLog(`📄 Loaded ${rawCites.length} citation lines`, 'ok');
+          }
+
+          // Read rights.txt — mirrors Colab's rights_map
+          const rFile = zip.file('rights.txt');
+          if (rFile) {
+            const rt = await rFile.async('string');
+            const lines = rt.split('\n');
+            let curr = null;
+            for (const line of lines) {
+              if (line.startsWith('Dataset:')) {
+                curr = line.replace('Dataset:', '').trim();
+              } else if (line.startsWith('Rights as supplied:') && curr) {
+                rightsMap[curr] = this.getLicense(line.replace('Rights as supplied:', '').trim());
+              }
+            }
+            this.addLog(`⚖ Loaded rights for ${Object.keys(rightsMap).length} datasets`, 'ok');
+          }
+
+          const tsvText = await occFile.async('string');
+          rows = this.parseTSV(tsvText).filter(r => {
+            if (EXCLUDED_DATASET_KEYS.has(r.datasetKey)) return false;
+            const pub = (r.datasetName || r.institutionCode || '').toLowerCase();
+            return !EXCLUDED_PUBLISHERS.some(ex => pub.includes(ex));
+          });
+          this.addLog(`📊 Loaded ${rows.length} records (iNat/BugGuide excluded)`, 'ok');
+
+          // For ZIP mode, also fetch dataset info for DOI resolution
+          // (mirrors Colab's per-dataset GBIF API call inside resolve_dataset_citation)
+          this.statusMsg = 'Resolving dataset citations…'; this.progress = 25;
+          const zipDatasetKeys = [...new Set(rows.map(r => r.datasetKey).filter(Boolean))];
+          await this.preloadDatasetInfo(zipDatasetKeys);
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // PHASE 1: Build combined_text for every row (same as Colab)
+        // ════════════════════════════════════════════════════════════════════════
+        this.progress = 42; this.statusMsg = 'Building label texts…';
+        await new Promise(r => setTimeout(r, 0));
+
+        const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const allHostCounts = {};
+        let floralCount = 0, geocodedCount = 0;
+
+        for (const row of rows) {
+          row._combinedText = this.opts.extractFromRemarks
+            ? [row.associatedTaxa, row.occurrenceRemarks, row.verbatimLabel, row.fieldNotes]
+                .filter(v => v && v.trim() && v.toLowerCase() !== 'nan' && v.toLowerCase() !== 'none')
+                .join('. ')
+            : '';
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // PHASE 2: AI batch pass — mirrors Colab batch_ai_extract(unique_texts)
+        // ════════════════════════════════════════════════════════════════════════
+        let textToPlantsMap = {};
+
+        if (this.opts.aiParse) {
+          this.statusMsg = 'Loading RoBERTa model…';
+          await new Promise(r => setTimeout(r, 0));
+          const modelReady = await this.loadAIModel();
+
+          if (modelReady && this._aiPipeline) {
+            const uniqueTexts = [...new Set(rows.map(r => r._combinedText).filter(t => t && t.length > 4))];
+            this.addLog(`🧠 AI scanning ${uniqueTexts.length} unique label texts (batches of 16)…`);
+            this.progress = 48;
+
+            textToPlantsMap = await this.batchAiExtract(uniqueTexts, msg => {
+              this.statusMsg = msg;
+              this.addLog('  ' + msg);
+            });
+            this.addLog(`✅ AI found plant mentions in ${Object.keys(textToPlantsMap).length} texts`, 'ok');
+          } else {
+            this.addLog('⚠ AI model unavailable — falling back to regex extraction', 'warn');
+          }
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // PHASE 3: Collect all candidate plant names and pre-verify in parallel
+        // Mirrors Colab ThreadPoolExecutor(max_workers=10) pre-verification pass
+        // ════════════════════════════════════════════════════════════════════════
+        if (this.opts.verifyPlants) {
+          this.statusMsg = 'Pre-verifying plant names via GBIF…';
+          this.progress = 57;
+          await new Promise(r => setTimeout(r, 0));
+
+          const allCandidates = new Set();
+          for (const plants of Object.values(textToPlantsMap))
+            for (const p of plants) allCandidates.add(p.trim());
+          for (const row of rows) {
+            if (!row._combinedText) continue;
+            for (const m of row._combinedText.matchAll(/\b([A-Z][a-z]{2,}(?:\s+[a-z]{3,})?)\b/g))
+              allCandidates.add(m[1]);
+          }
+          this.addLog(`🔬 Pre-verifying ${allCandidates.size} candidate names against GBIF Plants API…`);
+          await this.preVerifyAllPlants(allCandidates);
+          this.addLog(`✅ Plant verification cache built (${Object.keys(this.plantCache).length} names resolved)`, 'ok');
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // PHASE 4: Reverse geocoding — fill missing state/locality
+        // ════════════════════════════════════════════════════════════════════════
+        if (this.opts.reverseGeocode) {
+          const needsGeo = rows.filter(row => {
+            const lat = parseFloat(row.decimalLatitude);
+            const lon = parseFloat(row.decimalLongitude);
+            return !isNaN(lat) && !isNaN(lon) &&
+              (!(row.stateProvince || '').trim() || !(row.locality || '').trim());
+          });
+          if (needsGeo.length) {
+            this.addLog(`🌍 Reverse geocoding ${needsGeo.length} records with missing state/locality…`);
+            this.statusMsg = `Geocoding ${needsGeo.length} records…`;
+            this.progress = 66;
+            for (let i = 0; i < needsGeo.length; i++) {
+              const row = needsGeo[i];
+              const geo = await this.reverseGeocode(parseFloat(row.decimalLatitude), parseFloat(row.decimalLongitude));
+              if (geo) {
+                if (!row.stateProvince && geo.state)   { row.stateProvince = geo.state;   row._geocoded = true; geocodedCount++; }
+                if (!row.locality     && geo.locality) { row.locality      = geo.locality; row._geocoded = true; }
+              }
+              if (i % 20 === 0) { this.statusMsg = `Geocoding ${i+1}/${needsGeo.length}…`; await new Promise(r => setTimeout(r, 0)); }
+            }
+            this.addLog(`✅ Geocoded ${geocodedCount} records`, 'ok');
+          }
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // PHASE 5: Assemble occurrence records — fast lookup pass
+        // Mirrors Colab df.iterrows() loop exactly
+        // ════════════════════════════════════════════════════════════════════════
+        this.progress = 73; this.statusMsg = 'Assembling occurrence records…';
+        await new Promise(r => setTimeout(r, 0));
+
+        const occurrences = [];
+        const distribution = {};
+        const flightPeriod = {};
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          if (i % 50 === 0) {
+            this.progress = 73 + Math.round((i / rows.length) * 19);
+            this.statusMsg = `Assembling ${i+1} / ${rows.length}…`;
+            await new Promise(r => setTimeout(r, 0));
+          }
+
+          // ── PART A: State cleaning — mirrors Colab "XXArizona" fix ──
+          let rawState = (row.stateProvince || '').trim();
+          let stClean = rawState.replace(/^XX/i, '').trim();
+          stClean = stClean.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          const stLower = stClean.toLowerCase();
+
+          if (this.opts.skipGeoBlacklist) {
+            if (GEO_BLACKLIST.has(stLower) || stClean.length < 2 || /\d/.test(stClean)) continue;
+          } else { if (stClean.length < 2) continue; }
+
+          const locality = (row.locality || '').trim();
+          const lat = row.decimalLatitude != null ? parseFloat(row.decimalLatitude) : null;
+          const lon = row.decimalLongitude != null ? parseFloat(row.decimalLongitude) : null;
+          const hasCoords = lat != null && !isNaN(lat) && lon != null && !isNaN(lon);
+
+          // ── PART B: Distribution ──
+          if (!distribution[stClean]) distribution[stClean] = { state_total: 0, counties: {} };
+          distribution[stClean].state_total++;
+
+          let coRaw = (row.county || '').trim();
+          if (this.opts.fixCounties) {
+            const mid = Math.floor(coRaw.length / 2);
+            if (mid > 0 && coRaw.slice(0,mid).toLowerCase() === coRaw.slice(mid).toLowerCase()) coRaw = coRaw.slice(0,mid);
+          }
+          let cClean = coRaw.replace(/\bcounty\b|\bco\b\.?/gi,'').trim();
+          cClean = cClean.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          if (cClean && cClean.length > 1 && cClean.toLowerCase() !== stLower) {
+            if (!distribution[stClean].counties[cClean]) distribution[stClean].counties[cClean] = { count: 0 };
+            distribution[stClean].counties[cClean].count++;
+          }
+
+          // ── Flight period ──
+          const mo = parseInt(row.month);
+          if (!isNaN(mo) && mo >= 1 && mo <= 12) {
+            const mName = MONTH_NAMES[mo-1];
+            flightPeriod[mName] = (flightPeriod[mName] || 0) + 1;
+          }
+
+          const combinedText = row._combinedText || '';
+
+          // ── PART C: Build local exclusion set — mirrors Colab's local_exclusions ──
+          const localExcl = new Set([stLower]);
+          if (cClean) localExcl.add(cClean.toLowerCase());
+          locality.split(/\s+/).forEach(w => { if (w.length > 2) localExcl.add(w.toLowerCase()); });
+          const splitNames = (s) => (s||'').split(/[;,&]|\band\b/i).forEach(n =>
+            n.trim().split(/\s+/).forEach(p => { if (p.length > 1) localExcl.add(p.toLowerCase()); }));
+          splitNames(row.recordedBy);
+          splitNames(row.identifiedBy);
+
+          // ── PART D: Floral host extraction ──
+          const floral_hosts = [], seenGenera = new Set();
+
+          if (combinedText) {
+            const aiCandidates = textToPlantsMap[combinedText] || [];
+            const regexCandidates = [];
+            for (const m of combinedText.matchAll(/\b([A-Z][a-z]{2,}(?:\s+[a-z]{3,})?)\b/g))
+              regexCandidates.push(m[1]);
+            const allCandidates = [...new Set([...aiCandidates, ...regexCandidates])];
+
+            for (const candidate of allCandidates) {
+              const cLow = candidate.toLowerCase();
+              const words = cLow.split(' ');
+              if (words.some(w => localExcl.has(w) || PLANT_BLACKLIST.has(w))) continue;
+
+              let verified = null;
+              if (this.opts.verifyPlants) {
+                verified = this.plantCache[cLow] || null;
+              } else if (candidate.length >= 4 && /^[A-Z][a-z]+/.test(candidate)) {
+                const w2 = candidate.split(' ');
+                verified = { accepted_genus: w2[0], accepted_species: w2[1] || 'sp.', canonical_name: candidate };
+              }
+
+              if (verified && verified.accepted_genus) {
+                const g = verified.accepted_genus;
+                if (!seenGenera.has(g) && !localExcl.has(g.toLowerCase())) {
+                  const parseMethod = aiCandidates.includes(candidate) ? 'ai' : 'gbif_api';
+                  floral_hosts.push({
+                    original_query:   candidate,
+                    accepted_genus:   g,
+                    accepted_species: verified.accepted_species,
+                    canonical_name:   verified.canonical_name,
+                    parse_method:     parseMethod
+                  });
+                  seenGenera.add(g);
+                  allHostCounts[verified.canonical_name || g] = (allHostCounts[verified.canonical_name || g] || 0) + 1;
+                }
+              }
+            }
+          }
+          if (floral_hosts.length > 0) floralCount++;
+
+          // ── PART E: Citation & license — unified resolver ──
+          const citText    = this.resolveRecordCitation(row, rawCites, doiToCitation);
+          const licLabel   = this.resolveRecordLicense(row, rightsMap);
+
+          const locObj = {
+            state: stClean, county: cClean || null, locality: locality || null,
+            coordinates: { lat: hasCoords ? lat : null, lon: hasCoords ? lon : null }
+          };
+          if (row._geocoded) locObj.geocode_source = 'coordinates';
+
+          occurrences.push({
+            gbifID:    String(row.gbifID || ''),
+            gbif_link: row.gbifID ? `https://www.gbif.org/occurrence/${row.gbifID}` : '',
+            location:  locObj,
+            temporal:  { date: row.eventDate || null, month: row.month || null, year: row.year || null },
+            collector: { recordedBy: row.recordedBy || null, identifiedBy: row.identifiedBy || null },
+            ecology:   { notes: combinedText || null, extracted_floral_hosts: floral_hosts },
+            citation:  { text: citText, license: licLabel }
+          });
+        }
+
+        // ── Assemble contributing_datasets list (mirrors Colab format) ──────────
+        // { title, doi, license, citation } per unique dataset
+        const contributingDatasets = Object.entries(this.datasetInfoCache)
+          .filter(([, v]) => v)
+          .map(([, v]) => ({
+            title:    v.title,
+            doi:      v.doi || null,
+            license:  v.license,
+            citation: v.citation
+          }))
+          .filter((d, i, arr) => arr.findIndex(x => x.title === d.title) === i); // deduplicate by title
+
+        // ── Assemble flight period ────────────────────────────────────────────
+        const totalMo = Object.values(flightPeriod).reduce((a,b)=>a+b,0);
+        const flightPeriodFinal = {};
+        for (const m of MONTH_NAMES) {
+          if (flightPeriod[m] !== undefined)
+            flightPeriodFinal[m] = { count: flightPeriod[m], percentage: totalMo > 0 ? parseFloat(((flightPeriod[m]/totalMo)*100).toFixed(2)) : 0 };
+        }
+
+        this.progress = 94;
+        this.statusMsg = 'Assembling JSON…';
+        this.addLog(`✅ ${occurrences.length} records assembled · ${floralCount} with floral data · ${geocodedCount} geocoded`, 'ok');
+
+        // ── Master JSON (matches schema exactly) ──────────────────────────────
+        const master = {
+          binomial_name: `${this.genus.trim()} ${this.speciesEpithet.trim()}`,
+          common_name:   this.commonName.trim(),
+          taxonomy: {
+            family:    this.family.trim()   || 'Apidae',
+            subfamily: 'Apinae',
+            tribe:     this.tribe.trim()    || 'Eucerini',
+            genus:     this.genus.trim(),
+            subgenus:  this.subgenus.trim() || 'N/A',
+            species:   this.speciesEpithet.trim()
+          },
+          flight_period: flightPeriodFinal,
+          distribution,
+          occurrences,
+          metadata: {
+            project_name:          this.projectName.trim(),
+            total_records:         rows.length,
+            processed_records:     occurrences.length,
+            geocoded_records:      geocodedCount,
+            excluded_datasets:     ['iNaturalist Research-Grade', 'BugGuide'],
+            contributing_datasets: contributingDatasets
+          }
+        };
+
+        const jsonStr = JSON.stringify(master, null, 2);
+        this.jsonOutput = jsonStr;
+        const previewObj = { ...master, occurrences: master.occurrences.slice(0, 200) };
+        this.jsonPreview = JSON.stringify(previewObj, null, 2);
+
+        this.stats = {
+          total:          rows.length,
+          processed:      occurrences.length,
+          floralHosts:    floralCount,
+          geocoded:       geocodedCount,
+          states:         Object.keys(distribution).length,
+          datasets:       contributingDatasets.length,
+          plantTaxa:      Object.keys(allHostCounts).length,
+          flightPeriod:   flightPeriodFinal,
+          distribution,
+          topHosts:       Object.entries(allHostCounts).sort((a,b)=>b[1]-a[1]).slice(0,20).map(([name,count])=>({name,count})),
+          contributingDatasets
+        };
+
+        this.progress = 100;
+        this.statusMsg = 'Done!';
+        this.addLog(`🎉 JSON built! ${occurrences.length} records · ${(jsonStr.length/1024).toFixed(1)} KB · ${contributingDatasets.length} datasets cited`, 'ok');
+
+      } catch(e) {
+        this.error = e.message;
+        this.addLog('❌ ' + e.message, 'warn');
+        this.progress = 0;
+        console.error(e);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    parseTSV(text) {
+      const lines = text.split('\n');
+      if (lines.length < 2) return [];
+      const headers = lines[0].split('\t').map(h => h.trim());
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const vals = lines[i].split('\t');
+        const obj = {};
+        headers.forEach((h, j) => {
+          const v = vals[j] !== undefined ? vals[j].trim() : '';
+          obj[h] = (v === '' || v.toLowerCase() === 'nan' || v.toLowerCase() === 'null') ? null : v;
+        });
+        rows.push(obj);
+      }
+      return rows;
+    },
+
+    // Mirrors Colab's get_license_label() exactly
+    getLicense(url) {
+      if (!url) return 'CC BY 4.0';
+      // Handle short-form codes like "CC_BY_4_0" or "CC0_1_0"
+      if (url.startsWith('CC')) {
+        let normalized = url.replace(/_/g, ' ');
+        normalized = normalized.replace(/(\d)\s+(\d)/g, '$1.$2');
+        return normalized;
+      }
+      const u = url.toLowerCase();
+      if (u.includes('publicdomain/zero') || u.includes('cc0')) return 'CC0 1.0';
+      const parts = [];
+      if (u.includes('/by')) parts.push('BY');
+      if (u.includes('nc')) parts.push('NC');
+      if (u.includes('sa')) parts.push('SA');
+      const vm = u.match(/(\d\.\d)/);
+      const ver = vm ? ` ${vm[1]}` : ' 4.0';
+      return parts.length ? `CC ${parts.join('-')}${ver}` : 'Copyrighted';
+    },
+
+    downloadJSON() {
+      if (!this.jsonOutput) return;
+      const blob = new Blob([this.jsonOutput], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(this.speciesEpithet||'species').trim()}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COPY / DOWNLOAD HELPERS (Summary tab)
+    // ══════════════════════════════════════════════════════════════════════════
+    async copyText(text) {
+      try { await navigator.clipboard.writeText(text); } catch {}
+    },
+
+    async copyCitations() {
+      if (!this.stats?.contributingDatasets) return;
+      const text = this.stats.contributingDatasets.map((d, i) => `${i+1}. ${d.citation}`).join('\n\n');
+      await navigator.clipboard.writeText(text);
+      this._flashBtn('btn-copy-cite');
+    },
+
+    async copyFloralRecords() {
+      if (!this.stats?.topHosts) return;
+      const header = 'FLOWER_TAXON\tRAW_COUNT';
+      const rows = this.stats.topHosts.map(h => `${h.name}\t${h.count}`);
+      await navigator.clipboard.writeText([header, ...rows].join('\n'));
+      this._flashBtn('btn-copy-floral');
+    },
+
+    downloadFloralCSV() {
+      if (!this.stats?.topHosts) return;
+      const lines = ['Flower Taxon,Raw Count', ...this.stats.topHosts.map(h => `"${h.name}",${h.count}`)];
+      this._downloadText(lines.join('\n'), `${this.speciesEpithet||'species'}_floral_hosts.csv`, 'text/csv');
+    },
+
+    _flashBtn(id) {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      const origHTML = btn.innerHTML;
+      btn.classList.add('copied');
+      btn.innerHTML = '<i class="fa-solid fa-check mr-1 text-[10px]"></i>Copied!';
+      setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = origHTML; }, 2000);
+    },
+
+    _downloadText(content, filename, mime='text/plain') {
+      const blob = new Blob([content], { type: mime });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ANALYZE TAB — state & functions
+    // ══════════════════════════════════════════════════════════════════════════
+    analyzeSource: 'build',
+    analyzeUrl: '',
+    analyzeUploadedFile: null,
+    analyzeLoading: false,
+    analyzeError: null,
+    analyzeResults: null,
+
+    handleAnalyzeFile(e) { this.analyzeUploadedFile = e.target.files[0] || null; },
+
+    async runAnalysis() {
+      this.analyzeLoading = true;
+      this.analyzeError = null;
+      this.analyzeResults = null;
+      try {
+        let data;
+        if (this.analyzeSource === 'build') {
+          if (!this.jsonOutput) throw new Error('No JSON built yet — run the builder first.');
+          data = JSON.parse(this.jsonOutput);
+        } else if (this.analyzeSource === 'file') {
+          if (!this.analyzeUploadedFile) throw new Error('No file selected.');
+          data = JSON.parse(await this.analyzeUploadedFile.text());
+        } else {
+          if (!this.analyzeUrl.trim()) throw new Error('Enter a URL.');
+          const res = await fetch(this.analyzeUrl.trim());
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          data = await res.json();
+        }
+        this.analyzeResults = this.computeAnalysis(data);
+        // Charts render after DOM update
+        setTimeout(() => this.renderAnalyzeCharts(), 120);
+      } catch(e) {
+        this.analyzeError = e.message;
+      } finally {
+        this.analyzeLoading = false;
+      }
+    },
+
+    // Core analysis — mirrors the Colab notebook exactly
+    computeAnalysis(data) {
+      // 1. Raw flower tally
+      const rawCounts = {};
+      for (const occ of data.occurrences || []) {
+        for (const h of occ?.ecology?.extracted_floral_hosts || []) {
+          const name = h.accepted_genus || h.canonical_name || h.original_query;
+          if (name) rawCounts[name.trim()] = (rawCounts[name.trim()] || 0) + 1;
+        }
+      }
+      const rawFlowers = Object.keys(rawCounts).sort((a,b) => rawCounts[b] - rawCounts[a]);
+
+      // 2. Dedup by (lat, lon, date) — mirrors Colab
+      const events = {};
+      for (const occ of data.occurrences || []) {
+        if (!(occ?.ecology?.extracted_floral_hosts?.length)) continue;
+        const lat  = occ?.location?.coordinates?.lat;
+        const lon  = occ?.location?.coordinates?.lon;
+        const date = occ?.temporal?.date;
+        if (!lat || !lon || !date) continue;
+        const key = `${lat}|${lon}|${date}`;
+        if (!events[key]) events[key] = new Set();
+        for (const h of occ.ecology.extracted_floral_hosts) {
+          const name = h.accepted_genus || h.canonical_name || h.original_query;
+          if (name) events[key].add(name.trim());
+        }
+      }
+      const eventCounts = {};
+      for (const hostSet of Object.values(events))
+        for (const host of hostSet)
+          eventCounts[host] = (eventCounts[host] || 0) + 1;
+
+      const totalFloral = Object.values(rawCounts).reduce((a,b) => a+b, 0);
+
+      // 3. Comparative table
+      const compTable = rawFlowers.map(name => ({
+        name, raw: rawCounts[name], dedup: eventCounts[name] || 0
+      }));
+
+      // 4. Detailed per-host, per-dataset breakdown (mirrors document)
+      const hostDatasets = {}; // { hostName → { citationText → { count, examples[] } } }
+      for (const occ of data.occurrences || []) {
+        if (!(occ?.ecology?.extracted_floral_hosts?.length)) continue;
+        const cite = occ?.citation?.text || 'Unknown dataset';
+        const gbif = occ?.gbif_link || '';
+        // Full notes string — this is the combined verbatim label + occurrence remarks etc.
+        const rawNotes = (occ?.ecology?.notes || '').trim();
+        for (const h of occ.ecology.extracted_floral_hosts) {
+          const name = h.accepted_genus || h.canonical_name || h.original_query;
+          if (!name) continue;
+          const n = name.trim();
+          if (!hostDatasets[n]) hostDatasets[n] = {};
+          if (!hostDatasets[n][cite]) hostDatasets[n][cite] = { count: 0, examples: [] };
+          hostDatasets[n][cite].count++;
+          if (hostDatasets[n][cite].examples.length < 3) {
+            // Pre-compute displayText here in JS — avoids Alpine template expression bugs
+            const displayText = rawNotes || '(no label text available)';
+            hostDatasets[n][cite].examples.push({
+              displayText,
+              gbif_link: gbif,
+              original_query: h.original_query || h.canonical_name || name
+            });
+          }
+        }
+      }
+      const detailedHosts = rawFlowers.map(name => ({
+        name,
+        totalCount: rawCounts[name],
+        datasets: Object.entries(hostDatasets[name] || {})
+          .sort((a,b) => b[1].count - a[1].count)
+          .map(([citation, d]) => ({ citation, count: d.count, examples: d.examples }))
+      }));
+
+      // 5. Citations contributing floral data — with license tracking
+      const floralCitMap = {}; // citation text → license
+      for (const occ of data.occurrences || []) {
+        if (!(occ?.ecology?.extracted_floral_hosts?.length)) continue;
+        const cite = occ?.citation?.text;
+        if (cite) floralCitMap[cite.trim()] = occ?.citation?.license || 'CC BY 4.0';
+      }
+      const floralCitations = Object.keys(floralCitMap).sort();
+      // Rich array for in-text citation building
+      const floralCitationData = floralCitations.map(text => ({ text, license: floralCitMap[text] }));
+
+      return {
+        binomial_name: data.binomial_name || '',
+        totalFloral,
+        uniqueEvents: Object.keys(events).length,
+        rawFlowers,
+        rawCounts,
+        eventCounts,
+        compTable,
+        detailedHosts,
+        floralCitations,
+        floralCitationData
+      };
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // IN-TEXT CITATION HELPERS
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // Parse a full citation string into { intext, year, sortKey }
+    // e.g. "Bentley A, Osborn R (2026). Snow..." → { intext: "Bentley & Osborn, 2026", year: 2026, sortKey: "2026bentley" }
+    parseInTextRef(citationText) {
+      // Extract year
+      const yearMatch = citationText.match(/\((\d{4})\)/);
+      const year = yearMatch ? parseInt(yearMatch[1]) : 9999;
+
+      // Author portion is everything before " (YYYY)"
+      const authorPart = citationText.split(/\s*\(\d{4}\)/)[0].trim();
+
+      // Split by comma to get candidate name segments
+      const parts = authorPart.split(',').map(s => s.trim()).filter(Boolean);
+
+      // Detect personal names: a segment ends with 1-3 uppercase initials
+      // e.g. "Bentley A", "Ikerd H I", "Griswold T"
+      const isPersonal = parts.some(p => /\b[A-Z]{1,3}\s*$/.test(p));
+
+      let intext;
+      if (isPersonal) {
+        // Last name = first word of each comma-separated segment
+        const lastNames = parts.map(p => p.trim().split(/\s+/)[0]);
+        if (lastNames.length === 1)      intext = `${lastNames[0]}, ${year}`;
+        else if (lastNames.length === 2) intext = `${lastNames[0]} & ${lastNames[1]}, ${year}`;
+        else                             intext = `${lastNames[0]} et al., ${year}`;
+      } else {
+        // Institutional — use full author part as-is
+        intext = `${authorPart}, ${year}`;
+      }
+
+      // Sort key: year first, then alpha by first author/institution word
+      const sortKey = `${year}_${authorPart.toLowerCase()}`;
+      return { intext, year, sortKey };
+    },
+
+    // Build a full in-text citation string from an array of { citation/text, license }
+    // items: [{ citation: "...", license: "CC BY 4.0" }, ...]  OR  [{ text: "...", license: "..." }]
+    buildInTextCitation(items) {
+      if (!items || !items.length) return '';
+
+      // Parse and sort: by year ASC, then alpha
+      const parsed = items.map(item => {
+        const citText = item.citation || item.text || '';
+        return { ...this.parseInTextRef(citText), license: item.license || '' };
+      });
+      parsed.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
+
+      // Build citation list
+      const refs = parsed.map(p => p.intext).join('; ');
+
+      // Deduplicated license list
+      const seenLicenses = new Set();
+      const licenses = [];
+      for (const p of parsed) {
+        const lic = (p.license || 'CC BY 4.0').trim();
+        if (lic && !seenLicenses.has(lic)) { seenLicenses.add(lic); licenses.push(lic); }
+      }
+      const licStr = licenses.join(' and ');
+
+      return `Data derived from (${refs}). Data licensed under ${licStr}.`;
+    },
+
+    // Copy in-text for Summary tab (all contributing datasets)
+    async copyInTextCitation() {
+      if (!this.stats?.contributingDatasets?.length) return;
+      const text = this.buildInTextCitation(this.stats.contributingDatasets);
+      await navigator.clipboard.writeText(text);
+      this._flashBtn('btn-intext-cite');
+    },
+
+    // Copy in-text for Analyze tab Cell 5 (floral citations only)
+    async copyFloralInTextCitation() {
+      if (!this.analyzeResults?.floralCitationData?.length) return;
+      const text = this.buildInTextCitation(this.analyzeResults.floralCitationData);
+      await navigator.clipboard.writeText(text);
+      this._flashBtn('btn-intext-floral-cite');
+    },
+
+    renderAnalyzeCharts() {
+      if (!this.analyzeResults) return;
+      const top = this.analyzeResults.rawFlowers.slice(0, 15);
+      const rawVals  = top.map(f => this.analyzeResults.rawCounts[f]);
+      const dedupVals= top.map(f => this.analyzeResults.eventCounts[f] || 0);
+
+      const baseOpts = (datasets) => ({
+        type: 'bar',
+        data: { labels: top, datasets },
+        options: {
+          indexAxis: 'y',
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1e293b',
+              titleColor: '#94a3b8',
+              bodyColor: '#f8fafc',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 10,
+              callbacks: { label: ctx => `  ${ctx.parsed.x} records` }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: { precision: 0, font: { size: 10, family: "'Courier New', monospace" }, color: '#94a3b8' },
+              grid: { color: '#f1f5f9', drawBorder: false },
+              border: { display: false }
+            },
+            y: {
+              ticks: {
+                font: { size: 11, style: 'italic', family: 'Georgia, serif' },
+                color: '#334155'
+              },
+              grid: { display: false },
+              border: { display: false }
+            }
+          }
+        }
+      });
+
+      const rawEl = document.getElementById('rawChart');
+      if (rawEl) {
+        if (window._rawChart) window._rawChart.destroy();
+        window._rawChart = new Chart(rawEl, baseOpts([{
+          data: rawVals,
+          backgroundColor: 'rgba(251,191,36,0.65)',
+          borderColor: '#d97706',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          borderSkipped: false,
+          hoverBackgroundColor: 'rgba(217,119,6,0.8)'
+        }]));
+      }
+
+      const dedupEl = document.getElementById('dedupChart');
+      if (dedupEl) {
+        if (window._dedupChart) window._dedupChart.destroy();
+        window._dedupChart = new Chart(dedupEl, baseOpts([{
+          data: dedupVals,
+          backgroundColor: 'rgba(100,116,139,0.45)',
+          borderColor: '#64748b',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          borderSkipped: false,
+          hoverBackgroundColor: 'rgba(71,85,105,0.7)'
+        }]));
+      }
+    },
+
+    async copyAnalysisChart() {
+      if (!this.analyzeResults) return;
+      const header = 'FLOWER_TAXON\tRAW_TOTAL\tDEDUP_EVENTS';
+      const rows = this.analyzeResults.compTable.map(r => `${r.name}\t${r.raw}\t${r.dedup}`);
+      await navigator.clipboard.writeText([header, ...rows].join('\n'));
+      this._flashBtn('btn-copy-chart');
+    },
+
+    downloadAnalysisCSV() {
+      if (!this.analyzeResults) return;
+      const lines = ['Flower Taxon,Raw Total,Dedup Events',
+        ...this.analyzeResults.compTable.map(r => `"${r.name}",${r.raw},${r.dedup}`)];
+      this._downloadText(lines.join('\n'), `${this.analyzeResults.binomial_name.replace(' ','_')}_floral_analysis.csv`, 'text/csv');
+    },
+
+    async copyFloralCitations() {
+      if (!this.analyzeResults?.floralCitations) return;
+      const text = this.analyzeResults.floralCitations.map((c,i) => `${i+1}. ${c}`).join('\n\n');
+      await navigator.clipboard.writeText(text);
+      const btn = document.getElementById('btn-copy-floral-cite');
+      if (btn) { btn.classList.add('copied'); btn.textContent = '✓ Copied!'; setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = '<i class="fa-solid fa-copy mr-1 text-[10px]"></i>Copy All'; }, 2000); }
+    },
+
+    downloadDetailedReport() {
+      if (!this.analyzeResults) return;
+      const lines = [
+        `Floral Hosts for ${this.analyzeResults.binomial_name}:`,
+        '='.repeat(80), ''
+      ];
+      for (const host of this.analyzeResults.detailedHosts) {
+        lines.push(`🌻 ${host.name}`);
+        lines.push(`   Found in ${host.totalCount} record(s)`, '');
+        for (const ds of host.datasets) {
+          lines.push(`   📚 Dataset: ${ds.citation}`);
+          lines.push(`      (${ds.count} occurrence(s))`, '');
+          ds.examples.forEach((ex, i) => {
+            lines.push(`      Example ${i+1}:`);
+            lines.push(`      Original text: "${ex.original_query}"`);
+            if (ex.displayText && ex.displayText !== '(no label text available)')
+              lines.push(`      Label/Notes: "${ex.displayText}"`);
+            lines.push(`      GBIF: ${ex.gbif_link}`, '');
+          });
+          if (ds.count > 3) lines.push(`      ... and ${ds.count - 3} more occurrence(s)`, '');
+        }
+        lines.push('');
+      }
+      lines.push('', '='.repeat(80));
+      lines.push(`CITATIONS CONTRIBUTING FLORAL DATA:`);
+      lines.push('='.repeat(80), '');
+      this.analyzeResults.floralCitations.forEach((c, i) => lines.push(`${i+1}. ${c}`, ''));
+      lines.push(`Total contributing datasets: ${this.analyzeResults.floralCitations.length}`);
+      this._downloadText(lines.join('\n'), `${this.analyzeResults.binomial_name.replace(' ','_')}_floral_report.txt`);
+    }
+  }));
+});
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+const PANELS = ['build','preview','summary','guide','analyze'];
+function showTab(name) {
+  PANELS.forEach(id => {
+    const panel = document.getElementById('panel-' + id);
+    const tab   = document.getElementById('tab-'   + id);
+    if (id === name) {
+      panel.classList.remove('hidden');
+      tab.classList.remove('tab-inactive');
+      tab.classList.add('tab-active');
+    } else {
+      panel.classList.add('hidden');
+      tab.classList.remove('tab-active');
+      tab.classList.add('tab-inactive');
+    }
+  });
+  // Render charts after DOM is visible
+  if (name === 'analyze') {
+    setTimeout(() => {
+      const app = Alpine.$data(document.querySelector('[x-data="app"]'));
+      if (app && app.analyzeResults) app.renderAnalyzeCharts();
+    }, 50);
+  }
+}
+</script>
+</body>
+</html>
