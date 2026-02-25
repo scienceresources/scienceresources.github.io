@@ -240,7 +240,7 @@
         <i class="fa-solid fa-circle-2 mr-1 text-amber-400"></i>Data Source
       </p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5">
-        Fetch live from the GBIF occurrence API by taxon name, or upload a Darwin Core Archive ZIP.
+        Fetch live from the GBIF occurrence API by taxon name, or upload a Darwin Core Archive ZIP, occurrence file, or tabular export.
       </p>
 
       <div class="grid sm:grid-cols-2 gap-3 mb-5">
@@ -254,8 +254,8 @@
         <label class="source-option">
           <input type="radio" x-model="dataSource" value="zip">
           <div>
-            <p class="font-bold text-sm text-slate-700 mb-0.5"><i class="fa-solid fa-file-zipper mr-1.5 text-blue-400"></i>Upload DwC-A ZIP or TXT</p>
-            <p class="text-xs text-slate-400">Upload a Darwin Core Archive ZIP or raw <code class="font-mono bg-slate-100 px-1 rounded text-[10px]">occurrence.txt</code></p>
+            <p class="font-bold text-sm text-slate-700 mb-0.5"><i class="fa-solid fa-file-zipper mr-1.5 text-blue-400"></i>Upload DwC-A ZIP, TXT, CSV, or TSV</p>
+            <p class="text-xs text-slate-400">Upload a Darwin Core Archive ZIP, raw <code class="font-mono bg-slate-100 px-1 rounded text-[10px]">occurrence.txt</code>, or a <code class="font-mono bg-slate-100 px-1 rounded text-[10px]">.csv</code> / <code class="font-mono bg-slate-100 px-1 rounded text-[10px]">.tsv</code> occurrence export</p>
           </div>
         </label>
       </div>
@@ -328,29 +328,44 @@
         </div>
       </div>
 
-      <!-- ZIP Upload panel -->
+      <!-- ZIP/CSV/TSV Upload panel -->
       <div x-show="dataSource === 'zip'">
         <div class="drop-zone border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-all"
           @dragover.prevent="$el.classList.add('dragging')"
           @dragleave.prevent="$el.classList.remove('dragging')"
           @drop.prevent="$el.classList.remove('dragging'); handleFileDrop($event)"
           @click="$refs.fileInput.click()">
-          <input type="file" x-ref="fileInput" accept=".zip,.txt" class="hidden" @change="handleFileSelect($event)">
+          <input type="file" x-ref="fileInput" accept=".zip,.txt,.csv,.tsv" class="hidden" @change="handleFileSelect($event)">
           <template x-if="!uploadedFile">
             <div>
               <i class="fa-solid fa-cloud-arrow-up text-4xl text-slate-300 mb-3"></i>
-              <p class="text-sm font-bold text-slate-500">Drop GBIF DwC-A ZIP or occurrence.txt here</p>
-              <p class="text-xs text-slate-400 mt-1">or click to browse · .zip or .txt · processed entirely in-browser</p>
+              <p class="text-sm font-bold text-slate-500">Drop GBIF DwC-A ZIP, occurrence.txt, CSV, or TSV here</p>
+              <p class="text-xs text-slate-400 mt-1">or click to browse · .zip · .txt · .csv · .tsv · processed entirely in-browser</p>
+              <div class="flex justify-center gap-2 mt-3 flex-wrap">
+                <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full"><i class="fa-solid fa-file-zipper text-[9px]"></i>.zip</span>
+                <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full"><i class="fa-solid fa-file-lines text-[9px]"></i>.txt</span>
+                <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-600 px-2.5 py-1 rounded-full"><i class="fa-solid fa-file-csv text-[9px]"></i>.csv</span>
+                <span class="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-600 px-2.5 py-1 rounded-full"><i class="fa-solid fa-table text-[9px]"></i>.tsv</span>
+              </div>
             </div>
           </template>
           <template x-if="uploadedFile">
             <div>
-              <i class="fa-solid fa-file-zipper text-3xl text-amber-500 mb-2"></i>
+              <i class="fa-solid text-3xl text-amber-500 mb-2"
+                :class="uploadedFile.name.endsWith('.csv') ? 'fa-file-csv' : uploadedFile.name.endsWith('.tsv') ? 'fa-table' : 'fa-file-zipper'"></i>
               <p class="text-sm font-bold text-slate-700" x-text="uploadedFile.name"></p>
               <p class="text-xs text-slate-400 mt-1" x-text="formatBytes(uploadedFile.size)"></p>
               <p class="text-xs text-green-600 font-semibold mt-1.5"><i class="fa-solid fa-check mr-1"></i>Ready to process</p>
             </div>
           </template>
+        </div>
+
+        <!-- Format hint strip -->
+        <div class="mt-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 flex flex-wrap gap-4 text-[11px] text-slate-500">
+          <span><strong class="text-slate-700">.zip</strong> — Darwin Core Archive (includes citations.txt &amp; rights.txt)</span>
+          <span><strong class="text-slate-700">.txt</strong> — Raw tab-separated occurrence.txt</span>
+          <span><strong class="text-slate-700 text-amber-700">.csv</strong> — Comma-separated occurrence export (GBIF or custom)</span>
+          <span><strong class="text-slate-700 text-amber-700">.tsv</strong> — Tab-separated occurrence export</span>
         </div>
       </div>
     </div>
@@ -421,7 +436,7 @@
         <label class="check-option">
           <input type="checkbox" x-model="opts.excludeINat">
           <div>
-            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-ban mr-1 text-red-400"></i>Exclude iNat / BugGuide (ZIP mode)</p>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-ban mr-1 text-red-400"></i>Exclude iNat / BugGuide (ZIP/file mode)</p>
             <p class="text-xs text-slate-400 mt-0.5">Filters out iNaturalist and BugGuide records from uploads</p>
           </div>
         </label>
@@ -1255,11 +1270,11 @@
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">2</div>
-          <div><p class="font-bold text-slate-700 mb-1">Choose Data Source</p><p><strong>API:</strong> Type a taxon name, pick from the dropdown, set optional filters, convert.<br><br><strong>Upload:</strong> Download a DwC-A from <a href="https://www.gbif.org/occurrence/search" target="_blank" class="text-amber-600 hover:underline">gbif.org</a> and upload the .zip (or <code class="bg-slate-100 px-1 rounded font-mono text-xs">occurrence.txt</code>).</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Choose Data Source</p><p><strong>API:</strong> Type a taxon name, pick from the dropdown, set optional filters, convert.<br><br><strong>Upload:</strong> Download a DwC-A from <a href="https://www.gbif.org/occurrence/search" target="_blank" class="text-amber-600 hover:underline">gbif.org</a> and upload the .zip (or <code class="bg-slate-100 px-1 rounded font-mono text-xs">occurrence.txt</code>). You can also upload a <strong>.csv</strong> or <strong>.tsv</strong> occurrence export directly — the tool will auto-detect the format and parse accordingly.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">3</div>
-          <div><p class="font-bold text-slate-700 mb-1">Multi-Species Citations Tab</p><p>When a ZIP/TXT containing <strong>multiple species</strong> is uploaded and converted, the <strong>Multi-Species Refs</strong> tab is automatically populated. Each species gets its own in-text citation string (e.g. <em>Melissodes saponellus: (Ikerd, 2019; Jones, 2022)</em>) plus a full bibliography. Click species blocks to copy in-text citations; click individual entries to copy single references.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Multi-Species Citations Tab</p><p>When a ZIP/TXT/CSV/TSV containing <strong>multiple species</strong> is uploaded and converted, the <strong>Multi-Species Refs</strong> tab is automatically populated. Each species gets its own in-text citation string (e.g. <em>Melissodes saponellus: (Ikerd, 2019; Jones, 2022)</em>) plus a full bibliography. Click species blocks to copy in-text citations; click individual entries to copy single references.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">4</div>
@@ -1352,9 +1367,7 @@ document.addEventListener('alpine:init', () => {
     datasetInfoCache: {},
 
     // ── Multi-Species ──────────────────────────────────────────────────────
-    // Map: species name → Map<datasetKey, gbifID>  (one representative occurrence per pair)
     multiSpeciesMap: {},
-    // Built array: [{species, intext, datasets:[{title,doi,license,citation}]}]
     _multiSpeciesEntries: [],
 
     get multiSpeciesEntries() { return this._multiSpeciesEntries; },
@@ -1379,11 +1392,14 @@ document.addEventListener('alpine:init', () => {
         if (!this.speciesName.trim()) return false;
         return !!this.selectedTaxon;
       }
-      // ZIP/TXT mode: species name optional (will be read from data if blank)
       return !!this.uploadedFile;
     },
     handleFileSelect(e) { const f = e.target.files[0]; if (f) this.uploadedFile = f; },
-    handleFileDrop(e) { const f = e.dataTransfer.files[0]; if (f && (f.name.endsWith('.zip')||f.name.endsWith('.txt'))) this.uploadedFile = f; },
+    handleFileDrop(e) {
+      const f = e.dataTransfer.files[0];
+      if (f && (f.name.endsWith('.zip')||f.name.endsWith('.txt')||f.name.endsWith('.csv')||f.name.endsWith('.tsv')))
+        this.uploadedFile = f;
+    },
     formatBytes(b) { if (b<1024) return b+' B'; if (b<1048576) return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(1)+' MB'; },
     addLog(msg, type='info') { this.log.push({msg,type}); if (this.log.length>300) this.log.shift(); },
 
@@ -1487,7 +1503,7 @@ document.addEventListener('alpine:init', () => {
       const speciesNames = Object.keys(this.multiSpeciesMap).sort();
 
       for (const sp of speciesNames) {
-        const dsMap = this.multiSpeciesMap[sp]; // { datasetKey: gbifId }
+        const dsMap = this.multiSpeciesMap[sp];
         const datasets = [];
         for (const [key, gbifId] of Object.entries(dsMap)) {
           const info = this.datasetInfoCache[key];
@@ -1499,7 +1515,7 @@ document.addEventListener('alpine:init', () => {
               license: info.license,
               citation: info.citation,
               datasetKey: key,
-              occLink   // one representative occurrence for verification
+              occLink
             });
           }
         }
@@ -1740,7 +1756,6 @@ document.addEventListener('alpine:init', () => {
 
     parseTSV(text) {
       // Strip UTF-8 BOM (\ufeff) that GBIF always prepends to occurrence.txt
-      // Without this the first column header becomes \ufeffgbifID and all ID lookups silently fail
       const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
       const lines = clean.split('\n');
       if (lines.length < 2) return [];
@@ -1753,7 +1768,27 @@ document.addEventListener('alpine:init', () => {
         headers.forEach((h, j) => { const v = vals[j]!==undefined ? vals[j].trim() : ''; obj[h] = (v===''||v.toLowerCase()==='nan'||v.toLowerCase()==='null') ? null : v; });
         rows.push(obj);
       }
-      // Store headers on the array so multiSpeciesMap builder can detect the ID column
+      rows._headers = headers;
+      return rows;
+    },
+
+    // Parse a full CSV file into an array of row objects (mirrors parseTSV for comma-separated files)
+    parseCSVRows(text) {
+      const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+      const lines = clean.split('\n');
+      if (lines.length < 2) return [];
+      const headers = this.parseCSVLine(lines[0]).map(h => h.trim().replace(/^\ufeff/, ''));
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const vals = this.parseCSVLine(lines[i]);
+        const obj = {};
+        headers.forEach((h, j) => {
+          const v = vals[j] !== undefined ? vals[j].trim() : '';
+          obj[h] = (v === '' || v.toLowerCase() === 'nan' || v.toLowerCase() === 'null') ? null : v;
+        });
+        rows.push(obj);
+      }
       rows._headers = headers;
       return rows;
     },
@@ -1828,7 +1863,6 @@ document.addEventListener('alpine:init', () => {
       const locality = parts.length ? parts.join(', ') : null;
       const gbifId = get('gbifID');
 
-      // Use user-provided species name, or fall back to the data's own species column
       const derivedSpecies = this.speciesName.trim() || get('species') || '';
 
       return {
@@ -1874,8 +1908,6 @@ document.addEventListener('alpine:init', () => {
           const allDatasetKeys = [...new Set(rawRows.map(r => r.datasetKey).filter(Boolean))];
           await this.preloadDatasetInfo(allDatasetKeys);
 
-          // Build multiSpeciesMap for API data — ONLY 'species' column, must be a binomial
-          // API returns JS objects so no BOM issue — gbifID or key is always the integer ID
           for (const r of rawRows) {
             const sp = r.species ? r.species.trim() : null;
             if (!sp || !sp.includes(' ')) continue;
@@ -1891,7 +1923,8 @@ document.addEventListener('alpine:init', () => {
           this.statusMsg = 'Reading file…'; this.progress = 5;
           const fn = this.uploadedFile.name;
           const ab = await this.uploadedFile.arrayBuffer();
-          let tsvText;
+          let tsvText = null;
+
           if (fn.endsWith('.zip')) {
             const zip = await JSZip.loadAsync(ab);
             const occFile = zip.file('occurrence.txt');
@@ -1918,13 +1951,27 @@ document.addEventListener('alpine:init', () => {
               }
               this.addLog(`⚖ Loaded rights for ${Object.keys(rightsMap).length} datasets`, 'ok');
             }
+          } else if (fn.endsWith('.csv')) {
+            // ── CSV upload ─────────────────────────────────────────────────
+            const csvText = new TextDecoder('utf-8').decode(ab);
+            this.addLog('✅ Loaded CSV file', 'ok');
+            this.statusMsg = 'Parsing CSV…'; this.progress = 20;
+            rawRows = this.parseCSVRows(csvText);
+            this.addLog(`📊 Parsed ${rawRows.length.toLocaleString()} raw records from CSV`, 'ok');
           } else {
+            // ── TSV / occurrence.txt upload ────────────────────────────────
             tsvText = new TextDecoder('utf-8').decode(ab);
-            this.addLog('✅ Loaded occurrence.txt', 'ok');
+            const fmtLabel = fn.endsWith('.tsv') ? 'TSV' : 'occurrence.txt';
+            this.addLog(`✅ Loaded ${fmtLabel}`, 'ok');
           }
-          this.statusMsg = 'Parsing TSV…'; this.progress = 20;
-          rawRows = this.parseTSV(tsvText);
-          this.addLog(`📊 Parsed ${rawRows.length.toLocaleString()} raw records`, 'ok');
+
+          // Parse TSV/TXT if we have raw text (ZIP and TSV/TXT paths)
+          if (tsvText !== null) {
+            this.statusMsg = 'Parsing TSV…'; this.progress = 20;
+            rawRows = this.parseTSV(tsvText);
+            this.addLog(`📊 Parsed ${rawRows.length.toLocaleString()} raw records`, 'ok');
+          }
+
           if (this.opts.excludeINat) {
             const before = rawRows.length;
             rawRows = rawRows.filter(r => {
@@ -1935,8 +1982,7 @@ document.addEventListener('alpine:init', () => {
             this.addLog(`🚫 Excluded ${(before - rawRows.length).toLocaleString()} iNat/BugGuide`, 'warn');
           }
 
-          // Build multiSpeciesMap — STRICTLY use only the 'species' column.
-          // Detect the actual occurrence ID column from parsed headers (strips BOM etc.)
+          // Build multiSpeciesMap
           const idCol = this.detectIdColumn(rawRows._headers || Object.keys(rawRows[0] || {}));
           this.addLog(`🔑 Occurrence ID column detected: "${idCol || 'none found'}"`, idCol ? 'ok' : 'warn');
           for (const r of rawRows) {
@@ -1945,7 +1991,6 @@ document.addEventListener('alpine:init', () => {
             if (!r.datasetKey) continue;
             if (!this.multiSpeciesMap[sp]) this.multiSpeciesMap[sp] = {};
             if (!this.multiSpeciesMap[sp][r.datasetKey]) {
-              // Use the detected ID column; strip full URI prefix if present (some downloads use URIs)
               const rawId = idCol ? r[idCol] : null;
               let cleanId = rawId ? String(rawId).replace(/^.*\/occurrence\//, '').trim() : null;
               if (!cleanId || cleanId === 'null' || cleanId === '') cleanId = null;
@@ -2024,7 +2069,6 @@ document.addEventListener('alpine:init', () => {
         this.buildCitationsData(rawCiteLines, rightsMap);
         this.addLog(`📚 Citations built: ${this.citationsData.length} dataset(s)`, 'ok');
 
-        // Build multi-species entries (only if multiple species detected)
         if (Object.keys(this.multiSpeciesMap).length > 0) {
           this.buildMultiSpeciesEntries();
         }
@@ -2251,7 +2295,6 @@ document.addEventListener('alpine:init', () => {
           rows.push(obj);
         }
         this.filterAllRows = rows;
-        // Collect unique species names from 'speciesname' column (or 'species')
         const nameCol = headers.includes('speciesname') ? 'speciesname' : headers.includes('species') ? 'species' : null;
         if (nameCol) {
           const sp = [...new Set(rows.map(r => (r[nameCol]||'').trim()).filter(Boolean))].sort();
@@ -2292,14 +2335,10 @@ document.addEventListener('alpine:init', () => {
     },
 
     buildFilterCitations() {
-      // Use citation data from main workflow if available
-      // Otherwise look for rights data in the CSV rows
       if (this.citationsData.length > 0) {
-        // All main citations apply to this dataset; include all
         this.filterCitations = [...this.citationsData];
         this.filterInText = this.buildInTextCitation(this.citationsData);
       } else {
-        // Try to derive from rights column in the filtered CSV
         const rightsCol = this.filterColumns.find(c => ['rights','license','accessrights'].includes(c.toLowerCase()));
         if (rightsCol) {
           const seen = new Set();
