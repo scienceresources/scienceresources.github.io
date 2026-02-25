@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 <link rel="icon" type="image/png" href="favicon5.png">
-     <link rel="apple-touch-icon" href="favicon5.png">
+<link rel="apple-touch-icon" href="favicon5.png">
 
 <style>
   [x-cloak] { display: none !important; }
@@ -109,6 +109,22 @@
   #data-table tr.row-selected:hover td { background: #fef3c7 !important; }
   #data-table td.cell-col-selected { background: #fef9c3 !important; outline: 2px solid #d97706; outline-offset: -2px; }
 
+  /* ── Filter Table ── */
+  #filter-table-wrap { overflow: auto; max-height: 400px; position: relative; }
+  #filter-table { border-collapse: collapse; font-size: 11px; min-width: 100%; }
+  #filter-table th {
+    background: #1e293b; color: #94a3b8; padding: 7px 10px;
+    text-align: left; font-family: 'Courier New', monospace;
+    font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    white-space: nowrap; position: sticky; top: 0; z-index: 10;
+  }
+  #filter-table td {
+    padding: 5px 10px; border-bottom: 1px solid #f1f5f9; color: #475569;
+    font-family: 'Courier New', monospace; white-space: nowrap;
+    max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+  }
+  #filter-table tr:hover td { background: #f8fafc; }
+
   .stat-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 
   /* ── Map ── */
@@ -121,6 +137,14 @@
   .license-badge-cc0  { background: #dcfce7; color: #16a34a; }
   .license-badge-ccby { background: #eff6ff; color: #2563eb; }
   .license-badge-copy { background: #f1f5f9; color: #64748b; }
+
+  /* ── Multi-Species ── */
+  .species-cite-card { border-left: 4px solid #8b5cf6; }
+  .species-cite-card:hover { background: #faf5ff; }
+
+  /* ── Filter tab drop zone ── */
+  #filter-drop-zone { transition: all 0.2s; }
+  #filter-drop-zone.dragging { border-color: #8b5cf6 !important; background: #faf5ff !important; }
 </style>
 </head>
 
@@ -154,20 +178,26 @@
   </div>
   <!-- Tab row -->
   <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap" x-data>
-    <button onclick="showTab('convert')" id="tab-convert" class="tab-active text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
-      <i class="fa-solid fa-rotate mr-2 opacity-70"></i>Convert
+    <button onclick="showTab('convert')" id="tab-convert" class="tab-active text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-rotate mr-1.5 opacity-70"></i>Convert
     </button>
-    <button onclick="showTab('data')" id="tab-data" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
-      <i class="fa-solid fa-table mr-2 opacity-70"></i>Data &amp; Export
+    <button onclick="showTab('data')" id="tab-data" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-table mr-1.5 opacity-70"></i>Data &amp; Export
     </button>
-    <button onclick="showTab('map')" id="tab-map" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
-      <i class="fa-solid fa-map mr-2 opacity-70"></i>Map &amp; Phenology
+    <button onclick="showTab('map')" id="tab-map" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-map mr-1.5 opacity-70"></i>Map &amp; Phenology
     </button>
-    <button onclick="showTab('citations')" id="tab-citations" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
-      <i class="fa-solid fa-quote-left mr-2 opacity-70"></i>Citations
+    <button onclick="showTab('citations')" id="tab-citations" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-quote-left mr-1.5 opacity-70"></i>Citations
     </button>
-    <button onclick="showTab('guide')" id="tab-guide" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
-      <i class="fa-solid fa-book-open mr-2 opacity-70"></i>How To Use
+    <button onclick="showTab('multispecies')" id="tab-multispecies" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-layer-group mr-1.5 opacity-70"></i>Multi-Species Refs
+    </button>
+    <button onclick="showTab('filter')" id="tab-filter" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-filter mr-1.5 opacity-70"></i>Species Filter
+    </button>
+    <button onclick="showTab('guide')" id="tab-guide" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-book-open mr-1.5 opacity-70"></i>How To Use
     </button>
   </div>
 </header>
@@ -185,19 +215,21 @@
       </p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5">
         Enter the species name to embed in every row of the output CSV under the <code class="bg-slate-100 px-1 rounded text-xs font-mono">speciesname</code> column.
+        <strong>Required for API mode</strong> · <span class="text-violet-600 font-semibold">Optional for file uploads</span> — if left blank, the species name will be read directly from the <code class="bg-slate-100 px-1 rounded text-xs font-mono">species</code> column in your file.
       </p>
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
           <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-            <i class="fa-solid fa-bug mr-1 text-amber-400"></i>Species Name *
+            <i class="fa-solid fa-bug mr-1 text-amber-400"></i>Species Name
+            <span class="normal-case font-normal text-slate-300 ml-1">(required for API · optional for file upload)</span>
           </label>
           <input x-model="speciesName" type="text" placeholder="e.g. Melissodes apicatus"
             class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
-          <p class="text-[10px] text-slate-400 mt-1.5">Full binomial name written into every output row</p>
+          <p class="text-[10px] text-slate-400 mt-1.5">Written into every output row · leave blank for file uploads to auto-read from the <code class="font-mono bg-slate-100 px-0.5 rounded">species</code> column</p>
         </div>
         <div class="bg-amber-50 border border-amber-100 rounded-lg p-4 flex items-start gap-3">
           <i class="fa-solid fa-circle-info text-amber-400 mt-0.5 shrink-0"></i>
-          <p class="text-xs text-amber-700 leading-relaxed">The species name is written into every row so your downstream pipeline always knows which species the records belong to.</p>
+          <p class="text-xs text-amber-700 leading-relaxed">For <strong>API mode</strong>, the species name is required and written into every row. For <strong>file uploads</strong>, you can leave it blank — the tool will read the <code class="font-mono bg-amber-100 px-0.5 rounded text-[10px]">species</code> column from your occurrence file automatically.</p>
         </div>
       </div>
     </div>
@@ -421,6 +453,12 @@
             View Map &amp; Phenology <i class="fa-solid fa-map text-xs"></i>
           </button>
         </template>
+        <template x-if="multiSpeciesEntries.length > 0 && !loading">
+          <button onclick="showTab('multispecies')" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">
+            <i class="fa-solid fa-layer-group text-xs"></i>
+            Multi-Species Refs (<span x-text="multiSpeciesEntries.length"></span>)
+          </button>
+        </template>
         <template x-if="loading">
           <p class="text-xs text-slate-500 italic" x-text="statusMsg"></p>
         </template>
@@ -456,6 +494,7 @@
             <div><p class="text-[9px] text-red-400 uppercase tracking-widest">Dropped</p><p class="font-bold text-red-500 font-mono text-lg" x-text="(stats?.dropped||0).toLocaleString()"></p></div>
             <div><p class="text-[9px] text-blue-400 uppercase tracking-widest">Geocoded</p><p class="font-bold text-blue-600 font-mono text-lg" x-text="(stats?.geocoded||0).toLocaleString()"></p></div>
             <div><p class="text-[9px] text-purple-400 uppercase tracking-widest">Datasets</p><p class="font-bold text-purple-600 font-mono text-lg" x-text="(citationsData.length||0)"></p></div>
+            <div><p class="text-[9px] text-violet-400 uppercase tracking-widest">Species</p><p class="font-bold text-violet-600 font-mono text-lg" x-text="multiSpeciesEntries.length || 1"></p></div>
             <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Columns</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="stats?.cols||0"></p></div>
             <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">File Size</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="stats?.size||'—'"></p></div>
           </div>
@@ -818,21 +857,16 @@
             <template x-for="(ds, i) in citationsData" :key="i">
               <div class="flex items-start gap-3 px-5 py-4 hover:bg-slate-50 transition-colors group cite-card"
                 @click="copySingleCitation(ds.citation)" style="cursor:pointer;">
-                <!-- Number -->
                 <span class="text-[10px] font-black font-mono text-slate-300 w-6 shrink-0 mt-0.5 text-right" x-text="(i+1) + '.'"></span>
-                <!-- Content -->
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-slate-800 mb-0.5" x-text="ds.title"></p>
                   <p class="text-xs text-slate-500 leading-relaxed mb-1" x-text="ds.citation"></p>
                   <div class="flex items-center gap-3 flex-wrap">
                     <span class="text-[10px] text-slate-400 font-mono" x-show="ds.doi" x-text="'doi.org/' + ds.doi"></span>
                     <a x-show="ds.doi" :href="'https://doi.org/' + ds.doi" target="_blank" @click.stop
-                      class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono">
-                      Open DOI ↗
-                    </a>
+                      class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono">Open DOI ↗</a>
                   </div>
                 </div>
-                <!-- License badge + copy hint -->
                 <div class="flex flex-col items-end gap-1.5 shrink-0">
                   <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
                     :class="ds.license.includes('CC0') ? 'bg-green-100 text-green-700' : ds.license.includes('CC BY') ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'"
@@ -857,6 +891,357 @@
     </template>
   </div><!-- /citations -->
 
+  <!-- ══ MULTI-SPECIES CITATIONS PANEL ═══════════════════════════════════ -->
+  <div id="panel-multispecies" class="hidden fade-in space-y-5">
+    <template x-if="multiSpeciesEntries.length > 0">
+      <div class="space-y-5">
+
+        <!-- Header -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                <i class="fa-solid fa-layer-group mr-1.5 text-violet-400"></i>Multi-Species Citation Reference
+              </p>
+              <p class="text-sm text-slate-600">
+                <span class="font-bold text-slate-800" x-text="multiSpeciesEntries.length"></span> species detected in the uploaded occurrence data. Each entry lists its contributing datasets with a ready-to-paste in-text citation.
+              </p>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <button @click="copyAllMultiSpeciesCitations()" id="btn-copy-ms-all"
+                class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-violet-600 border border-slate-200 hover:border-violet-300 px-3 py-2 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-copy text-[10px]"></i>Copy All Species
+              </button>
+              <button @click="downloadMultiSpeciesTxt()"
+                class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-2 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-download text-[10px]"></i>Download .txt
+              </button>
+              <button @click="downloadMultiSpeciesCSV()"
+                class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-2 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-file-csv text-[10px]"></i>Download CSV
+              </button>
+            </div>
+          </div>
+          <div class="bg-violet-50 border border-violet-100 rounded-lg px-4 py-2.5 flex items-center gap-2">
+            <i class="fa-solid fa-circle-info text-violet-400 text-sm shrink-0"></i>
+            <p class="text-xs text-violet-700">Click any species block to copy its in-text citation. Click any bibliography entry to copy that single citation.</p>
+          </div>
+        </div>
+
+        <!-- Per-species cards -->
+        <template x-for="(entry, si) in multiSpeciesEntries" :key="si">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden species-cite-card transition-colors">
+            <!-- Species header -->
+            <div class="px-5 py-4 bg-violet-50 border-b border-violet-100 flex items-start justify-between gap-3 flex-wrap cursor-pointer group"
+              @click="copyMsInText(entry)">
+              <div class="flex-1 min-w-0">
+                <p class="text-base font-bold italic text-slate-800 mb-1" x-text="entry.species"></p>
+                <!-- In-text citation box -->
+                <div class="bg-white border border-violet-200 rounded-lg px-4 py-2.5 mt-2">
+                  <p class="text-[10px] font-bold text-violet-500 uppercase tracking-widest mb-1">In-text Citation</p>
+                  <p class="text-xs font-mono text-slate-700 leading-relaxed" x-text="entry.intext"></p>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-2 shrink-0">
+                <span class="stat-chip bg-violet-100 text-violet-700">
+                  <i class="fa-solid fa-database text-[10px]"></i>
+                  <span x-text="entry.datasets.length + ' datasets'"></span>
+                </span>
+                <span class="text-[10px] text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                  <i class="fa-solid fa-copy text-[9px]"></i>click to copy in-text
+                </span>
+              </div>
+            </div>
+
+            <!-- Bibliography for this species -->
+            <div class="divide-y divide-slate-50">
+              <template x-for="(ds, di) in entry.datasets" :key="di">
+                <div class="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 group transition-colors cursor-pointer"
+                  @click.stop="copySingleCitation(ds.citation)">
+                  <span class="text-[10px] font-black font-mono text-slate-300 w-5 shrink-0 mt-0.5 text-right" x-text="(di+1) + '.'"></span>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-xs font-semibold text-slate-700 mb-0.5" x-text="ds.title"></p>
+                    <p class="text-[11px] text-slate-500 leading-relaxed" x-text="ds.citation"></p>
+                    <div class="flex items-center gap-3 mt-1 flex-wrap">
+                      <span class="text-[10px] text-slate-400 font-mono" x-show="ds.doi" x-text="'doi.org/' + ds.doi"></span>
+                      <a x-show="ds.doi" :href="'https://doi.org/' + ds.doi" target="_blank" @click.stop
+                        class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono">Open DOI ↗</a>
+                    </div>
+                  </div>
+                  <div class="flex flex-col items-end gap-1.5 shrink-0">
+                    <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
+                      :class="ds.license.includes('CC0') ? 'bg-green-100 text-green-700' : ds.license.includes('CC BY') ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'"
+                      x-text="ds.license"></span>
+                    <span class="text-[9px] text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                      <i class="fa-solid fa-copy"></i>copy
+                    </span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+      </div>
+    </template>
+    <template x-if="multiSpeciesEntries.length === 0">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-16 text-center">
+        <i class="fa-solid fa-layer-group text-5xl text-slate-200 mb-4"></i>
+        <p class="text-base font-semibold text-slate-400 mb-2">No multi-species data yet</p>
+        <p class="text-sm text-slate-400 max-w-md mx-auto">Upload a Darwin Core Archive ZIP or <code class="font-mono bg-slate-100 px-1 rounded">occurrence.txt</code> containing multiple species in the <code class="font-mono bg-slate-100 px-1 rounded">species</code> column and run the converter. Each species will appear here with its own in-text citation and bibliography.</p>
+      </div>
+    </template>
+  </div><!-- /multispecies -->
+
+  <!-- ══ SPECIES FILTER PANEL ════════════════════════════════════════════ -->
+  <div id="panel-filter" class="hidden fade-in space-y-5">
+
+    <!-- Upload -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+        <i class="fa-solid fa-circle-1 mr-1 text-violet-400"></i>Upload CSV
+      </p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5">
+        Upload any CSV with a <code class="bg-slate-100 px-1 rounded text-xs font-mono">speciesname</code> column (such as the output from the Convert tab) to filter it by species.
+      </p>
+      <div id="filter-drop-zone"
+        class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-all"
+        @dragover.prevent="document.getElementById('filter-drop-zone').classList.add('dragging')"
+        @dragleave.prevent="document.getElementById('filter-drop-zone').classList.remove('dragging')"
+        @drop.prevent="document.getElementById('filter-drop-zone').classList.remove('dragging'); handleFilterDrop($event)"
+        @click="$refs.filterFileInput.click()">
+        <input type="file" x-ref="filterFileInput" accept=".csv" class="hidden" @change="handleFilterFileSelect($event)">
+        <template x-if="!filterFile">
+          <div>
+            <i class="fa-solid fa-file-csv text-4xl text-slate-300 mb-3"></i>
+            <p class="text-sm font-bold text-slate-500">Drop your processed CSV here</p>
+            <p class="text-xs text-slate-400 mt-1">or click to browse · .csv only · processed entirely in-browser</p>
+          </div>
+        </template>
+        <template x-if="filterFile">
+          <div>
+            <i class="fa-solid fa-file-csv text-3xl text-violet-500 mb-2"></i>
+            <p class="text-sm font-bold text-slate-700" x-text="filterFile.name"></p>
+            <p class="text-xs text-slate-400 mt-1" x-text="formatBytes(filterFile.size)"></p>
+            <p class="text-xs text-green-600 font-semibold mt-1.5"><i class="fa-solid fa-check mr-1"></i>Ready · <span x-text="filterAllRows.length.toLocaleString()"></span> rows · <span x-text="filterSpeciesList.length"></span> unique species</p>
+          </div>
+        </template>
+      </div>
+
+      <!-- Species count info -->
+      <template x-if="filterSpeciesList.length > 0">
+        <div class="mt-4 bg-violet-50 border border-violet-100 rounded-lg p-4">
+          <p class="text-[10px] font-bold text-violet-500 uppercase tracking-widest mb-2">
+            <i class="fa-solid fa-list mr-1"></i>Species found in CSV
+          </p>
+          <div class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+            <template x-for="sp in filterSpeciesList" :key="sp">
+              <button @click="filterSearch = sp; runFilter()"
+                class="text-[11px] font-mono italic px-2.5 py-1 bg-white border border-violet-200 rounded-full text-violet-700 hover:bg-violet-100 hover:border-violet-400 transition-all">
+                <span x-text="sp"></span>
+              </button>
+            </template>
+          </div>
+          <p class="text-[10px] text-violet-400 mt-2">Click any species pill to instantly filter to that species.</p>
+        </div>
+      </template>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6" x-show="filterAllRows.length > 0">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
+        <i class="fa-solid fa-circle-2 mr-1 text-violet-400"></i>Filter by Species Name
+      </p>
+      <div class="flex gap-3 items-start flex-wrap">
+        <div class="flex-1 min-w-56">
+          <input x-model="filterSearch" @keydown.enter="runFilter()" type="text"
+            placeholder="e.g. Melissodes robustior"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-violet-400 outline-none transition-all">
+          <p class="text-[10px] text-slate-400 mt-1.5">Case-insensitive partial match against the <code class="font-mono bg-slate-100 px-0.5 rounded">speciesname</code> column</p>
+        </div>
+        <button @click="runFilter()" :disabled="!filterSearch.trim() || !filterAllRows.length"
+          :class="(!filterSearch.trim() || !filterAllRows.length) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-violet-700 active:scale-95'"
+          class="bg-violet-600 text-white px-6 py-3 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid fa-filter text-xs"></i>Filter
+        </button>
+        <button @click="filterSearch=''; filterRows=[]" x-show="filterRows.length > 0"
+          class="bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 px-5 py-3 rounded-lg text-sm font-semibold transition-all">
+          Clear
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Results -->
+    <template x-if="filterRows.length > 0">
+      <div class="space-y-5">
+
+        <!-- Stats + export -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div class="flex flex-wrap gap-2">
+              <span class="stat-chip bg-violet-100 text-violet-700"><i class="fa-solid fa-table-rows text-[10px]"></i><span x-text="filterRows.length.toLocaleString() + ' matched rows'"></span></span>
+              <span class="stat-chip bg-slate-100 text-slate-600"><i class="fa-solid fa-table text-[10px]"></i><span x-text="filterAllRows.length.toLocaleString() + ' total rows'"></span></span>
+              <span class="stat-chip bg-amber-100 text-amber-700"><i class="fa-solid fa-percent text-[10px]"></i><span x-text="filterAllRows.length ? Math.round(filterRows.length/filterAllRows.length*100)+'% of data' : ''"></span></span>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <button @click="downloadFilteredCSV()"
+                class="bg-green-600 hover:bg-green-700 active:scale-95 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+                <i class="fa-solid fa-download text-xs"></i>Download Filtered CSV
+              </button>
+              <button @click="copyFilteredCSV()" id="btn-copy-filtered"
+                class="copy-btn bg-white border border-slate-200 hover:border-violet-300 text-slate-600 hover:text-violet-700 px-5 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+                <i class="fa-solid fa-copy text-xs"></i>Copy CSV
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result table -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <i class="fa-solid fa-table mr-1"></i>Filtered Rows — <span x-text="filterRows.length.toLocaleString()"></span> records
+            </p>
+          </div>
+          <div id="filter-table-wrap">
+            <table id="filter-table">
+              <thead>
+                <tr>
+                  <template x-for="col in filterColumns" :key="col">
+                    <th x-text="col"></th>
+                  </template>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(row, ri) in filterRows.slice(filterOffset, filterOffset + filterPageSize)" :key="ri">
+                  <tr>
+                    <template x-for="col in filterColumns" :key="col">
+                      <td :title="row[col] || ''" x-text="row[col] || ''"></td>
+                    </template>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <!-- Pagination -->
+          <div class="px-4 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between flex-wrap gap-2">
+            <p class="text-[10px] text-slate-400">
+              Rows <span class="font-bold" x-text="filterOffset + 1"></span>–<span class="font-bold" x-text="Math.min(filterOffset + filterPageSize, filterRows.length)"></span>
+              of <span class="font-bold" x-text="filterRows.length.toLocaleString()"></span>
+            </p>
+            <div class="flex gap-1.5 items-center">
+              <button @click="filterOffset = Math.max(0, filterOffset - filterPageSize)" :disabled="filterOffset === 0"
+                class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50 transition-all">
+                <i class="fa-solid fa-chevron-left text-[10px]"></i>
+              </button>
+              <span class="text-xs text-slate-500 font-mono">Page <span x-text="Math.floor(filterOffset/filterPageSize)+1"></span> / <span x-text="Math.ceil(filterRows.length/filterPageSize)||1"></span></span>
+              <button @click="filterOffset = Math.min(Math.max(0, filterRows.length - filterPageSize), filterOffset + filterPageSize)" :disabled="filterOffset + filterPageSize >= filterRows.length"
+                class="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 bg-white text-slate-500 disabled:opacity-40 hover:bg-slate-50 transition-all">
+                <i class="fa-solid fa-chevron-right text-[10px]"></i>
+              </button>
+              <select x-model.number="filterPageSize" class="ml-2 text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-500 outline-none">
+                <option value="50">50 / page</option>
+                <option value="100">100 / page</option>
+                <option value="250">250 / page</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Citations for filtered subset -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-slate-100 bg-violet-50 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <i class="fa-solid fa-quote-left mr-1.5 text-violet-400"></i>Citations for Filtered Subset
+              </p>
+              <p class="text-[10px] text-slate-400 mt-0.5" x-text="filterCitations.length + ' datasets · ' + filterInText"></p>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <button @click="copyFilterInText()" id="btn-copy-filter-intext"
+                class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-violet-600 border border-slate-200 hover:border-violet-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-quote-left text-[10px]"></i>Copy In-text
+              </button>
+              <button @click="copyFilterCitations()" id="btn-copy-filter-cites"
+                class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-violet-600 border border-slate-200 hover:border-violet-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-copy text-[10px]"></i>Copy All
+              </button>
+              <button @click="downloadFilterCitationsTxt()"
+                class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg bg-white transition-all">
+                <i class="fa-solid fa-download text-[10px]"></i>Download .txt
+              </button>
+            </div>
+          </div>
+
+          <!-- In-text preview -->
+          <div class="px-5 py-4 border-b border-slate-100">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">In-text Citation</p>
+            <div class="bg-violet-50 border border-violet-200 rounded-lg px-4 py-3">
+              <p class="text-xs font-mono text-slate-700 leading-relaxed" x-text="filterInText || '—'"></p>
+            </div>
+          </div>
+
+          <!-- Citation list -->
+          <div class="divide-y divide-slate-50 max-h-[500px] overflow-y-auto">
+            <template x-if="filterCitations.length === 0">
+              <div class="px-5 py-8 text-center">
+                <p class="text-sm text-slate-400">No citation metadata available for this subset.</p>
+                <p class="text-xs text-slate-400 mt-1">Run the Convert tab first to load dataset metadata, then re-filter here.</p>
+              </div>
+            </template>
+            <template x-for="(ds, i) in filterCitations" :key="i">
+              <div class="flex items-start gap-3 px-5 py-4 hover:bg-slate-50 group cursor-pointer transition-colors cite-card"
+                @click="copySingleCitation(ds.citation)">
+                <span class="text-[10px] font-black font-mono text-slate-300 w-5 shrink-0 mt-0.5 text-right" x-text="(i+1) + '.'"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-slate-800 mb-0.5" x-text="ds.title"></p>
+                  <p class="text-xs text-slate-500 leading-relaxed" x-text="ds.citation"></p>
+                  <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                    <span class="text-[10px] text-slate-400 font-mono" x-show="ds.doi" x-text="'doi.org/' + ds.doi"></span>
+                    <a x-show="ds.doi" :href="'https://doi.org/' + ds.doi" target="_blank" @click.stop
+                      class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono">Open DOI ↗</a>
+                    <template x-if="ds.occLink">
+                      <a :href="ds.occLink" target="_blank" @click.stop
+                        class="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-800 border border-blue-300 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-full transition-all whitespace-nowrap">
+                        <i class="fa-solid fa-circle-check text-blue-400 text-[9px]"></i>
+                        Verify 1 occurrence on GBIF ↗
+                      </a>
+                    </template>
+                    <template x-if="!ds.occLink">
+                      <span class="inline-flex items-center gap-1 text-[10px] text-slate-400 border border-slate-200 bg-slate-50 px-2.5 py-1 rounded-full">
+                        <i class="fa-solid fa-circle-xmark text-slate-300 text-[9px]"></i>
+                        No occurrence ID available
+                      </span>
+                    </template>
+                  </div>
+                </div>
+                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                  <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
+                    :class="ds.license.includes('CC0') ? 'bg-green-100 text-green-700' : ds.license.includes('CC BY') ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'"
+                    x-text="ds.license"></span>
+                  <span class="text-[9px] text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                    <i class="fa-solid fa-copy"></i>copy
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </div>
+    </template>
+
+    <!-- Empty state for filter tab -->
+    <template x-if="filterAllRows.length === 0 && !filterFile">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <i class="fa-solid fa-filter text-4xl text-slate-200 mb-3"></i>
+        <p class="text-sm font-semibold text-slate-400 mb-1">Upload a CSV to get started</p>
+        <p class="text-xs text-slate-400">This tab works with any CSV that has a <code class="font-mono bg-slate-100 px-1 rounded">speciesname</code> column — including the output from the Convert tab above.</p>
+      </div>
+    </template>
+
+  </div><!-- /filter -->
+
   <!-- ══ GUIDE PANEL ═══════════════════════════════════════════════════════ -->
   <div id="panel-guide" class="hidden fade-in space-y-5">
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -874,18 +1259,22 @@
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">3</div>
-          <div><p class="font-bold text-slate-700 mb-1">Enable Geocoding</p><p>Tick <strong>Reverse-geocode missing locality</strong> to automatically fill in <code class="bg-slate-100 px-1 rounded font-mono text-xs">locality</code> from lat/lon for any record where it is empty, using BigDataCloud (free, no key).</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Multi-Species Citations Tab</p><p>When a ZIP/TXT containing <strong>multiple species</strong> is uploaded and converted, the <strong>Multi-Species Refs</strong> tab is automatically populated. Each species gets its own in-text citation string (e.g. <em>Melissodes saponellus: (Ikerd, 2019; Jones, 2022)</em>) plus a full bibliography. Click species blocks to copy in-text citations; click individual entries to copy single references.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">4</div>
-          <div><p class="font-bold text-slate-700 mb-1">Data &amp; Export Tab</p><p>Interactive table — click rows to select, click column headers to select entire columns. Choose export scope (all / selected rows / selected columns / both) and format (CSV, TSV, TXT), then download or copy.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Species Filter Tab</p><p>Upload any CSV with a <code class="bg-slate-100 px-1 rounded font-mono text-xs">speciesname</code> column. All unique species are shown as clickable pills — click one to instantly filter, or type a partial name. The filtered subset can be downloaded as CSV. If you ran the converter first, matching dataset citations are shown automatically.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">5</div>
-          <div><p class="font-bold text-slate-700 mb-1">Citations Tab</p><p>All contributing datasets are listed with their full citation text, DOI, and license. Use <strong>Copy In-text</strong> to get a formatted parenthetical citation string ready for your methods section (e.g. <em>Data derived from (Smith, 2021; Jones et al., 2023). Data licensed under CC BY 4.0.</em>). Use <strong>Copy All Citations</strong> for a numbered reference list, or download as .txt or .csv.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Data &amp; Export Tab</p><p>Interactive table — click rows to select, click column headers to select entire columns. Choose export scope (all / selected rows / selected columns / both) and format (CSV, TSV, TXT), then download or copy.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">6</div>
+          <div><p class="font-bold text-slate-700 mb-1">Citations Tab</p><p>All contributing datasets listed with citation text, DOI, and license. Use <strong>Copy In-text</strong> for a parenthetical citation string. Download as .txt or .csv.</p></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">7</div>
           <div><p class="font-bold text-slate-700 mb-1">Map &amp; Phenology Tab</p><p>All records with lat/lon are plotted on a Leaflet map with clustering. Below the map, a phenology chart shows the flight period by month.</p></div>
         </div>
       </div>
@@ -901,8 +1290,7 @@
       <span class="text-sm font-semibold text-slate-400">Science Resources</span>
     </div>
     <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
-      <p  class="transition-colors flex items-center gap-1.5">Created by - Frank Hogland
-© 2026-present. All Rights Reserved.</p>
+      <p class="transition-colors flex items-center gap-1.5">Created by - Frank Hogland © 2026-present. All Rights Reserved.</p>
     </div>
   </div>
 </footer>
@@ -963,12 +1351,35 @@ document.addEventListener('alpine:init', () => {
     inTextPreview: '',
     datasetInfoCache: {},
 
+    // ── Multi-Species ──────────────────────────────────────────────────────
+    // Map: species name → Map<datasetKey, gbifID>  (one representative occurrence per pair)
+    multiSpeciesMap: {},
+    // Built array: [{species, intext, datasets:[{title,doi,license,citation}]}]
+    _multiSpeciesEntries: [],
+
+    get multiSpeciesEntries() { return this._multiSpeciesEntries; },
+
+    // ── Species Filter Tab ─────────────────────────────────────────────────
+    filterFile: null,
+    filterAllRows: [],
+    filterColumns: [],
+    filterSpeciesList: [],
+    filterSearch: '',
+    filterRows: [],
+    filterOffset: 0,
+    filterPageSize: 100,
+    filterCitations: [],
+    filterInText: '',
+
     // ── helpers ────────────────────────────────────────────────────────────
     selectAllCols(v) { this.selectedColumns = v ? this.allColumns.map(c=>c.key) : []; },
     canRun() {
-      if (!this.speciesName.trim()) return false;
       if (!this.selectedColumns.length) return false;
-      if (this.dataSource === 'api') return !!this.selectedTaxon;
+      if (this.dataSource === 'api') {
+        if (!this.speciesName.trim()) return false;
+        return !!this.selectedTaxon;
+      }
+      // ZIP/TXT mode: species name optional (will be read from data if blank)
       return !!this.uploadedFile;
     },
     handleFileSelect(e) { const f = e.target.files[0]; if (f) this.uploadedFile = f; },
@@ -1044,8 +1455,6 @@ document.addEventListener('alpine:init', () => {
     buildCitationsData(rawCiteLines, rightsMap) {
       const seen = new Set();
       const out = [];
-
-      // From GBIF API cache
       for (const [key, info] of Object.entries(this.datasetInfoCache)) {
         if (!info) continue;
         const dedup = info.citation.trim();
@@ -1053,8 +1462,6 @@ document.addEventListener('alpine:init', () => {
         seen.add(dedup);
         out.push({ title: info.title, doi: info.doi || null, license: info.license, citation: info.citation });
       }
-
-      // From ZIP citations.txt lines (fallback for anything not in cache)
       if (rawCiteLines && rawCiteLines.length) {
         for (const line of rawCiteLines) {
           const l = line.trim();
@@ -1070,12 +1477,47 @@ document.addEventListener('alpine:init', () => {
           });
         }
       }
-
       this.citationsData = out;
       this.inTextPreview = this.buildInTextCitation(out);
     },
 
-    // ── In-text citation builder (same logic as gbif-api.html) ────────────
+    // ── Multi-species: build per-species citation entries ─────────────────
+    buildMultiSpeciesEntries() {
+      const entries = [];
+      const speciesNames = Object.keys(this.multiSpeciesMap).sort();
+
+      for (const sp of speciesNames) {
+        const dsMap = this.multiSpeciesMap[sp]; // { datasetKey: gbifId }
+        const datasets = [];
+        for (const [key, gbifId] of Object.entries(dsMap)) {
+          const info = this.datasetInfoCache[key];
+          if (info) {
+            const occLink = gbifId ? `https://www.gbif.org/occurrence/${gbifId}` : null;
+            datasets.push({
+              title: info.title,
+              doi: info.doi || null,
+              license: info.license,
+              citation: info.citation,
+              datasetKey: key,
+              occLink   // one representative occurrence for verification
+            });
+          }
+        }
+        if (!datasets.length) continue;
+
+        const intext = this.buildInTextCitation(datasets);
+        const intextShort = intext.replace(/^Data derived from /, '').replace(/\. Data licensed.*$/, '');
+
+        entries.push({ species: sp, intext: `${sp}: ${intextShort}`, intextFull: intext, datasets });
+      }
+
+      this._multiSpeciesEntries = entries;
+      const totalOccLinks = entries.reduce((n, e) => n + e.datasets.filter(d => d.occLink).length, 0);
+      const totalDs = entries.reduce((n, e) => n + e.datasets.length, 0);
+      this.addLog(`🔬 Built multi-species refs: ${entries.length} species · ${totalOccLinks}/${totalDs} datasets have verify links`, totalOccLinks > 0 ? 'ok' : 'warn');
+    },
+
+    // ── In-text citation builder ────────────────────────────────────────────
     parseInTextRef(citationText) {
       if (!citationText) return { intext: '', year: 9999, sortKey: '' };
       const yearMatch = citationText.match(/\((\d{4})\)/);
@@ -1134,7 +1576,6 @@ document.addEventListener('alpine:init', () => {
     async copySingleCitation(citText) {
       if (!citText) return;
       try { await navigator.clipboard.writeText(citText); } catch(e) {}
-      // Brief visual feedback — momentarily tint the body background
       const flash = document.createElement('div');
       flash.style.cssText = 'position:fixed;top:16px;right:16px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;z-index:9999;transition:opacity 0.4s';
       flash.textContent = '✓ Citation copied';
@@ -1181,6 +1622,62 @@ document.addEventListener('alpine:init', () => {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
+    },
+
+    // ── Multi-Species citation actions ─────────────────────────────────────
+    async copyMsInText(entry) {
+      try { await navigator.clipboard.writeText(entry.intext); } catch(e) {}
+      const flash = document.createElement('div');
+      flash.style.cssText = 'position:fixed;top:16px;right:16px;background:#ede9fe;border:1px solid #c4b5fd;color:#6d28d9;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;z-index:9999;transition:opacity 0.4s';
+      flash.textContent = `✓ Copied: ${entry.species}`;
+      document.body.appendChild(flash);
+      setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 400); }, 2000);
+    },
+
+    async copyAllMultiSpeciesCitations() {
+      if (!this._multiSpeciesEntries.length) return;
+      const lines = [];
+      for (const entry of this._multiSpeciesEntries) {
+        lines.push(`${entry.species}`);
+        lines.push(`  ${entry.intext}`);
+        lines.push('');
+        for (const [i, ds] of entry.datasets.entries()) {
+          lines.push(`  ${i+1}. ${ds.citation}`);
+        }
+        lines.push('');
+      }
+      try { await navigator.clipboard.writeText(lines.join('\n')); this._flashBtn('btn-copy-ms-all'); } catch(e) { console.error(e); }
+    },
+
+    downloadMultiSpeciesTxt() {
+      if (!this._multiSpeciesEntries.length) return;
+      const lines = ['Multi-Species Citation Reference', '='.repeat(70), ''];
+      for (const entry of this._multiSpeciesEntries) {
+        lines.push(entry.species);
+        lines.push('-'.repeat(entry.species.length));
+        lines.push(`In-text: ${entry.intext}`);
+        lines.push('');
+        lines.push('Bibliography:');
+        for (const [i, ds] of entry.datasets.entries()) {
+          lines.push(`  ${i+1}. ${ds.citation}`);
+          if (ds.doi) lines.push(`     doi.org/${ds.doi}`);
+          lines.push(`     License: ${ds.license}`);
+        }
+        lines.push('');
+      }
+      this._downloadText(lines.join('\n'), 'multi_species_citations.txt');
+    },
+
+    downloadMultiSpeciesCSV() {
+      if (!this._multiSpeciesEntries.length) return;
+      const esc = v => { const s = String(v||''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s; };
+      const rows = ['Species,InTextCitation,DatasetTitle,Citation,License,DOI'];
+      for (const entry of this._multiSpeciesEntries) {
+        for (const ds of entry.datasets) {
+          rows.push([esc(entry.species), esc(entry.intext), esc(ds.title), esc(ds.citation), esc(ds.license), esc(ds.doi||'')].join(','));
+        }
+      }
+      this._downloadText(rows.join('\n'), 'multi_species_citations.csv', 'text/csv');
     },
 
     // ── Taxon search ───────────────────────────────────────────────────────
@@ -1242,9 +1739,12 @@ document.addEventListener('alpine:init', () => {
     },
 
     parseTSV(text) {
-      const lines = text.split('\n');
+      // Strip UTF-8 BOM (\ufeff) that GBIF always prepends to occurrence.txt
+      // Without this the first column header becomes \ufeffgbifID and all ID lookups silently fail
+      const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+      const lines = clean.split('\n');
       if (lines.length < 2) return [];
-      const headers = lines[0].split('\t').map(h => h.trim());
+      const headers = lines[0].split('\t').map(h => h.trim().replace(/^\ufeff/, ''));
       const rows = [];
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
@@ -1253,7 +1753,18 @@ document.addEventListener('alpine:init', () => {
         headers.forEach((h, j) => { const v = vals[j]!==undefined ? vals[j].trim() : ''; obj[h] = (v===''||v.toLowerCase()==='nan'||v.toLowerCase()==='null') ? null : v; });
         rows.push(obj);
       }
+      // Store headers on the array so multiSpeciesMap builder can detect the ID column
+      rows._headers = headers;
       return rows;
+    },
+
+    // Detect which column holds the GBIF occurrence ID from the actual file headers
+    detectIdColumn(headers) {
+      const candidates = ['gbifID','gbifid','GBIFID','id','ID','coreid','coreId','occurrenceID','occurrenceId'];
+      for (const c of candidates) {
+        if (headers.includes(c)) return c;
+      }
+      return headers.find(h => /^(gbif.?id|^id$|coreid|occurrence.?id)$/i.test(h)) || null;
     },
 
     normRow(r, isApi) {
@@ -1261,6 +1772,7 @@ document.addEventListener('alpine:init', () => {
       return {
         gbifID:           String(r.gbifID||r.key||''),
         datasetKey:       r.datasetKey || null,
+        species:          r.species || null,
         decimalLatitude:  r.decimalLatitude  != null ? String(r.decimalLatitude)  : null,
         decimalLongitude: r.decimalLongitude != null ? String(r.decimalLongitude) : null,
         recordedBy:       r.recordedBy   || null,
@@ -1316,8 +1828,11 @@ document.addEventListener('alpine:init', () => {
       const locality = parts.length ? parts.join(', ') : null;
       const gbifId = get('gbifID');
 
+      // Use user-provided species name, or fall back to the data's own species column
+      const derivedSpecies = this.speciesName.trim() || get('species') || '';
+
       return {
-        speciesname:  this.speciesName.trim(),
+        speciesname:  derivedSpecies,
         latitude:     get('decimalLatitude'),
         longitude:    get('decimalLongitude'),
         recordedby:   get('recordedBy'),
@@ -1331,7 +1846,6 @@ document.addEventListener('alpine:init', () => {
         sourcelink:   gbifId ? `https://www.gbif.org/occurrence/${gbifId}` : null,
         gbif_link:    null,
         locality,
-        // internals for map/phenology
         _lat:   get('decimalLatitude'),
         _lon:   get('decimalLongitude'),
         _month: get('month'),
@@ -1347,6 +1861,7 @@ document.addEventListener('alpine:init', () => {
       this.selectedRows = new Set(); this.selectedCols = new Set();
       this.tableOffset = 0; this.phenologyData = {}; this.phenologyTotal = 0;
       this.citationsData = []; this.inTextPreview = ''; this.datasetInfoCache = {};
+      this.multiSpeciesMap = {}; this._multiSpeciesEntries = [];
 
       try {
         let rawRows = []; const isApi = this.dataSource === 'api';
@@ -1354,11 +1869,24 @@ document.addEventListener('alpine:init', () => {
 
         if (isApi) {
           rawRows = await this.fetchFromGBIF();
-          // Preload dataset metadata for all unique dataset keys
           this.statusMsg = 'Fetching dataset citations & licences…'; this.progress = 55;
           await new Promise(r => setTimeout(r, 0));
           const allDatasetKeys = [...new Set(rawRows.map(r => r.datasetKey).filter(Boolean))];
           await this.preloadDatasetInfo(allDatasetKeys);
+
+          // Build multiSpeciesMap for API data — ONLY 'species' column, must be a binomial
+          // API returns JS objects so no BOM issue — gbifID or key is always the integer ID
+          for (const r of rawRows) {
+            const sp = r.species ? r.species.trim() : null;
+            if (!sp || !sp.includes(' ')) continue;
+            if (!r.datasetKey) continue;
+            if (!this.multiSpeciesMap[sp]) this.multiSpeciesMap[sp] = {};
+            if (!this.multiSpeciesMap[sp][r.datasetKey]) {
+              const rawId = r.gbifID || r.key || r.id || null;
+              const cleanId = rawId ? String(rawId).replace(/^.*\/occurrence\//, '').trim() : null;
+              this.multiSpeciesMap[sp][r.datasetKey] = (cleanId && cleanId !== 'null') ? cleanId : null;
+            }
+          }
         } else {
           this.statusMsg = 'Reading file…'; this.progress = 5;
           const fn = this.uploadedFile.name;
@@ -1371,7 +1899,6 @@ document.addEventListener('alpine:init', () => {
             this.addLog('✅ Found occurrence.txt in ZIP', 'ok');
             tsvText = await occFile.async('string');
 
-            // Parse citations.txt
             const citFile = zip.file('citations.txt');
             if (citFile) {
               const ct = await citFile.async('string');
@@ -1379,7 +1906,6 @@ document.addEventListener('alpine:init', () => {
               this.addLog(`📄 Loaded ${rawCiteLines.length} citation lines from ZIP`, 'ok');
             }
 
-            // Parse rights.txt
             const rFile = zip.file('rights.txt');
             if (rFile) {
               const rt = await rFile.async('string');
@@ -1408,7 +1934,27 @@ document.addEventListener('alpine:init', () => {
             });
             this.addLog(`🚫 Excluded ${(before - rawRows.length).toLocaleString()} iNat/BugGuide`, 'warn');
           }
-          // Also preload dataset metadata for ZIP rows (fills in anything citations.txt missed)
+
+          // Build multiSpeciesMap — STRICTLY use only the 'species' column.
+          // Detect the actual occurrence ID column from parsed headers (strips BOM etc.)
+          const idCol = this.detectIdColumn(rawRows._headers || Object.keys(rawRows[0] || {}));
+          this.addLog(`🔑 Occurrence ID column detected: "${idCol || 'none found'}"`, idCol ? 'ok' : 'warn');
+          for (const r of rawRows) {
+            const sp = this.speciesName.trim() || (r['species'] ? r['species'].trim() : null);
+            if (!sp || !sp.includes(' ')) continue;
+            if (!r.datasetKey) continue;
+            if (!this.multiSpeciesMap[sp]) this.multiSpeciesMap[sp] = {};
+            if (!this.multiSpeciesMap[sp][r.datasetKey]) {
+              // Use the detected ID column; strip full URI prefix if present (some downloads use URIs)
+              const rawId = idCol ? r[idCol] : null;
+              let cleanId = rawId ? String(rawId).replace(/^.*\/occurrence\//, '').trim() : null;
+              if (!cleanId || cleanId === 'null' || cleanId === '') cleanId = null;
+              this.multiSpeciesMap[sp][r.datasetKey] = cleanId;
+            }
+          }
+          const multiSpCount = Object.keys(this.multiSpeciesMap).length;
+          if (multiSpCount > 1) this.addLog(`🔬 Detected ${multiSpCount} distinct species in occurrence data`, 'ok');
+
           this.statusMsg = 'Resolving dataset metadata…'; this.progress = 28;
           const zipDatasetKeys = [...new Set(rawRows.map(r => r.datasetKey).filter(Boolean))];
           await this.preloadDatasetInfo(zipDatasetKeys);
@@ -1477,6 +2023,11 @@ document.addEventListener('alpine:init', () => {
         // Build citations
         this.buildCitationsData(rawCiteLines, rightsMap);
         this.addLog(`📚 Citations built: ${this.citationsData.length} dataset(s)`, 'ok');
+
+        // Build multi-species entries (only if multiple species detected)
+        if (Object.keys(this.multiSpeciesMap).length > 0) {
+          this.buildMultiSpeciesEntries();
+        }
 
         this.outRows = built;
         const csvStr = this.serializeRows(built, this.selectedColumns, 'csv');
@@ -1668,14 +2219,163 @@ document.addEventListener('alpine:init', () => {
       a.download = `${safe}_phenology.csv`;
       a.click(); URL.revokeObjectURL(a.href);
     },
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── SPECIES FILTER TAB ───────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    handleFilterFileSelect(e) {
+      const f = e.target.files[0];
+      if (f) { this.filterFile = f; this.loadFilterCSV(f); }
+    },
+    handleFilterDrop(e) {
+      const f = e.dataTransfer.files[0];
+      if (f && f.name.endsWith('.csv')) { this.filterFile = f; this.loadFilterCSV(f); }
+    },
+
+    async loadFilterCSV(file) {
+      this.filterAllRows = []; this.filterColumns = []; this.filterSpeciesList = [];
+      this.filterRows = []; this.filterOffset = 0; this.filterCitations = []; this.filterInText = '';
+      try {
+        const text = await file.text();
+        const lines = text.split('\n');
+        if (lines.length < 2) return;
+        const headers = this.parseCSVLine(lines[0]);
+        this.filterColumns = headers;
+        const rows = [];
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          const vals = this.parseCSVLine(lines[i]);
+          const obj = {};
+          headers.forEach((h, j) => { obj[h] = vals[j] !== undefined ? vals[j] : ''; });
+          rows.push(obj);
+        }
+        this.filterAllRows = rows;
+        // Collect unique species names from 'speciesname' column (or 'species')
+        const nameCol = headers.includes('speciesname') ? 'speciesname' : headers.includes('species') ? 'species' : null;
+        if (nameCol) {
+          const sp = [...new Set(rows.map(r => (r[nameCol]||'').trim()).filter(Boolean))].sort();
+          this.filterSpeciesList = sp;
+        }
+      } catch(e) { console.error('CSV load error', e); }
+    },
+
+    // Simple CSV line parser (handles quoted fields)
+    parseCSVLine(line) {
+      const result = [];
+      let cur = '', inQuote = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuote && line[i+1] === '"') { cur += '"'; i++; }
+          else inQuote = !inQuote;
+        } else if (ch === ',' && !inQuote) {
+          result.push(cur.trim());
+          cur = '';
+        } else {
+          cur += ch;
+        }
+      }
+      result.push(cur.trim());
+      return result;
+    },
+
+    runFilter() {
+      const term = this.filterSearch.trim();
+      if (!term || !this.filterAllRows.length) return;
+      const nameCol = this.filterColumns.includes('speciesname') ? 'speciesname' : this.filterColumns.includes('species') ? 'species' : null;
+      if (!nameCol) { this.filterRows = this.filterAllRows; return; }
+      const q = term.toLowerCase();
+      this.filterRows = this.filterAllRows.filter(r => (r[nameCol]||'').toLowerCase().includes(q));
+      this.filterOffset = 0;
+      this.buildFilterCitations();
+    },
+
+    buildFilterCitations() {
+      // Use citation data from main workflow if available
+      // Otherwise look for rights data in the CSV rows
+      if (this.citationsData.length > 0) {
+        // All main citations apply to this dataset; include all
+        this.filterCitations = [...this.citationsData];
+        this.filterInText = this.buildInTextCitation(this.citationsData);
+      } else {
+        // Try to derive from rights column in the filtered CSV
+        const rightsCol = this.filterColumns.find(c => ['rights','license','accessrights'].includes(c.toLowerCase()));
+        if (rightsCol) {
+          const seen = new Set();
+          const fake = [];
+          for (const r of this.filterRows) {
+            const v = (r[rightsCol] || '').trim();
+            if (v && !seen.has(v)) {
+              seen.add(v);
+              fake.push({ title: v, doi: null, license: this.getLicense(v), citation: v });
+            }
+          }
+          this.filterCitations = fake;
+          this.filterInText = fake.length ? `Data licensed under ${[...new Set(fake.map(f=>f.license))].join(' and ')}.` : '';
+        } else {
+          this.filterCitations = [];
+          this.filterInText = '';
+        }
+      }
+    },
+
+    downloadFilteredCSV() {
+      if (!this.filterRows.length) return;
+      const sep = ',';
+      const esc = v => { const s = String(v||''); return s.includes(',')||s.includes('"')||s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s; };
+      const lines = [this.filterColumns.join(sep)];
+      for (const r of this.filterRows) lines.push(this.filterColumns.map(c => esc(r[c]||'')).join(sep));
+      const safe = this.filterSearch.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+      this._downloadText(lines.join('\n'), `filtered_${safe}.csv`, 'text/csv');
+    },
+
+    async copyFilteredCSV() {
+      if (!this.filterRows.length) return;
+      const sep = ',';
+      const esc = v => { const s = String(v||''); return s.includes(',')||s.includes('"')||s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s; };
+      const lines = [this.filterColumns.join(sep)];
+      for (const r of this.filterRows) lines.push(this.filterColumns.map(c => esc(r[c]||'')).join(sep));
+      try { await navigator.clipboard.writeText(lines.join('\n')); this._flashBtn('btn-copy-filtered'); } catch(e) { console.error(e); }
+    },
+
+    async copyFilterInText() {
+      if (!this.filterInText) return;
+      try { await navigator.clipboard.writeText(this.filterInText); this._flashBtn('btn-copy-filter-intext'); } catch(e) {}
+    },
+
+    async copyFilterCitations() {
+      if (!this.filterCitations.length) return;
+      const text = this.filterCitations.map((d, i) => `${i+1}. ${d.citation}`).join('\n\n');
+      try { await navigator.clipboard.writeText(text); this._flashBtn('btn-copy-filter-cites'); } catch(e) {}
+    },
+
+    downloadFilterCitationsTxt() {
+      if (!this.filterCitations.length && !this.filterInText) return;
+      const safe = this.filterSearch.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+      const lines = [
+        `Citations for filter: ${this.filterSearch}`,
+        '='.repeat(70), '',
+        'IN-TEXT CITATION:',
+        '-'.repeat(70),
+        this.filterInText, '',
+        '='.repeat(70), '',
+        'FULL REFERENCE LIST:',
+        '-'.repeat(70),
+        ...this.filterCitations.map((d, i) => [`${i+1}. ${d.citation}`, `   License: ${d.license}`, '']).flat()
+      ];
+      this._downloadText(lines.join('\n'), `citations_${safe}.txt`);
+    },
+
   }));
 });
 
-const PANELS = ['convert','data','map','citations','guide'];
+const PANELS = ['convert','data','map','citations','multispecies','filter','guide'];
 function showTab(name) {
   PANELS.forEach(id => {
     const panel = document.getElementById('panel-'+id);
     const tab   = document.getElementById('tab-'+id);
+    if (!panel || !tab) return;
     if (id === name) { panel.classList.remove('hidden'); tab.classList.remove('tab-inactive'); tab.classList.add('tab-active'); }
     else             { panel.classList.add('hidden');    tab.classList.remove('tab-active');   tab.classList.add('tab-inactive'); }
   });
