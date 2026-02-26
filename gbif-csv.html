@@ -245,14 +245,14 @@
 
       <div class="grid sm:grid-cols-2 gap-3 mb-5">
         <label class="source-option">
-          <input type="radio" x-model="dataSource" value="api">
+          <input type="radio" x-model="dataSource" value="api" @change="uploadedFile=null; $refs.fileInput && ($refs.fileInput.value='')">
           <div>
             <p class="font-bold text-sm text-slate-700 mb-0.5"><i class="fa-solid fa-globe mr-1.5 text-blue-400"></i>GBIF API Live Fetch</p>
             <p class="text-xs text-slate-400">Search by taxon name — paginate through GBIF automatically</p>
           </div>
         </label>
         <label class="source-option">
-          <input type="radio" x-model="dataSource" value="zip">
+          <input type="radio" x-model="dataSource" value="zip" @change="selectedTaxon=null; taxonSuggestions=[]; taxonSearch=''">
           <div>
             <p class="font-bold text-sm text-slate-700 mb-0.5"><i class="fa-solid fa-file-zipper mr-1.5 text-blue-400"></i>Upload DwC-A ZIP, TXT, CSV, or TSV</p>
             <p class="text-xs text-slate-400">Upload a Darwin Core Archive ZIP, raw <code class="font-mono bg-slate-100 px-1 rounded text-[10px]">occurrence.txt</code>, or a <code class="font-mono bg-slate-100 px-1 rounded text-[10px]">.csv</code> / <code class="font-mono bg-slate-100 px-1 rounded text-[10px]">.tsv</code> occurrence export</p>
@@ -908,6 +908,40 @@
 
   <!-- ══ MULTI-SPECIES CITATIONS PANEL ═══════════════════════════════════ -->
   <div id="panel-multispecies" class="hidden fade-in space-y-5">
+
+    <!-- Species count chart — visible whenever we have processed data -->
+    <template x-if="Object.keys(_speciesCountData).length > 0">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            <i class="fa-solid fa-chart-bar mr-1.5 text-violet-400"></i>Records per Species
+          </p>
+          <span class="text-[10px] text-slate-400 font-mono" x-text="Object.keys(_speciesCountData).length + ' species · ' + outRows.length.toLocaleString() + ' total records'"></span>
+        </div>
+        <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
+          <div class="space-y-0">
+            <template x-for="([sp, count], i) in speciesChartRows" :key="i">
+              <div class="flex items-center gap-3 px-1 py-[3px] hover:bg-violet-50 rounded transition-colors group">
+                <div class="w-52 shrink-0 text-right">
+                  <span class="text-[11px] text-slate-600 italic truncate block" x-text="sp"
+                    style="font-family: Georgia, serif;"></span>
+                </div>
+                <div class="flex-1 flex items-center gap-2 min-w-0">
+                  <div class="h-5 rounded-sm transition-all"
+                    :style="`width:${(count / speciesChartMax * 100).toFixed(2)}%; background: rgba(139,92,246,${(0.3 + 0.6*(count/speciesChartMax)).toFixed(2)}); min-width: ${count > 0 ? 3 : 0}px;`">
+                  </div>
+                  <span class="text-[10px] font-mono text-slate-400 group-hover:text-slate-600 whitespace-nowrap shrink-0"
+                    x-text="count.toLocaleString() + ' (' + (outRows.length > 0 ? (count/outRows.length*100).toFixed(1) : 0) + '%)'">
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Citation section — only when we have dataset citation metadata -->
     <template x-if="multiSpeciesEntries.length > 0">
       <div class="space-y-5">
 
@@ -942,8 +976,6 @@
             <p class="text-xs text-violet-700">Click any species block to copy its in-text citation. Click any bibliography entry to copy that single citation.</p>
           </div>
         </div>
-
-        <!-- Per-species cards -->
         <template x-for="(entry, si) in multiSpeciesEntries" :key="si">
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden species-cite-card transition-colors">
             <!-- Species header -->
@@ -981,6 +1013,19 @@
                       <span class="text-[10px] text-slate-400 font-mono" x-show="ds.doi" x-text="'doi.org/' + ds.doi"></span>
                       <a x-show="ds.doi" :href="'https://doi.org/' + ds.doi" target="_blank" @click.stop
                         class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono">Open DOI ↗</a>
+                      <template x-if="ds.occLink">
+                        <a :href="ds.occLink" target="_blank" @click.stop
+                          class="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-800 border border-blue-300 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-full transition-all whitespace-nowrap">
+                          <i class="fa-solid fa-circle-check text-blue-400 text-[9px]"></i>
+                          View example record ↗
+                        </a>
+                      </template>
+                      <template x-if="!ds.occLink">
+                        <span class="inline-flex items-center gap-1 text-[10px] text-slate-400 border border-slate-200 bg-slate-50 px-2.5 py-1 rounded-full">
+                          <i class="fa-solid fa-circle-xmark text-slate-300 text-[9px]"></i>
+                          No occurrence ID
+                        </span>
+                      </template>
                     </div>
                   </div>
                   <div class="flex flex-col items-end gap-1.5 shrink-0">
@@ -998,12 +1043,14 @@
         </template>
 
       </div>
-    </template>
-    <template x-if="multiSpeciesEntries.length === 0">
+    </template><!-- /citation section -->
+
+    <!-- Empty state — shown only when no data at all has been processed -->
+    <template x-if="outRows.length === 0">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-16 text-center">
         <i class="fa-solid fa-layer-group text-5xl text-slate-200 mb-4"></i>
         <p class="text-base font-semibold text-slate-400 mb-2">No multi-species data yet</p>
-        <p class="text-sm text-slate-400 max-w-md mx-auto">Upload a Darwin Core Archive ZIP or <code class="font-mono bg-slate-100 px-1 rounded">occurrence.txt</code> containing multiple species in the <code class="font-mono bg-slate-100 px-1 rounded">species</code> column and run the converter. Each species will appear here with its own in-text citation and bibliography.</p>
+        <p class="text-sm text-slate-400 max-w-md mx-auto">Upload a Darwin Core Archive ZIP, CSV, or TSV containing multiple species in the <code class="font-mono bg-slate-100 px-1 rounded">species</code> column and run the converter. The chart and per-species citation refs will appear here.</p>
       </div>
     </template>
   </div><!-- /multispecies -->
@@ -1163,86 +1210,6 @@
           </div>
         </div>
 
-        <!-- Citations for filtered subset -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div class="px-5 py-3 border-b border-slate-100 bg-violet-50 flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <i class="fa-solid fa-quote-left mr-1.5 text-violet-400"></i>Citations for Filtered Subset
-              </p>
-              <p class="text-[10px] text-slate-400 mt-0.5" x-text="filterCitations.length + ' datasets · ' + filterInText"></p>
-            </div>
-            <div class="flex gap-2 flex-wrap">
-              <button @click="copyFilterInText()" id="btn-copy-filter-intext"
-                class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-violet-600 border border-slate-200 hover:border-violet-300 px-3 py-1.5 rounded-lg bg-white transition-all">
-                <i class="fa-solid fa-quote-left text-[10px]"></i>Copy In-text
-              </button>
-              <button @click="copyFilterCitations()" id="btn-copy-filter-cites"
-                class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-violet-600 border border-slate-200 hover:border-violet-300 px-3 py-1.5 rounded-lg bg-white transition-all">
-                <i class="fa-solid fa-copy text-[10px]"></i>Copy All
-              </button>
-              <button @click="downloadFilterCitationsTxt()"
-                class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg bg-white transition-all">
-                <i class="fa-solid fa-download text-[10px]"></i>Download .txt
-              </button>
-            </div>
-          </div>
-
-          <!-- In-text preview -->
-          <div class="px-5 py-4 border-b border-slate-100">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">In-text Citation</p>
-            <div class="bg-violet-50 border border-violet-200 rounded-lg px-4 py-3">
-              <p class="text-xs font-mono text-slate-700 leading-relaxed" x-text="filterInText || '—'"></p>
-            </div>
-          </div>
-
-          <!-- Citation list -->
-          <div class="divide-y divide-slate-50 max-h-[500px] overflow-y-auto">
-            <template x-if="filterCitations.length === 0">
-              <div class="px-5 py-8 text-center">
-                <p class="text-sm text-slate-400">No citation metadata available for this subset.</p>
-                <p class="text-xs text-slate-400 mt-1">Run the Convert tab first to load dataset metadata, then re-filter here.</p>
-              </div>
-            </template>
-            <template x-for="(ds, i) in filterCitations" :key="i">
-              <div class="flex items-start gap-3 px-5 py-4 hover:bg-slate-50 group cursor-pointer transition-colors cite-card"
-                @click="copySingleCitation(ds.citation)">
-                <span class="text-[10px] font-black font-mono text-slate-300 w-5 shrink-0 mt-0.5 text-right" x-text="(i+1) + '.'"></span>
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-semibold text-slate-800 mb-0.5" x-text="ds.title"></p>
-                  <p class="text-xs text-slate-500 leading-relaxed" x-text="ds.citation"></p>
-                  <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                    <span class="text-[10px] text-slate-400 font-mono" x-show="ds.doi" x-text="'doi.org/' + ds.doi"></span>
-                    <a x-show="ds.doi" :href="'https://doi.org/' + ds.doi" target="_blank" @click.stop
-                      class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono">Open DOI ↗</a>
-                    <template x-if="ds.occLink">
-                      <a :href="ds.occLink" target="_blank" @click.stop
-                        class="inline-flex items-center gap-1.5 text-[10px] font-bold text-blue-600 hover:text-blue-800 border border-blue-300 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-full transition-all whitespace-nowrap">
-                        <i class="fa-solid fa-circle-check text-blue-400 text-[9px]"></i>
-                        Verify 1 occurrence on GBIF ↗
-                      </a>
-                    </template>
-                    <template x-if="!ds.occLink">
-                      <span class="inline-flex items-center gap-1 text-[10px] text-slate-400 border border-slate-200 bg-slate-50 px-2.5 py-1 rounded-full">
-                        <i class="fa-solid fa-circle-xmark text-slate-300 text-[9px]"></i>
-                        No occurrence ID available
-                      </span>
-                    </template>
-                  </div>
-                </div>
-                <div class="flex flex-col items-end gap-1.5 shrink-0">
-                  <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded"
-                    :class="ds.license.includes('CC0') ? 'bg-green-100 text-green-700' : ds.license.includes('CC BY') ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'"
-                    x-text="ds.license"></span>
-                  <span class="text-[9px] text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                    <i class="fa-solid fa-copy"></i>copy
-                  </span>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-
       </div>
     </template>
 
@@ -1360,6 +1327,7 @@ document.addEventListener('alpine:init', () => {
     // Map / Phenology
     mapPoints: 0, _map: null,
     phenologyData: {}, phenologyTotal: 0, _phenoChart: null,
+    _speciesCountData: {},
 
     // ── Citations ─────────────────────────────────────────────────────────
     citationsData: [],
@@ -1381,7 +1349,7 @@ document.addEventListener('alpine:init', () => {
     filterRows: [],
     filterOffset: 0,
     filterPageSize: 100,
-    filterCitations: [],
+    filterCitations: [],   // kept for API compat — unused in filter tab UI
     filterInText: '',
 
     // ── helpers ────────────────────────────────────────────────────────────
@@ -1394,7 +1362,12 @@ document.addEventListener('alpine:init', () => {
       }
       return !!this.uploadedFile;
     },
-    handleFileSelect(e) { const f = e.target.files[0]; if (f) this.uploadedFile = f; },
+    handleFileSelect(e) {
+      const f = e.target.files[0];
+      if (f) { this.uploadedFile = f; }
+      // Reset the input so the same filename can be re-selected later
+      e.target.value = '';
+    },
     handleFileDrop(e) {
       const f = e.dataTransfer.files[0];
       if (f && (f.name.endsWith('.zip')||f.name.endsWith('.txt')||f.name.endsWith('.csv')||f.name.endsWith('.tsv')))
@@ -1524,13 +1497,20 @@ document.addEventListener('alpine:init', () => {
         const intext = this.buildInTextCitation(datasets);
         const intextShort = intext.replace(/^Data derived from /, '').replace(/\. Data licensed.*$/, '');
 
-        entries.push({ species: sp, intext: `${sp}: ${intextShort}`, intextFull: intext, datasets });
+        entries.push({
+          species: sp,
+          intext: `${sp}: ${intextShort}`,
+          intextFull: intext,
+          datasets,
+          recordCount: this._speciesCountData[sp] || 0
+        });
       }
 
       this._multiSpeciesEntries = entries;
       const totalOccLinks = entries.reduce((n, e) => n + e.datasets.filter(d => d.occLink).length, 0);
       const totalDs = entries.reduce((n, e) => n + e.datasets.length, 0);
       this.addLog(`🔬 Built multi-species refs: ${entries.length} species · ${totalOccLinks}/${totalDs} datasets have verify links`, totalOccLinks > 0 ? 'ok' : 'warn');
+      setTimeout(() => this.renderSpeciesChart(), 120);
     },
 
     // ── In-text citation builder ────────────────────────────────────────────
@@ -1895,7 +1875,7 @@ document.addEventListener('alpine:init', () => {
       this.selectedRows = new Set(); this.selectedCols = new Set();
       this.tableOffset = 0; this.phenologyData = {}; this.phenologyTotal = 0;
       this.citationsData = []; this.inTextPreview = ''; this.datasetInfoCache = {};
-      this.multiSpeciesMap = {}; this._multiSpeciesEntries = [];
+      this.multiSpeciesMap = {}; this._multiSpeciesEntries = []; this._speciesCountData = {};
 
       try {
         let rawRows = []; const isApi = this.dataSource === 'api';
@@ -2065,22 +2045,33 @@ document.addEventListener('alpine:init', () => {
         this.phenologyData = phenoFinal;
         this.phenologyTotal = phenoTotal;
 
+        // Build species count data directly from all built rows (always available, regardless of datasetKey)
+        const spCount = {};
+        for (const row of built) {
+          // Use the raw species value from the source; fall back to the output speciesname
+          const sp = (row.speciesname || '').trim();
+          if (sp) spCount[sp] = (spCount[sp] || 0) + 1;
+        }
+        this._speciesCountData = spCount;
+
         // Build citations
         this.buildCitationsData(rawCiteLines, rightsMap);
         this.addLog(`📚 Citations built: ${this.citationsData.length} dataset(s)`, 'ok');
+
+        // IMPORTANT: assign outRows BEFORE buildMultiSpeciesEntries so recordCount is correct
+        this.outRows = built;
 
         if (Object.keys(this.multiSpeciesMap).length > 0) {
           this.buildMultiSpeciesEntries();
         }
 
-        this.outRows = built;
         const csvStr = this.serializeRows(built, this.selectedColumns, 'csv');
         const sizeKb = new Blob([csvStr]).size / 1024;
         const sizeStr = sizeKb > 1024 ? (sizeKb/1024).toFixed(1)+' MB' : sizeKb.toFixed(1)+' KB';
         this.stats = { total: rawRows.length, exported: built.length, dropped, geocoded, cols: this.selectedColumns.length, size: sizeStr };
         this.progress = 100; this.statusMsg = 'Done!';
         this.addLog(`🎉 Done! ${built.length.toLocaleString()} rows · ${this.selectedColumns.length} cols · ${sizeStr} · ${this.citationsData.length} datasets cited`, 'ok');
-        setTimeout(() => { this.buildMap(); this.renderPhenologyChart(); }, 200);
+        setTimeout(() => { this.buildMap(); this.renderPhenologyChart(); this.renderSpeciesChart(); }, 200);
 
       } catch(e) {
         this.error = e.message; this.addLog('❌ '+e.message,'warn'); this.progress = 0; console.error(e);
@@ -2246,6 +2237,16 @@ document.addEventListener('alpine:init', () => {
       });
     },
 
+    // ── Species count bar chart ────────────────────────────────────────────
+    get speciesChartRows() {
+      return Object.entries(this._speciesCountData).sort((a, b) => b[1] - a[1]);
+    },
+    get speciesChartMax() {
+      const entries = Object.values(this._speciesCountData);
+      return entries.length ? Math.max(...entries) : 1;
+    },
+    renderSpeciesChart() { /* no-op — chart is now pure CSS/HTML via speciesChartRows */ },
+
     async copyPhenologyCSV() {
       if (!this.phenologyTotal) return;
       const header = 'Month,Count,Percentage';
@@ -2331,32 +2332,6 @@ document.addEventListener('alpine:init', () => {
       const q = term.toLowerCase();
       this.filterRows = this.filterAllRows.filter(r => (r[nameCol]||'').toLowerCase().includes(q));
       this.filterOffset = 0;
-      this.buildFilterCitations();
-    },
-
-    buildFilterCitations() {
-      if (this.citationsData.length > 0) {
-        this.filterCitations = [...this.citationsData];
-        this.filterInText = this.buildInTextCitation(this.citationsData);
-      } else {
-        const rightsCol = this.filterColumns.find(c => ['rights','license','accessrights'].includes(c.toLowerCase()));
-        if (rightsCol) {
-          const seen = new Set();
-          const fake = [];
-          for (const r of this.filterRows) {
-            const v = (r[rightsCol] || '').trim();
-            if (v && !seen.has(v)) {
-              seen.add(v);
-              fake.push({ title: v, doi: null, license: this.getLicense(v), citation: v });
-            }
-          }
-          this.filterCitations = fake;
-          this.filterInText = fake.length ? `Data licensed under ${[...new Set(fake.map(f=>f.license))].join(' and ')}.` : '';
-        } else {
-          this.filterCitations = [];
-          this.filterInText = '';
-        }
-      }
     },
 
     downloadFilteredCSV() {
@@ -2378,35 +2353,8 @@ document.addEventListener('alpine:init', () => {
       try { await navigator.clipboard.writeText(lines.join('\n')); this._flashBtn('btn-copy-filtered'); } catch(e) { console.error(e); }
     },
 
-    async copyFilterInText() {
-      if (!this.filterInText) return;
-      try { await navigator.clipboard.writeText(this.filterInText); this._flashBtn('btn-copy-filter-intext'); } catch(e) {}
-    },
 
-    async copyFilterCitations() {
-      if (!this.filterCitations.length) return;
-      const text = this.filterCitations.map((d, i) => `${i+1}. ${d.citation}`).join('\n\n');
-      try { await navigator.clipboard.writeText(text); this._flashBtn('btn-copy-filter-cites'); } catch(e) {}
-    },
-
-    downloadFilterCitationsTxt() {
-      if (!this.filterCitations.length && !this.filterInText) return;
-      const safe = this.filterSearch.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
-      const lines = [
-        `Citations for filter: ${this.filterSearch}`,
-        '='.repeat(70), '',
-        'IN-TEXT CITATION:',
-        '-'.repeat(70),
-        this.filterInText, '',
-        '='.repeat(70), '',
-        'FULL REFERENCE LIST:',
-        '-'.repeat(70),
-        ...this.filterCitations.map((d, i) => [`${i+1}. ${d.citation}`, `   License: ${d.license}`, '']).flat()
-      ];
-      this._downloadText(lines.join('\n'), `citations_${safe}.txt`);
-    },
-
-  }));
+    }));
 });
 
 const PANELS = ['convert','data','map','citations','multispecies','filter','guide'];
@@ -2427,6 +2375,12 @@ function showTab(name) {
         else app._map.invalidateSize();
         if (app.phenologyTotal > 0) app.renderPhenologyChart();
       }
+    }, 80);
+  }
+  if (name === 'multispecies') {
+    setTimeout(() => {
+      const app = Alpine.$data(document.querySelector('[x-data="app"]'));
+      if (app && app._multiSpeciesEntries.length) app.renderSpeciesChart();
     }, 80);
   }
 }
