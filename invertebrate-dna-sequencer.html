@@ -318,8 +318,6 @@
 
     // ══════════════════════════════════════════════════════════════════════════
     // BOLD LOCAL SPECIES IDENTIFIER
-    // Matches query sequences against a local melissodes-dna.json BOLD dataset
-    // using sliding-window identity scan + full DP alignment for top hits.
     // ══════════════════════════════════════════════════════════════════════════
     Alpine.data('identifier', () => ({
       sequence: '',
@@ -328,7 +326,7 @@
       loading:  false,
       error:    null,
       expanded: {},
-      boldData: null,   // cached parsed NDJSON records
+      boldData: null,
 
       get cleanSeq() {
         return this.sequence.split('\n').filter(l => !l.startsWith('>')).join('')
@@ -349,7 +347,6 @@
       fmt(pct)  { return pct.toFixed(2) + '%'; },
       barW(pct) { return Math.max(2, pct).toFixed(1) + '%'; },
 
-      // Build midline string from two aligned sequences
       getMidline(s1, s2) {
         let m = '';
         const len = Math.min(s1.length, s2.length);
@@ -391,8 +388,6 @@
         return html;
       },
 
-      // Phase 1 — fast sliding-window identity (no gap alignment)
-      // Tries offsets ±maxOff to handle length differences between query and reference.
       _slideIdentity(query, ref) {
         const maxOff = Math.min(80, Math.abs(query.length - ref.length) + 30);
         let bestId = -1, bestQs = 0, bestRs = 0, bestLen = 0;
@@ -411,7 +406,6 @@
         return { identity: bestId * 100, qstart: bestQs, rstart: bestRs, ovLen: bestLen };
       },
 
-      // Load and cache the BOLD NDJSON file
       async loadBoldData() {
         if (this.boldData) return this.boldData;
         const resp = await fetch('melissodes-dna.json');
@@ -439,14 +433,12 @@
         this.error   = null;
         this.expanded = {};
 
-        // Yield to DOM so loading spinner renders
         await new Promise(r => setTimeout(r, 30));
 
         try {
           const records = await this.loadBoldData();
           const rc = reverseComplementSimple(query);
 
-          // ── Phase 1: fast scan of all 1,400+ records ──────────────────────
           const scored = [];
           for (const rec of records) {
             const ref = rec.nuc.replace(/[-\s]/g,'').toUpperCase();
@@ -459,7 +451,6 @@
             scored.push({ rec, ...best });
           }
 
-          // ── Deduplicate: one entry per species (best identity wins) ───────
           const seen = new Map();
           for (const s of scored) {
             const sp = (s.rec.identification && s.rec.identification.trim() !== s.rec.genus)
@@ -468,12 +459,10 @@
             if (!seen.has(sp) || seen.get(sp).identity < s.identity) seen.set(sp, s);
           }
 
-          // Top 20 unique species
           const top20 = [...seen.values()]
             .sort((a, b) => b.identity - a.identity)
             .slice(0, 20);
 
-          // ── Phase 2: full DP alignment for display on top candidates ──────
           const results = top20.map(s => {
             const ref = s.rec.nuc.replace(/[-\s]/g,'').toUpperCase();
             const refUsed = s.direction === 'Reverse Complement'
@@ -537,8 +526,6 @@
 
     // ══════════════════════════════════════════════════════════════════════════
     // MULTI-SAMPLE BATCH IDENTIFIER + DOT GRAPH
-    // Accepts 2–20 FASTA sequences, identifies each against BOLD, then computes
-    // an all-vs-all K2P distance matrix and renders a force-directed dot graph.
     // ══════════════════════════════════════════════════════════════════════════
     Alpine.data('multiId', () => ({
       input: '',
@@ -664,7 +651,6 @@
 
         const _e = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-        // Find 7 shortest-distance pairs for labelling
         const pairs = [];
         for (let i = 0; i < n; i++)
           for (let j = i+1; j < n; j++)
@@ -683,12 +669,10 @@
         </defs>`;
         svg += `<rect width="${W}" height="${H}" fill="url(#bg)" rx="12"/>`;
 
-        // Grid dots (subtle background texture)
         for (let gx = 40; gx < W; gx += 40)
           for (let gy = 30; gy < H; gy += 40)
             svg += `<circle cx="${gx}" cy="${gy}" r="1" fill="#e2e8f0" fill-opacity="0.5"/>`;
 
-        // Edges
         for (const { i, j, d } of pairs) {
           const sameSp  = speciesArr[i] === speciesArr[j];
           const opacity = Math.max(0.07, 0.9 - d * 7);
@@ -709,7 +693,6 @@
           }
         }
 
-        // Nodes
         for (let i = 0; i < n; i++) {
           const { x, y } = pos[i];
           const color = spMap[speciesArr[i]];
@@ -721,7 +704,6 @@
           svg += `<text x="${x.toFixed(1)}" y="${(y+13).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#64748b" font-family="system-ui" font-style="italic">${_e(sp2)}</text>`;
         }
 
-        // Legend
         const uniqueSp  = [...new Set(speciesArr)];
         const legendH   = uniqueSp.length * 18 + 16;
         const lx = 10, ly = H - legendH - 10;
@@ -734,9 +716,7 @@
           svg += `<text x="${lx+25}" y="${ty+4}" font-size="9.5" fill="#475569" font-family="system-ui" font-style="italic">${_e(sp)}</text>`;
         });
 
-        // Title watermark top-right
         svg += `<text x="${W-10}" y="20" text-anchor="end" font-size="8.5" fill="#cbd5e1" font-family="system-ui" letter-spacing="0.05em">K2P SIMILARITY · COI-5P · MELISSODES BOLD</text>`;
-
         svg += `</svg>`;
         return svg;
       },
@@ -759,7 +739,6 @@
         await new Promise(r => setTimeout(r, 30));
 
         try {
-          // ── Phase 1: identify each against BOLD ────────────────────────────
           const identified = [];
           for (let i = 0; i < seqs.length; i++) {
             this.loadingStep = `Identifying ${i+1}/${seqs.length}: ${seqs[i].name}…`;
@@ -773,7 +752,6 @@
             identified.push({ name: seqs[i].name, seq: clean, ...match });
           }
 
-          // ── Phase 2: all-vs-all K2P distance matrix ─────────────────────────
           const n   = identified.length;
           const mat = Array.from({ length: n }, () => new Array(n).fill(null));
           for (let i = 0; i < n; i++) mat[i][i] = 0;
@@ -789,7 +767,6 @@
             }
           }
 
-          // ── Phase 3: force layout + SVG ──────────────────────────────────────
           this.loadingStep = 'Calculating graph layout…';
           await new Promise(r => setTimeout(r, 0));
           const pos    = this._forceLayout(n, mat);
@@ -853,26 +830,51 @@
   .tab-active   { border-bottom: 2px solid #2563eb; color: #1d4ed8 !important; background: #eff6ff; }
   .tab-inactive { border-bottom: 2px solid transparent; }
   .tab-inactive:hover { color: #334155; background: #f8fafc; }
+
+  .back-arrow-desktop { display: none; }
+  .back-arrow-mobile  { display: flex; }
+  @media (min-width: 1122px) {
+    .back-arrow-desktop { display: flex; }
+    .back-arrow-mobile  { display: none; }
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-24">
 
 <!-- ── HEADER ──────────────────────────────────────────────────────────────── -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-  <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
-    <div class="flex items-center gap-3">
-      <div class="bg-blue-100 p-2 rounded-lg">
-        <i class="fa-solid fa-dna text-blue-600 text-xl"></i>
-      </div>
-      <div>
-        <h1 class="text-lg font-bold text-slate-900 leading-tight">Invertebrate DNA Sequencer</h1>
-        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DNA · Protein Analysis</p>
-      </div>
-    </div>
-    <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
-      The Invertebrate Mitochondrial Code (transl_table=5)
-    </p>
+
+  <!-- Mobile back arrow -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="index.html"
+       class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
   </div>
+
+  <!-- Title row -->
+  <div class="relative">
+    <!-- Desktop back arrow -->
+    <a href="index.html"
+       class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-blue-100 p-2 rounded-lg">
+          <i class="fa-solid fa-dna text-blue-600 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Invertebrate DNA Sequencer</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">DNA · Protein Analysis</p>
+        </div>
+      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+        The Invertebrate Mitochondrial Code (transl_table=5)
+      </p>
+    </div>
+  </div><!-- /title row -->
 
   <!-- Tab row -->
   <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap">
@@ -1497,11 +1499,8 @@
                   @click="toggleExpand(i)">
                   <div class="grid gap-2 items-center"
                     style="grid-template-columns: 1.5rem 1fr 7rem 5rem 5rem 9rem">
-                    <!-- Rank -->
                     <span class="text-xs font-black font-mono text-center"
                       :class="i===0 ? 'text-blue-600' : 'text-slate-300'" x-text="i+1"></span>
-
-                    <!-- Species + processid -->
                     <div class="min-w-0">
                       <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-bold text-sm italic text-slate-800 leading-snug" x-text="hit.taxon"></span>
@@ -1521,24 +1520,16 @@
                         </template>
                       </div>
                     </div>
-
-                    <!-- Identity bar -->
                     <div class="flex items-center gap-1.5">
                       <div class="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div class="h-2 rounded-full transition-all" :class="sc(hit.pct).bar" :style="'width:'+barW(hit.pct)"></div>
                       </div>
                       <span class="text-xs font-bold font-mono w-12 text-right shrink-0" :class="sc(hit.pct).text" x-text="fmt(hit.pct)"></span>
                     </div>
-
-                    <!-- Overlap length -->
                     <span class="text-xs font-mono text-slate-600 text-right" x-text="hit.ovLen + ' bp'"></span>
-
-                    <!-- K2P -->
                     <span class="text-xs font-mono text-right"
                       :class="hit.k2p && !hit.k2p.saturated ? 'text-slate-600' : 'text-slate-300'"
                       x-text="hit.k2p ? (hit.k2p.saturated ? 'sat.' : (hit.k2p.d*100).toFixed(2)+'%') : '—'"></span>
-
-                    <!-- Location -->
                     <span class="text-[10px] text-slate-500 text-right truncate" x-text="hit.location"></span>
                   </div>
                 </div>
@@ -1546,8 +1537,6 @@
                 <!-- EXPANDED DETAIL PANEL -->
                 <template x-if="expanded[i]">
                   <div class="border-t border-slate-100 bg-slate-50 px-5 py-4 space-y-4">
-
-                    <!-- Stats row -->
                     <div class="flex flex-wrap gap-x-6 gap-y-2">
                       <div>
                         <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Identity</p>
@@ -1604,7 +1593,6 @@
                       </div>
                     </div>
 
-                    <!-- Pairwise alignment -->
                     <template x-if="hit.alSeq1 && hit.alSeq1.length > 0">
                       <div>
                         <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2">
@@ -1623,7 +1611,6 @@
                       </div>
                     </template>
 
-                    <!-- Reference sequence -->
                     <template x-if="hit.alSeq2 && hit.alSeq2.length > 0">
                       <div>
                         <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center justify-between">
@@ -1639,7 +1626,6 @@
                       </div>
                     </template>
 
-                    <!-- Your query sequence -->
                     <template x-if="hit.alSeq1 && hit.alSeq1.length > 0">
                       <div>
                         <p class="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center justify-between">
@@ -1712,7 +1698,6 @@
     <!-- ── MULTI-SAMPLE MODE ──────────────────────────────────────────────── -->
     <div x-show="spMode==='multi'" x-data="multiId" x-cloak>
 
-      <!-- Multi-FASTA input -->
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
           <i class="fa-solid fa-dna mr-1 text-blue-400"></i>Multi-FASTA Input
@@ -1737,7 +1722,6 @@
         </div>
       </div>
 
-      <!-- Run button -->
       <div class="flex items-center gap-3 mb-6 flex-wrap">
         <button @click="run()"
           :disabled="loading || seqCount < 2"
@@ -1749,7 +1733,6 @@
         <p class="text-xs text-slate-500 italic" x-show="loadingStep" x-text="loadingStep"></p>
       </div>
 
-      <!-- Error -->
       <template x-if="error">
         <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 flex items-start gap-3">
           <i class="fa-solid fa-triangle-exclamation text-red-400 mt-0.5 shrink-0"></i>
@@ -1757,11 +1740,9 @@
         </div>
       </template>
 
-      <!-- Results -->
       <template x-if="results">
         <div class="space-y-5">
 
-          <!-- ── DOT GRAPH ─────────────────────────────────────────────────── -->
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
               <div>
@@ -1778,8 +1759,6 @@
               </button>
             </div>
             <div x-html="results.svgHtml" class="overflow-hidden rounded-lg border border-slate-100 bg-slate-50"></div>
-
-            <!-- Interpretation note -->
             <div class="mt-3 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-[11px] text-blue-700 flex items-start gap-2">
               <i class="fa-solid fa-circle-info mt-0.5 shrink-0"></i>
               <span>
@@ -1791,7 +1770,6 @@
             </div>
           </div>
 
-          <!-- ── SPECIES SUMMARY TABLE ──────────────────────────────────────── -->
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="px-5 py-3 border-b border-slate-100">
               <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -1829,7 +1807,6 @@
             </div>
           </div>
 
-          <!-- ── K2P DISTANCE MATRIX ────────────────────────────────────────── -->
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="px-5 py-3 border-b border-slate-100">
               <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">All-vs-All K2P Distance Matrix</p>
