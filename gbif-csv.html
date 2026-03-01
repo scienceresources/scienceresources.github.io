@@ -145,6 +145,17 @@
   /* ── Filter tab drop zone ── */
   #filter-drop-zone { transition: all 0.2s; }
   #filter-drop-zone.dragging { border-color: #8b5cf6 !important; background: #faf5ff !important; }
+
+  /* ── Session buttons live in the tab row ── */
+  .session-tab-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 12px 14px; font-size: 14px; font-weight: 600;
+    color: #64748b; border-bottom: 2px solid transparent;
+    border-radius: 0; background: transparent;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .session-tab-btn:hover { color: #334155; background: #f8fafc; }
+  .session-tab-btn .btn-icon { opacity: 0.6; font-size: 13px; }
 </style>
 </head>
 
@@ -176,8 +187,8 @@
       </p>
     </div>
   </div>
-  <!-- Tab row -->
-  <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap" x-data>
+  <!-- Tab row + session buttons -->
+  <div class="max-w-5xl mx-auto px-4 flex items-stretch flex-wrap" x-data>
     <button onclick="showTab('convert')" id="tab-convert" class="tab-active text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
       <i class="fa-solid fa-rotate mr-1.5 opacity-70"></i>Convert
     </button>
@@ -199,7 +210,33 @@
     <button onclick="showTab('guide')" id="tab-guide" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all">
       <i class="fa-solid fa-book-open mr-1.5 opacity-70"></i>How To Use
     </button>
+
+    <!-- Spacer -->
+    <div class="flex-1"></div>
+
+    <!-- Divider -->
+    <div class="w-px bg-slate-100 my-2 mx-1 self-stretch hidden sm:block"></div>
+
+    <!-- Save Session -->
+    <button
+      class="session-tab-btn text-slate-400 hover:text-green-600"
+      onclick="(function(){ var app = Alpine.$data(document.querySelector('[x-data=\'app\']')); if(app) app.saveSession(); })()"
+      title="Save entire session to a .json file">
+      <i class="btn-icon fa-solid fa-floppy-disk"></i>
+      <span class="hidden sm:inline">Save</span>
+    </button>
+
+    <!-- Load Session -->
+    <label
+      class="session-tab-btn text-slate-400 hover:text-blue-600"
+      title="Load a previously saved session .json">
+      <i class="btn-icon fa-solid fa-folder-open"></i>
+      <span class="hidden sm:inline">Load</span>
+      <input type="file" accept=".json" class="hidden"
+        onchange="(function(e){ var app = Alpine.$data(document.querySelector('[x-data=\'app\']')); if(app) app.handleSessionFileSelect(e); })(event)">
+    </label>
   </div>
+
 </header>
 
 <!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
@@ -696,7 +733,7 @@
     <template x-if="!outRows.length">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
         <i class="fa-solid fa-table text-4xl text-slate-200 mb-3"></i>
-        <p class="text-sm text-slate-400">No data yet — run the converter first.</p>
+        <p class="text-sm text-slate-400">No data yet — run the converter first or load a saved session.</p>
       </div>
     </template>
   </div><!-- /data -->
@@ -785,7 +822,7 @@
     <template x-if="!outRows.length">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
         <i class="fa-solid fa-map text-4xl text-slate-200 mb-3"></i>
-        <p class="text-sm text-slate-400">No data yet — run the converter first.</p>
+        <p class="text-sm text-slate-400">No data yet — run the converter first or load a saved session.</p>
       </div>
     </template>
   </div><!-- /map -->
@@ -901,7 +938,7 @@
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-16 text-center">
         <i class="fa-solid fa-quote-left text-5xl text-slate-200 mb-4"></i>
         <p class="text-base font-semibold text-slate-400 mb-1">No citation data yet</p>
-        <p class="text-sm text-slate-400">Run the converter first. Dataset metadata is fetched automatically from the GBIF API (live fetch mode) or parsed from the ZIP's <code class="font-mono bg-slate-100 px-1 rounded">citations.txt</code>.</p>
+        <p class="text-sm text-slate-400">Run the converter first, or load a saved session. Dataset metadata is fetched automatically from the GBIF API (live fetch mode) or parsed from the ZIP's <code class="font-mono bg-slate-100 px-1 rounded">citations.txt</code>.</p>
       </div>
     </template>
   </div><!-- /citations -->
@@ -1232,28 +1269,32 @@
       </p>
       <div class="space-y-5 text-sm text-slate-600 leading-relaxed">
         <div class="flex gap-4">
+          <div class="w-7 h-7 bg-green-100 text-green-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">S</div>
+          <div><p class="font-bold text-slate-700 mb-1">Save / Load Session (JSON)</p><p>Use the <strong class="text-green-700">Save Session JSON</strong> button in the header bar to export your entire session — all records, citations, map data, phenology, and species stats — into a single portable <code class="bg-slate-100 px-1 rounded font-mono text-xs">.json</code> file. Later, click <strong class="text-blue-700">Load Session JSON</strong> to instantly restore everything without re-running the converter. Ideal for bookmarking a species page or sharing with a collaborator.</p></div>
+        </div>
+        <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">1</div>
           <div><p class="font-bold text-slate-700 mb-1">Enter Species Name</p><p>Type the full binomial name (e.g. <em>Melissodes agilis</em>). Written into every row under <code class="bg-slate-100 px-1 rounded font-mono text-xs">speciesname</code>.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">2</div>
-          <div><p class="font-bold text-slate-700 mb-1">Choose Data Source</p><p><strong>API:</strong> Type a taxon name, pick from the dropdown, set optional filters, convert.<br><br><strong>Upload:</strong> Download a DwC-A from <a href="https://www.gbif.org/occurrence/search" target="_blank" class="text-amber-600 hover:underline">gbif.org</a> and upload the .zip (or <code class="bg-slate-100 px-1 rounded font-mono text-xs">occurrence.txt</code>). You can also upload a <strong>.csv</strong> or <strong>.tsv</strong> occurrence export directly — the tool will auto-detect the format and parse accordingly.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Choose Data Source</p><p><strong>API:</strong> Type a taxon name, pick from the dropdown, set optional filters, convert.<br><br><strong>Upload:</strong> Download a DwC-A from <a href="https://www.gbif.org/occurrence/search" target="_blank" class="text-amber-600 hover:underline">gbif.org</a> and upload the .zip (or <code class="bg-slate-100 px-1 rounded font-mono text-xs">occurrence.txt</code>). You can also upload a <strong>.csv</strong> or <strong>.tsv</strong> occurrence export directly.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">3</div>
-          <div><p class="font-bold text-slate-700 mb-1">Multi-Species Citations Tab</p><p>When a ZIP/TXT/CSV/TSV containing <strong>multiple species</strong> is uploaded and converted, the <strong>Multi-Species Refs</strong> tab is automatically populated. Each species gets its own in-text citation string (e.g. <em>Melissodes saponellus: (Ikerd, 2019; Jones, 2022)</em>) plus a full bibliography. Click species blocks to copy in-text citations; click individual entries to copy single references.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Multi-Species Citations Tab</p><p>When a ZIP/TXT/CSV/TSV containing <strong>multiple species</strong> is uploaded and converted, the <strong>Multi-Species Refs</strong> tab is automatically populated. Each species gets its own in-text citation string plus a full bibliography.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">4</div>
-          <div><p class="font-bold text-slate-700 mb-1">Species Filter Tab</p><p>Upload any CSV with a <code class="bg-slate-100 px-1 rounded font-mono text-xs">speciesname</code> column. All unique species are shown as clickable pills — click one to instantly filter, or type a partial name. The filtered subset can be downloaded as CSV. If you ran the converter first, matching dataset citations are shown automatically.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Species Filter Tab</p><p>Upload any CSV with a <code class="bg-slate-100 px-1 rounded font-mono text-xs">speciesname</code> column. All unique species are shown as clickable pills — click one to instantly filter, or type a partial name.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">5</div>
-          <div><p class="font-bold text-slate-700 mb-1">Data &amp; Export Tab</p><p>Interactive table — click rows to select, click column headers to select entire columns. Choose export scope (all / selected rows / selected columns / both) and format (CSV, TSV, TXT), then download or copy.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Data &amp; Export Tab</p><p>Interactive table — click rows to select, click column headers to select entire columns. Choose export scope and format (CSV, TSV, TXT), then download or copy.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">6</div>
-          <div><p class="font-bold text-slate-700 mb-1">Citations Tab</p><p>All contributing datasets listed with citation text, DOI, and license. Use <strong>Copy In-text</strong> for a parenthetical citation string. Download as .txt or .csv.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Citations Tab</p><p>All contributing datasets listed with citation text, DOI, and license. Use <strong>Copy In-text</strong> for a parenthetical citation string.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">7</div>
@@ -1349,8 +1390,142 @@ document.addEventListener('alpine:init', () => {
     filterRows: [],
     filterOffset: 0,
     filterPageSize: 100,
-    filterCitations: [],   // kept for API compat — unused in filter tab UI
+    filterCitations: [],
     filterInText: '',
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── SESSION SAVE / LOAD ───────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    lastSaved: '',
+
+    saveSession() {
+      if (!this.outRows.length) {
+        const flash = document.createElement('div');
+        flash.style.cssText = 'position:fixed;top:16px;right:16px;background:#fef9c3;border:1px solid #fde047;color:#854d0e;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.1);transition:opacity 0.4s';
+        flash.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="margin-right:8px"></i>No data to save — run the converter first';
+        document.body.appendChild(flash);
+        setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 400); }, 2500);
+        return;
+      }
+      const session = {
+        version: 2,
+        savedAt: new Date().toISOString(),
+        speciesName: this.speciesName,
+        selectedColumns: this.selectedColumns,
+        opts: this.opts,
+        stats: this.stats,
+        outRows: this.outRows,
+        citationsData: this.citationsData,
+        inTextPreview: this.inTextPreview,
+        multiSpeciesMap: this.multiSpeciesMap,
+        _multiSpeciesEntries: this._multiSpeciesEntries,
+        _speciesCountData: this._speciesCountData,
+        phenologyData: this.phenologyData,
+        phenologyTotal: this.phenologyTotal,
+        datasetInfoCache: this.datasetInfoCache,
+      };
+      const json = JSON.stringify(session, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const safe = (this.speciesName || 'session').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.download = safe + '_gbif_session_' + dateStr + '.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      this.lastSaved = new Date().toLocaleTimeString();
+      const sizeKb = (new Blob([json]).size / 1024).toFixed(1);
+      const flash = document.createElement('div');
+      flash.style.cssText = 'position:fixed;top:16px;right:16px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.1);transition:opacity 0.4s';
+      flash.innerHTML = '<i class="fa-solid fa-floppy-disk" style="margin-right:8px"></i>Session saved — ' + this.outRows.length.toLocaleString() + ' records · ' + sizeKb + ' KB';
+      document.body.appendChild(flash);
+      setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 400); }, 2800);
+    },
+
+    handleSessionFileSelect(e) {
+      const f = e.target.files[0];
+      if (f) this.loadSession(f);
+      e.target.value = '';
+    },
+
+    async loadSession(file) {
+      const loadingFlash = document.createElement('div');
+      loadingFlash.style.cssText = 'position:fixed;top:16px;right:16px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.1)';
+      loadingFlash.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" style="margin-right:8px"></i>Loading session…';
+      document.body.appendChild(loadingFlash);
+      try {
+        const text = await file.text();
+        const session = JSON.parse(text);
+        if (!session.version || !Array.isArray(session.outRows)) {
+          throw new Error('Invalid or corrupted session file. Expected a GBIF session JSON.');
+        }
+
+        // ── Restore all state ──────────────────────────────────────────────
+        this.speciesName          = session.speciesName || '';
+        this.selectedColumns      = session.selectedColumns || this.allColumns.map(c => c.key);
+        this.opts                 = Object.assign({}, this.opts, session.opts || {});
+        this.stats                = session.stats || null;
+        this.outRows              = session.outRows || [];
+        this.citationsData        = session.citationsData || [];
+        this.inTextPreview        = session.inTextPreview || '';
+        this.multiSpeciesMap      = session.multiSpeciesMap || {};
+        this._multiSpeciesEntries = session._multiSpeciesEntries || [];
+        this._speciesCountData    = session._speciesCountData || {};
+        this.phenologyData        = session.phenologyData || {};
+        this.phenologyTotal       = session.phenologyTotal || 0;
+        this.datasetInfoCache     = session.datasetInfoCache || {};
+
+        // ── Reset UI state ─────────────────────────────────────────────────
+        this.selectedRows = new Set();
+        this.selectedCols = new Set();
+        this.tableOffset  = 0;
+        this.tableSearch  = '';
+        this.error        = null;
+        this.log          = [];
+        this.progress     = 100;
+
+        // ── Log summary ────────────────────────────────────────────────────
+        const savedDate = session.savedAt ? new Date(session.savedAt).toLocaleString() : 'unknown';
+        this.addLog('✅ Session restored: ' + this.outRows.length.toLocaleString() + ' records · ' + this.citationsData.length + ' datasets · originally saved ' + savedDate, 'ok');
+        if (this._multiSpeciesEntries.length > 1) {
+          this.addLog('🔬 Multi-species data: ' + this._multiSpeciesEntries.length + ' species', 'ok');
+        }
+        if (this.phenologyTotal > 0) {
+          this.addLog('📅 Phenology: ' + this.phenologyTotal.toLocaleString() + ' records with month data', 'ok');
+        }
+
+        loadingFlash.remove();
+
+        const flash = document.createElement('div');
+        flash.style.cssText = 'position:fixed;top:16px;right:16px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.1);transition:opacity 0.4s';
+        flash.innerHTML = '<i class="fa-solid fa-check-circle" style="margin-right:8px"></i>Session loaded — ' + this.outRows.length.toLocaleString() + ' records';
+        document.body.appendChild(flash);
+        setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 400); }, 3000);
+
+        // Navigate to the data tab and rebuild all visuals
+        showTab('data');
+        setTimeout(() => {
+          if (this._map) { this._map.remove(); this._map = null; }
+          this.buildMap();
+          this.renderPhenologyChart();
+          this.renderSpeciesChart();
+        }, 300);
+
+      } catch(e) {
+        loadingFlash.remove();
+        this.error = 'Session load failed: ' + e.message;
+        const flash = document.createElement('div');
+        flash.style.cssText = 'position:fixed;top:16px;right:16px;background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.1);transition:opacity 0.4s';
+        flash.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="margin-right:8px"></i>Load failed: ' + e.message;
+        document.body.appendChild(flash);
+        setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 400); }, 3500);
+      }
+    },
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── END SESSION ───────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
 
     // ── helpers ────────────────────────────────────────────────────────────
     selectAllCols(v) { this.selectedColumns = v ? this.allColumns.map(c=>c.key) : []; },
@@ -1365,7 +1540,6 @@ document.addEventListener('alpine:init', () => {
     handleFileSelect(e) {
       const f = e.target.files[0];
       if (f) { this.uploadedFile = f; }
-      // Reset the input so the same filename can be re-selected later
       e.target.value = '';
     },
     handleFileDrop(e) {
@@ -1735,7 +1909,6 @@ document.addEventListener('alpine:init', () => {
     },
 
     parseTSV(text) {
-      // Strip UTF-8 BOM (\ufeff) that GBIF always prepends to occurrence.txt
       const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
       const lines = clean.split('\n');
       if (lines.length < 2) return [];
@@ -1752,7 +1925,6 @@ document.addEventListener('alpine:init', () => {
       return rows;
     },
 
-    // Parse a full CSV file into an array of row objects (mirrors parseTSV for comma-separated files)
     parseCSVRows(text) {
       const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
       const lines = clean.split('\n');
@@ -1773,7 +1945,6 @@ document.addEventListener('alpine:init', () => {
       return rows;
     },
 
-    // Detect which column holds the GBIF occurrence ID from the actual file headers
     detectIdColumn(headers) {
       const candidates = ['gbifID','gbifid','GBIFID','id','ID','coreid','coreId','occurrenceID','occurrenceId'];
       for (const c of candidates) {
@@ -1932,20 +2103,17 @@ document.addEventListener('alpine:init', () => {
               this.addLog(`⚖ Loaded rights for ${Object.keys(rightsMap).length} datasets`, 'ok');
             }
           } else if (fn.endsWith('.csv')) {
-            // ── CSV upload ─────────────────────────────────────────────────
             const csvText = new TextDecoder('utf-8').decode(ab);
             this.addLog('✅ Loaded CSV file', 'ok');
             this.statusMsg = 'Parsing CSV…'; this.progress = 20;
             rawRows = this.parseCSVRows(csvText);
             this.addLog(`📊 Parsed ${rawRows.length.toLocaleString()} raw records from CSV`, 'ok');
           } else {
-            // ── TSV / occurrence.txt upload ────────────────────────────────
             tsvText = new TextDecoder('utf-8').decode(ab);
             const fmtLabel = fn.endsWith('.tsv') ? 'TSV' : 'occurrence.txt';
             this.addLog(`✅ Loaded ${fmtLabel}`, 'ok');
           }
 
-          // Parse TSV/TXT if we have raw text (ZIP and TSV/TXT paths)
           if (tsvText !== null) {
             this.statusMsg = 'Parsing TSV…'; this.progress = 20;
             rawRows = this.parseTSV(tsvText);
@@ -1962,7 +2130,6 @@ document.addEventListener('alpine:init', () => {
             this.addLog(`🚫 Excluded ${(before - rawRows.length).toLocaleString()} iNat/BugGuide`, 'warn');
           }
 
-          // Build multiSpeciesMap
           const idCol = this.detectIdColumn(rawRows._headers || Object.keys(rawRows[0] || {}));
           this.addLog(`🔑 Occurrence ID column detected: "${idCol || 'none found'}"`, idCol ? 'ok' : 'warn');
           for (const r of rawRows) {
@@ -2045,20 +2212,16 @@ document.addEventListener('alpine:init', () => {
         this.phenologyData = phenoFinal;
         this.phenologyTotal = phenoTotal;
 
-        // Build species count data directly from all built rows (always available, regardless of datasetKey)
         const spCount = {};
         for (const row of built) {
-          // Use the raw species value from the source; fall back to the output speciesname
           const sp = (row.speciesname || '').trim();
           if (sp) spCount[sp] = (spCount[sp] || 0) + 1;
         }
         this._speciesCountData = spCount;
 
-        // Build citations
         this.buildCitationsData(rawCiteLines, rightsMap);
         this.addLog(`📚 Citations built: ${this.citationsData.length} dataset(s)`, 'ok');
 
-        // IMPORTANT: assign outRows BEFORE buildMultiSpeciesEntries so recordCount is correct
         this.outRows = built;
 
         if (Object.keys(this.multiSpeciesMap).length > 0) {
@@ -2245,7 +2408,7 @@ document.addEventListener('alpine:init', () => {
       const entries = Object.values(this._speciesCountData);
       return entries.length ? Math.max(...entries) : 1;
     },
-    renderSpeciesChart() { /* no-op — chart is now pure CSS/HTML via speciesChartRows */ },
+    renderSpeciesChart() { /* no-op — chart is pure CSS/HTML via speciesChartRows */ },
 
     async copyPhenologyCSV() {
       if (!this.phenologyTotal) return;
@@ -2304,7 +2467,6 @@ document.addEventListener('alpine:init', () => {
       } catch(e) { console.error('CSV load error', e); }
     },
 
-    // Simple CSV line parser (handles quoted fields)
     parseCSVLine(line) {
       const result = [];
       let cur = '', inQuote = false;
@@ -2352,7 +2514,6 @@ document.addEventListener('alpine:init', () => {
       for (const r of this.filterRows) lines.push(this.filterColumns.map(c => esc(r[c]||'')).join(sep));
       try { await navigator.clipboard.writeText(lines.join('\n')); this._flashBtn('btn-copy-filtered'); } catch(e) { console.error(e); }
     },
-
 
     }));
 });
