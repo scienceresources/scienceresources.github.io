@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Science Resources</title>
 <link rel="icon" type="image/png" href="favicon.png">
-     <link rel="apple-touch-icon" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
 
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -16,15 +16,16 @@
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
   .tool-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   }
   .tool-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 16px 32px -8px rgba(0,0,0,0.1);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.12);
   }
-  .tool-card-blue:hover  { border-color: #93c5fd; }
-  .tool-card-green:hover { border-color: #86efac; }
-  .tool-card-amber:hover { border-color: oklch(82.8% 0.189 84.429) }
+  .tool-card-blue:hover   { border-color: #93c5fd; }
+  .tool-card-green:hover  { border-color: #86efac; }
+  .tool-card-amber:hover  { border-color: #fbbf24; }
+  .tool-card-teal:hover   { border-color: #5eead4; }
 
   .feature-pill {
     display: inline-flex;
@@ -38,87 +39,131 @@
     font-weight: 600;
     letter-spacing: 0.02em;
   }
+
+  .hero-grid {
+    background-image:
+      linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+      linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .stat-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
 
 <!-- ── HEADER ────────────────────────────────────────────────────────────── -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-  <a href="index.html">
-  <div class="mx-auto px-4 py-3 flex items-center gap-3">
-    <div class="bg-slate-800 p-2 rounded-lg">
-      <i class="fa-solid fa-flask-vial text-white text-xl"></i>
-    </div>
-      </a>
-    <div>
-      <h1 class="text-lg font-bold text-slate-900 leading-tight">Science Resources</h1>
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Toolkits for Science</p>
-    </div>
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <a href="index.html" class="flex items-center gap-3 no-underline group">
+      <div class="bg-slate-800 p-2 rounded-lg group-hover:bg-slate-700 transition-colors">
+        <i class="fa-solid fa-flask-vial text-white text-xl"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold text-slate-900 leading-tight">Science Resources</h1>
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Toolkits for Science</p>
+      </div>
+    </a>
+    <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+      Browser-based · No install · No account
+    </p>
   </div>
 </header>
 
 <!-- ── HERO ──────────────────────────────────────────────────────────────── -->
-<section class="bg-white border-b border-slate-200">
-  <div class="max-w-5xl mx-auto px-4 py-12 text-center">
-    <h2 class="text-3xl font-black text-slate-900 tracking-tight mb-3">
+<section class="hero-grid bg-white border-b border-slate-200 relative overflow-hidden">
+  <div class="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+    <div class="absolute -top-16 -right-16 w-64 h-64 bg-blue-100 rounded-full opacity-40 blur-3xl"></div>
+    <div class="absolute -bottom-12 -left-12 w-56 h-56 bg-amber-100 rounded-full opacity-50 blur-3xl"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-40 bg-green-50 rounded-full opacity-30 blur-3xl"></div>
+  </div>
+
+  <div class="relative max-w-5xl mx-auto px-4 py-14 text-center">
+    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
+      <i class="fa-solid fa-flask-vial mr-1.5 text-slate-300"></i>Science Resources
+    </p>
+    <h2 class="text-4xl font-black text-slate-900 tracking-tight mb-4 leading-tight">
       Tools for Biology
     </h2>
-    <p class="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-      Browser-based tools for Biology.
-      No installation, no account — your data stays on your device.
+    <p class="text-slate-500 text-sm max-w-sm mx-auto leading-relaxed mb-8">
+      Browser-based toolkits for biologists.
+      No installation. No account. Your data stays on your device.
     </p>
+    <div class="flex flex-wrap justify-center gap-2">
+      <span class="stat-item"><i class="fa-solid fa-dna text-blue-400 text-xs"></i>DNA · RNA · Protein</span>
+      <span class="stat-item"><i class="fa-solid fa-database text-amber-400 text-xs"></i>GBIF Data Tools</span>
+      <span class="stat-item"><i class="fa-solid fa-leaf text-green-400 text-xs"></i>Identification Keys</span>
+      <span class="stat-item"><i class="fa-solid fa-barcode text-teal-400 text-xs"></i>BOLD Barcodes</span>
+      <span class="stat-item"><i class="fa-solid fa-lock-open text-slate-400 text-xs"></i>100% Client-side</span>
+    </div>
   </div>
 </section>
 
 <!-- ── TOOL CARDS ────────────────────────────────────────────────────────── -->
-<main class="max-w-5xl mx-auto px-4 py-12 flex-1 w-full">
+<main class="max-w-5xl mx-auto px-4 py-10 flex-1 w-full">
 
-  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Select a Tool</p>
+  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5">
+    <i class="fa-solid fa-grid-2 mr-1.5"></i>Select a Tool
+  </p>
 
   <div class="grid md:grid-cols-2 gap-5">
 
-    <!-- SeqLab -->
+    <!-- ── DNA Sequencers ──────────────────────────────────────────────── -->
     <a href="dna-index.html"
       class="tool-card tool-card-blue bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-blue-100 p-3.5 rounded-xl">
           <i class="fa-solid fa-dna text-blue-600 text-2xl"></i>
         </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-blue-400 transition-colors mt-1"></i>
+        <div class="bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-blue-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
       </div>
-
       <h2 class="text-xl font-black text-slate-900 mb-1">DNA Sequencers</h2>
       <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">DNA · RNA · Protein Analysis</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Align overlapping DNA fragments, translate sequences using The Invertebrate Mitochondrial Code (transl_table=5),
-        and compare amino acid sequences with mismatch highlighting.
+        Align overlapping DNA fragments, translate sequences using the
+        Invertebrate or Vertebrate Mitochondrial Code, and compare amino acid
+        sequences with mismatch highlighting. Includes BOLD-based species
+        identification with K2P distances.
       </p>
-
       <div class="flex flex-wrap gap-2">
         <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-blue-400 text-[9px]"></i>Fragment Aligner</span>
         <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-blue-400 text-[9px]"></i>DNA → Amino Acid</span>
         <span class="feature-pill"><i class="fa-solid fa-code-compare text-blue-400 text-[9px]"></i>Protein Comparator</span>
+        <span class="feature-pill"><i class="fa-solid fa-magnifying-glass-chart text-blue-400 text-[9px]"></i>Species ID</span>
       </div>
     </a>
 
-
-    <!-- BioKey Builder -->
+    <!-- ── BioKey Builder ──────────────────────────────────────────────── -->
     <a href="biokey.html"
       class="tool-card tool-card-green bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-green-100 p-3.5 rounded-xl">
           <i class="fa-solid fa-leaf text-green-600 text-2xl"></i>
         </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-green-400 transition-colors mt-1"></i>
+        <div class="bg-green-50 border border-green-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-green-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
       </div>
-
       <h2 class="text-xl font-black text-slate-900 mb-1">BioKey Builder</h2>
       <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Dichotomous Key Constructor</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Build and export professional dichotomous identification keys. Link couplets,
-        define descriptors, and export in multiple standard formats.
+        Build and export professional dichotomous identification keys.
+        Link couplets, define descriptors, and export in multiple standard
+        formats. Full undo / redo support.
       </p>
-
       <div class="flex flex-wrap gap-2">
         <span class="feature-pill"><i class="fa-solid fa-code-branch text-green-400 text-[9px]"></i>Couplet Builder</span>
         <span class="feature-pill"><i class="fa-solid fa-file-arrow-down text-green-400 text-[9px]"></i>Export / Import</span>
@@ -126,29 +171,94 @@
       </div>
     </a>
 
-        <a href="gbif-index.html"
+    <!-- ── GBIF Tools ──────────────────────────────────────────────────── -->
+    <a href="gbif-index.html"
       class="tool-card tool-card-amber bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-amber-100 p-3.5 rounded-xl">
           <i class="fa-solid fa-database text-amber-600 text-2xl"></i>
         </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-amber-400 transition-colors mt-1"></i>
+        <div class="bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-amber-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
       </div>
-
-      <h2 class="text-xl font-black text-slate-900 mb-1">GBIF tools</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">CSV · TSV · TXT · JSON · Filters</p>
+      <h2 class="text-xl font-black text-slate-900 mb-1">GBIF Tools</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Darwin Core · JSON Export · AI-Enhanced</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Tools for analyzing GBIF data.
+        Transform raw GBIF occurrence data into structured, citable JSON.
+        Reverse-geocode coordinates, extract floral hosts with an in-browser
+        RoBERTa model, generate dataset citations, and analyze floral host
+        distributions.
       </p>
-
       <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-code-branch text-amber-400 text-[9px]"></i>Json Builder</span>
-        <span class="feature-pill"><i class="fa-solid fa-file-arrow-down text-amber-400 text-[9px]"></i>Citations generator</span>
-        <span class="feature-pill"><i class="fa-solid fa-rotate-left text-amber-400 text-[9px]"></i>AI Flower interpretation</span>
+        <span class="feature-pill"><i class="fa-solid fa-hammer text-amber-400 text-[9px]"></i>JSON Builder</span>
+        <span class="feature-pill"><i class="fa-solid fa-quote-left text-amber-400 text-[9px]"></i>Citation Generator</span>
+        <span class="feature-pill"><i class="fa-solid fa-wand-magic-sparkles text-amber-400 text-[9px]"></i>AI Floral Parser</span>
+        <span class="feature-pill"><i class="fa-solid fa-chart-bar text-amber-400 text-[9px]"></i>Host Analysis</span>
+      </div>
+    </a>
+
+    <!-- ── BOLD → FASTA ────────────────────────────────────────────────── -->
+    <a href="bold-to-fasta.html"
+      class="tool-card tool-card-teal bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
+      <div class="flex items-start justify-between mb-5">
+        <div class="bg-teal-100 p-3.5 rounded-xl">
+          <i class="fa-solid fa-right-left text-teal-600 text-2xl"></i>
+        </div>
+        <div class="bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-teal-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
+      </div>
+      <h2 class="text-xl font-black text-slate-900 mb-1">BOLD → FASTA Converter</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">portal.boldsystems.org · BCDM · FASTA</p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
+        Search BOLD directly from the browser, download a TSV or JSON export,
+        and instantly convert it to a FASTA file ready for phylogenetics and
+        alignment tools. Filter by marker (COI-5P, ITS, matK, and more).
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <span class="feature-pill"><i class="fa-solid fa-magnifying-glass text-teal-400 text-[9px]"></i>BOLD Search</span>
+        <span class="feature-pill"><i class="fa-solid fa-file-arrow-down text-teal-400 text-[9px]"></i>FASTA Export</span>
+        <span class="feature-pill"><i class="fa-solid fa-filter text-teal-400 text-[9px]"></i>Marker Filter</span>
+        <span class="feature-pill"><i class="fa-solid fa-table text-teal-400 text-[9px]"></i>TSV · JSON · JSONL</span>
       </div>
     </a>
 
   </div>
+
+  <!-- ── Info strip ───────────────────────────────────────────────────── -->
+  <div class="mt-8 bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-wrap items-center gap-5">
+    <div class="flex items-center gap-3 flex-1 min-w-[200px]">
+      <div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+        <i class="fa-solid fa-shield-halved text-slate-400"></i>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-slate-700">Fully Client-side</p>
+        <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">All processing happens in your browser. No data is uploaded to any server.</p>
+      </div>
+    </div>
+    <div class="w-px h-10 bg-slate-100 hidden sm:block"></div>
+    <div class="flex items-center gap-3 flex-1 min-w-[200px]">
+      <div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+        <i class="fa-solid fa-computer text-slate-400"></i>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-slate-700">Works Locally</p>
+        <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">All processing runs in your browser — no data leaves your device.</p>
+      </div>
+    </div>
+    <div class="w-px h-10 bg-slate-100 hidden sm:block"></div>
+    <div class="flex items-center gap-3 flex-1 min-w-[200px]">
+      <div class="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
+        <i class="fa-solid fa-code text-slate-400"></i>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-slate-700">Open Source</p>
+        <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">Built with standard web technologies — no frameworks to install.</p>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <footer class="border-t border-slate-200 bg-white">
@@ -157,10 +267,9 @@
       <i class="fa-solid fa-flask-vial text-slate-300"></i>
       <span class="text-sm font-semibold text-slate-400">Science Resources</span>
     </div>
-    <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
-      <p  class="transition-colors flex items-center gap-1.5">Created by - Frank Hogland
-© 2026-present. All Rights Reserved.</p>
-    </div>
+    <p class="text-xs font-semibold text-slate-400">
+      Created by — Frank Hogland &nbsp;·&nbsp; © 2026-present. All Rights Reserved.
+    </p>
   </div>
 </footer>
 
