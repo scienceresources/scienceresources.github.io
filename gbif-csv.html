@@ -128,7 +128,11 @@
   .stat-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 
   /* ── Map ── */
-  #dist-map { height: 400px; overflow: hidden; z-index: 0; }
+  #map-container { position:relative; z-index:0; border-radius:12px; overflow:hidden; height:560px; }
+  #map { width:100%; height:100%; z-index:0; }
+  .leaflet-top, .leaflet-bottom { z-index:400 !important; }
+  .leaflet-popup-content-wrapper { background:white !important; border:1px solid #e2e8f0 !important; border-radius:12px !important; box-shadow:0 4px 20px rgba(0,0,0,0.12) !important; color:#334155 !important; }
+  .leaflet-popup-tip { background:white !important; }
 
   canvas { max-height: 360px; }
 
@@ -743,26 +747,36 @@
     <template x-if="outRows.length">
       <div class="space-y-5">
 
-        <!-- Distribution Map -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <i class="fa-solid fa-map mr-1.5"></i>Distribution Map
-              </p>
-              <p class="text-[10px] text-slate-400 mt-0.5">
-                <span class="font-bold text-blue-600" x-text="mapPoints"></span> plotted ·
-                <span x-text="(outRows.length - mapPoints)"></span> without coordinates
-              </p>
+        <!-- Map controls card (matches downloader layout exactly) -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-map mr-1 text-amber-400"></i>Distribution Map</p>
+          <div class="flex flex-wrap gap-3 items-center">
+            <div class="ml-auto flex items-center gap-4 flex-wrap">
+              <select x-model="mapBasemap" @change="switchBasemap()" class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none">
+                <option value="osm">OpenStreetMap</option><option value="dark">Dark (CartoDB)</option><option value="satellite">Satellite (ESRI)</option><option value="topo">Topographic</option>
+              </select>
+              <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600"><input type="checkbox" x-model="mapCluster" @change="renderMapPoints()" class="accent-amber-500">Cluster</label>
+              <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600"><input type="checkbox" x-model="mapColorBySpecies" @change="renderMapPoints()" class="accent-amber-500">Color by species</label>
             </div>
-            <button @click="buildMap()" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all">
-              <i class="fa-solid fa-rotate text-[10px]"></i>Refresh
-            </button>
           </div>
-          <div id="dist-map"></div>
-          <div class="px-5 py-2.5 border-t border-slate-100 bg-slate-50">
-            <p class="text-[10px] text-slate-400">Points are clustered for performance. Click clusters to zoom in. Hover a marker for locality and date info.</p>
+        </div>
+
+        <!-- Map card (clean standalone — matching downloader layout) -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" style="position:relative;z-index:0;">
+          <div id="map-container"><div id="map"></div></div>
+          <!-- Floating point count badge -->
+          <div class="absolute bottom-4 left-4 z-[200] bg-white/90 backdrop-blur border border-slate-200 rounded-xl px-4 py-3 shadow-sm pointer-events-none" x-show="mapPoints > 0">
+            <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-1">Showing</p>
+            <p class="text-2xl font-bold text-amber-600 font-mono" x-text="mapPoints.toLocaleString()"></p>
+            <p class="text-[10px] text-slate-400 font-mono">occurrence points</p>
+            <template x-if="speciesName"><p class="text-[11px] text-green-700 italic mt-1 font-semibold" x-text="speciesName"></p></template>
           </div>
+          <!-- Empty state overlay -->
+          <template x-if="mapPoints === 0 && outRows.length > 0">
+            <div class="absolute inset-0 flex items-center justify-center bg-slate-50/80 z-[200]">
+              <div class="text-center"><i class="fa-solid fa-map text-5xl text-slate-200 mb-3"></i><p class="text-sm text-slate-400 font-semibold">No records with coordinates in this dataset</p></div>
+            </div>
+          </template>
         </div>
 
         <!-- Phenology -->
@@ -1367,6 +1381,8 @@ document.addEventListener('alpine:init', () => {
 
     // Map / Phenology
     mapPoints: 0, _map: null,
+    mapBasemap: 'osm', mapCluster: true, mapColorBySpecies: false,
+    _clusterGroup: null, _plainLayer: null, _baseLayers: {},
     phenologyData: {}, phenologyTotal: 0, _phenoChart: null,
     _speciesCountData: {},
 
@@ -1506,8 +1522,9 @@ document.addEventListener('alpine:init', () => {
         // Navigate to the data tab and rebuild all visuals
         showTab('data');
         setTimeout(() => {
-          if (this._map) { this._map.remove(); this._map = null; }
-          this.buildMap();
+          if (this._map) { this._map.remove(); this._map = null; this._clusterGroup = null; this._plainLayer = null; this._baseLayers = {}; }
+          this.initMap();
+          this.renderMapPoints();
           this.renderPhenologyChart();
           this.renderSpeciesChart();
         }, 300);
@@ -2047,7 +2064,7 @@ document.addEventListener('alpine:init', () => {
       this.tableOffset = 0; this.phenologyData = {}; this.phenologyTotal = 0;
       this.citationsData = []; this.inTextPreview = ''; this.datasetInfoCache = {};
       this.multiSpeciesMap = {}; this._multiSpeciesEntries = []; this._speciesCountData = {};
-
+      if (this._map) { this._map.remove(); this._map = null; this._clusterGroup = null; this._plainLayer = null; this._baseLayers = {}; }
       try {
         let rawRows = []; const isApi = this.dataSource === 'api';
         let rawCiteLines = [], rightsMap = {};
@@ -2294,52 +2311,82 @@ document.addEventListener('alpine:init', () => {
 
     // ── Map ────────────────────────────────────────────────────────────────
     buildMap() {
-      const container = document.getElementById('dist-map');
+      // Convenience: init if needed, then render points
+      if (!this._map) this.initMap();
+      else this._map.invalidateSize();
+      this.renderMapPoints();
+    },
+
+    initMap() {
+      const container = document.getElementById('map');
       if (!container) return;
-      const points = this.outRows.filter(r => { const la = parseFloat(r._lat), lo = parseFloat(r._lon); return !isNaN(la) && !isNaN(lo); });
-      this.mapPoints = points.length;
-      if (!points.length) return;
+      if (this._map) { this._map.invalidateSize(); return; }
+      this._map = L.map('map').setView([20, 0], 2);
+      this._baseLayers = {
+        osm:       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',     { attribution: '© OpenStreetMap contributors', maxZoom: 19 }),
+        dark:      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB', maxZoom: 19 }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 18 }),
+        topo:      L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',       { attribution: '© OpenTopoMap', maxZoom: 17 }),
+      };
+      this._baseLayers[this.mapBasemap].addTo(this._map);
+      this._clusterGroup = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 14 });
+      this._map.addLayer(this._clusterGroup);
+    },
 
-      if (this._map) { this._map.remove(); this._map = null; }
-      const map = L.map('dist-map', { preferCanvas: true });
-      this._map = map;
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18
-      }).addTo(map);
+    switchBasemap() {
+      if (!this._map) return;
+      Object.values(this._baseLayers).forEach(l => { if (this._map.hasLayer(l)) this._map.removeLayer(l); });
+      this._baseLayers[this.mapBasemap].addTo(this._map);
+    },
 
-      const markers = L.markerClusterGroup({
-        chunkedLoading: true, maxClusterRadius: 50,
-        iconCreateFunction: cluster => {
-          const c = cluster.getChildCount();
-          const sz = c < 10 ? 30 : c < 100 ? 36 : c < 1000 ? 42 : 48;
-          return L.divIcon({
-            html: `<div style="width:${sz}px;height:${sz}px;background:#d97706;border:2px solid #92400e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-family:'Courier New',monospace;font-size:${c<100?11:9}px;font-weight:900;box-shadow:0 2px 6px rgba(0,0,0,.25)">${c}</div>`,
-            className: '', iconSize: [sz,sz], iconAnchor: [sz/2,sz/2]
-          });
-        }
-      });
+    renderMapPoints() {
+      if (!this._map) this.initMap();
+      if (!this._map) return;
+      // Clear existing layers
+      if (this._clusterGroup) this._clusterGroup.clearLayers();
+      if (this._plainLayer)   { this._map.removeLayer(this._plainLayer); this._plainLayer = null; }
 
-      const icon = L.divIcon({
-        html: `<div style="width:10px;height:10px;background:#d97706;border:2px solid #92400e;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>`,
-        className: '', iconSize: [10,10], iconAnchor: [5,5]
-      });
+      const pts = this.outRows.filter(r => { const la = parseFloat(r._lat), lo = parseFloat(r._lon); return !isNaN(la) && !isNaN(lo); });
+      this.mapPoints = pts.length;
+      if (!pts.length) return;
 
-      for (const r of points) {
-        const la = parseFloat(r._lat), lo = parseFloat(r._lon);
-        const popup = `<div style="font-family:'Courier New',monospace;font-size:11px;line-height:1.6">
-          <b style="font-style:italic">${this.speciesName||'Species'}</b><br>
-          ${r.locality ? '<span style="color:#64748b">'+r.locality+'</span><br>' : ''}
-          ${r.datefound ? '📅 '+r.datefound+'<br>' : ''}
-          ${r.recordedby ? '👤 '+r.recordedby+'<br>' : ''}
-          ${r.sourcelink ? '<a href="'+r.sourcelink+'" target="_blank" style="color:#d97706">GBIF record ↗</a>' : ''}
-        </div>`;
-        L.marker([la, lo], {icon}).bindPopup(popup).addTo(markers);
+      const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#6366f1','#a855f7','#ec4899','#14b8a6','#f59e0b'];
+      const speciesColors = {};
+      if (this.mapColorBySpecies) {
+        const spp = [...new Set(pts.map(r => r.speciesname).filter(Boolean))];
+        spp.forEach((sp, i) => speciesColors[sp] = COLORS[i % COLORS.length]);
       }
-      map.addLayer(markers);
 
-      const lats = points.map(r => parseFloat(r._lat));
-      const lons = points.map(r => parseFloat(r._lon));
-      map.fitBounds([[Math.min(...lats),Math.min(...lons)],[Math.max(...lats),Math.max(...lons)]], {padding:[30,30], maxZoom:10});
+      const markers = pts.map(r => {
+        const la = parseFloat(r._lat), lo = parseFloat(r._lon);
+        const sp = r.speciesname || '';
+        const color = this.mapColorBySpecies && sp && speciesColors[sp] ? speciesColors[sp] : '#d97706';
+        const m = L.circleMarker([la, lo], { radius: 5, color, fillColor: color, fillOpacity: 0.7, weight: 1 });
+        m.bindPopup(
+          '<div style=font-family:monospace;font-size:11px;min-width:180px>' +
+          '<p style=font-weight:700;font-style:italic;color:#1e293b;margin:0 0 4px>' + (sp || 'Unknown taxon') + '</p>' +
+          (r.locality ? '<p style=color:#64748b;margin:2px 0>' + r.locality + '</p>' : '') +
+          (r.datefound ? '<p style=color:#64748b;margin:2px 0>' + r.datefound + '</p>' : '') +
+          (r.recordedby ? '<p style=color:#64748b;margin:2px 0>' + r.recordedby + '</p>' : '') +
+          '<p style=color:#94a3b8;margin:2px 0>' + la.toFixed(4) + ', ' + lo.toFixed(4) + '</p>' +
+          (r.sourcelink ? '<a href=' + r.sourcelink + ' target=_blank style=color:#d97706;font-size:10px>View on GBIF →</a>' : '') +
+          '</div>'
+        );
+        return m;
+      });
+
+      if (this.mapCluster) {
+        this._clusterGroup.addLayers(markers);
+      } else {
+        this._plainLayer = L.layerGroup(markers);
+        this._map.addLayer(this._plainLayer);
+      }
+
+      try {
+        const lats = pts.map(r => parseFloat(r._lat));
+        const lons = pts.map(r => parseFloat(r._lon));
+        this._map.fitBounds([[Math.min(...lats), Math.min(...lons)], [Math.max(...lats), Math.max(...lons)]], { padding: [30, 30] });
+      } catch(e) {}
     },
 
     // ── Phenology chart ────────────────────────────────────────────────────
@@ -2532,8 +2579,9 @@ function showTab(name) {
       const app = Alpine.$data(document.querySelector('[x-data="app"]'));
       if (!app) return;
       if (app.outRows.length) {
-        if (!app._map) app.buildMap();
+        if (!app._map) app.initMap();
         else app._map.invalidateSize();
+        app.renderMapPoints();
         if (app.phenologyTotal > 0) app.renderPhenologyChart();
       }
     }, 80);
