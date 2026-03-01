@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBIF Ultimate Downloader</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="icon" type="image/png" href="favicon7.png">
+     <link rel="apple-touch-icon" href="favicon7.png">
+
+<style>
+  [x-cloak] { display: none !important; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .seq-mono { font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; letter-spacing: 0.04em; }
+  .tab-active   { border-bottom: 2px solid #d97706; color: #b45309 !important; background: #fffbeb; }
+  .tab-inactive { border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #334155; background: #f8fafc; }
+  .check-option { display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:all 0.15s;background:white; }
+  .check-option:has(input:checked) { border-color:#d97706;background:#fffbeb; }
+  .check-option input { accent-color:#d97706;margin-top:2px; }
+  .fmt-option { display:flex;align-items:flex-start;gap:10px;padding:14px 16px;border:1px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:all 0.15s;background:white; }
+  .fmt-option:has(input:checked) { border-color:#d97706;background:#fffbeb; }
+  .fmt-option input { accent-color:#d97706;margin-top:2px; }
+  .progress-bar { transition: width 0.3s ease; }
+  .suggest-item { padding:8px 14px;cursor:pointer;font-size:12px;transition:background 0.1s;border-bottom:1px solid #f1f5f9; }
+  .suggest-item:hover { background:#fffbeb; }
+  .suggest-item:last-child { border-bottom:none; }
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity:0;transform:translateY(5px); } to { opacity:1;transform:none; } }
+  .col-chip { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:11px;color:#64748b;transition:all 0.12s;background:white; }
+  .col-chip:hover { border-color:#d97706;color:#92400e;background:#fffbeb; }
+  .col-chip.on { border-color:#d97706;color:#92400e;background:#fffbeb; }
+  .geo-tag { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:#eff6ff;border:1px solid #bfdbfe;font-size:11px;color:#1d4ed8; }
+  .month-btn { padding:4px 9px;border:1px solid #e2e8f0;border-radius:6px;font-size:10px;cursor:pointer;font-family:'Courier New',monospace;background:white;color:#64748b;transition:all 0.1s; }
+  .month-btn.on { border-color:#d97706;background:#fffbeb;color:#b45309;font-weight:700; }
+  .draw-btn { display:flex;align-items:center;gap:7px;padding:9px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;cursor:pointer;background:white;color:#475569;transition:all 0.15s; }
+  .draw-btn:hover { border-color:#d97706;color:#b45309;background:#fffbeb; }
+  .draw-btn.on { border-color:#d97706;color:#b45309;background:#fffbeb;font-weight:700; }
+  .stat-pill { background:white;border:1px solid #e2e8f0;border-radius:10px;padding:10px 16px;text-align:center; }
+  .stat-chip { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700; }
+  #map-container { position:relative;z-index:0;border-radius:12px;overflow:hidden;height:560px; }
+  #map { width:100%;height:100%;z-index:0; }
+  .leaflet-top, .leaflet-bottom { z-index:400 !important; }
+  .data-table { width:100%;border-collapse:collapse;font-size:11px; }
+  .data-table th { background:#1e293b;color:#94a3b8;padding:9px 12px;text-align:left;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;border-bottom:1px solid #334155;position:sticky;top:0;z-index:5;font-family:'Courier New',monospace;cursor:pointer;white-space:nowrap; }
+  .data-table th:hover { background:#334155; }
+  .data-table td { padding:7px 12px;border-bottom:1px solid #f8fafc;color:#475569;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace; }
+  .data-table tr:hover td { background:#fffbeb; }
+  .leaflet-popup-content-wrapper { background:white !important;border:1px solid #e2e8f0 !important;border-radius:12px !important;box-shadow:0 4px 20px rgba(0,0,0,0.12) !important;color:#334155 !important; }
+  .leaflet-popup-tip { background:white !important; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spin { animation:spin 1s linear infinite;display:inline-block; }
+  .cite-card { border-left:3px solid #d97706; }
+  .copy-btn { transition:all 0.15s; }
+  .copy-btn.copied { background:#dcfce7 !important;border-color:#86efac !important;color:#16a34a !important; }
+  canvas { max-height:320px; }
+  .back-arrow-desktop { display:none; }
+  .back-arrow-mobile  { display:flex; }
+  @media (min-width:1122px) { .back-arrow-desktop { display:flex; } .back-arrow-mobile { display:none; } }
+
+  /* Pagination styles */
+  .page-btn { display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:'Courier New',monospace;cursor:pointer;background:white;color:#475569;transition:all 0.12s;font-weight:600; }
+  .page-btn:hover:not(:disabled) { border-color:#d97706;color:#b45309;background:#fffbeb; }
+  .page-btn.active { border-color:#d97706;background:#d97706;color:white;font-weight:700; }
+  .page-btn:disabled { opacity:0.35;cursor:not-allowed; }
+  .page-btn.ellipsis { cursor:default;border-color:transparent;background:transparent;color:#94a3b8; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-[500] shadow-sm">
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="index.html" class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+  <div class="relative">
+    <a href="index.html" class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-amber-100 p-2 rounded-lg"><i class="fa-solid fa-globe text-amber-600 text-xl"></i></div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">GBIF Ultimate Downloader</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Occurrences · Geography · Live Map · Citations · Export</p>
+        </div>
+      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">GBIF Occurrence API · Nominatim Geocoding · Leaflet Maps</p>
+    </div>
+  </div>
+  <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap">
+    <button onclick="showTab('build')" id="tab-build" class="tab-active text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-sliders mr-1.5 opacity-70"></i>Query Builder</button>
+    <button onclick="showTab('map')" id="tab-map" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-map mr-1.5 opacity-70"></i>Map View</button>
+    <button onclick="showTab('results')" id="tab-results" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-table mr-1.5 opacity-70"></i>Results <span id="results-badge" class="hidden ml-1.5 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full"></span></button>
+    <button onclick="showTab('taxa')" id="tab-taxa" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-chart-bar mr-1.5 opacity-70"></i>Taxa Stats <span id="taxa-badge" class="hidden ml-1.5 bg-violet-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full"></span></button>
+    <button onclick="showTab('citations')" id="tab-citations" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-quote-left mr-1.5 opacity-70"></i>Citations</button>
+    <button onclick="showTab('export')" id="tab-export" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-download mr-1.5 opacity-70"></i>Export</button>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-5 flex-1 w-full" x-data="app">
+
+<!-- ══ QUERY BUILDER ══════════════════════════════════════════════════════ -->
+<div id="panel-build" class="space-y-5">
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-1 mr-1 text-amber-400"></i>Taxon / Species</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-5">Search any taxonomic level. Add multiple taxa to query them all at once — results are merged automatically.</p>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-magnifying-glass mr-1 text-amber-400"></i>Search Taxon Name</label>
+        <div class="relative">
+          <div class="flex gap-3">
+            <input x-model="taxonQuery" @input.debounce.350ms="searchTaxon()" @keydown.escape="taxonSuggestions=[]" type="text" placeholder="e.g. Bombus, Quercus, Aves…" class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+            <button @click="searchTaxon()" :disabled="taxonSearching" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2"><i class="fa-solid text-xs" :class="taxonSearching ? 'fa-circle-notch spin' : 'fa-search'"></i>Search</button>
+          </div>
+          <div x-show="taxonSuggestions.length > 0" x-cloak @click.away="taxonSuggestions=[]" class="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-60 overflow-y-auto">
+            <template x-for="s in taxonSuggestions" :key="s.key">
+              <div class="suggest-item" @click="addTaxon(s)">
+                <span class="font-mono italic text-slate-800" x-text="s.canonicalName || s.scientificName"></span>
+                <span class="text-slate-400 ml-2 text-[10px]" x-text="(s.rank||'') + (s.family ? ' · ' + s.family : '')"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-sitemap mr-1 text-amber-400"></i>Taxonomic Rank</label>
+        <select x-model="filters.rank" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+          <option value="">Any rank</option><option value="SPECIES">Species</option><option value="SUBSPECIES">Subspecies</option><option value="GENUS">Genus</option><option value="FAMILY">Family</option><option value="ORDER">Order</option><option value="CLASS">Class</option><option value="PHYLUM">Phylum</option>
+        </select>
+      </div>
+    </div>
+    <template x-if="selectedTaxa.length > 0">
+      <div class="mt-3 space-y-1.5">
+        <template x-for="(t, i) in selectedTaxa" :key="t.key">
+          <div class="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3 gap-3">
+            <div><p class="text-sm font-bold italic text-green-800" x-text="t.canonicalName"></p><p class="text-[10px] text-green-600 font-mono mt-0.5" x-text="'GBIF key: ' + t.key + ' · ' + (t.rank||'') + (t.family ? ' · ' + t.family : '')"></p></div>
+            <button @click="selectedTaxa.splice(i,1)" class="text-slate-400 hover:text-red-500 px-2 py-1 rounded hover:bg-red-50 text-xl leading-none transition-colors">×</button>
+          </div>
+        </template>
+        <template x-if="selectedTaxa.length > 1">
+          <p class="text-[10px] text-amber-600 font-semibold pl-1"><i class="fa-solid fa-info-circle mr-1"></i>Multiple taxa: each will be fetched separately and results merged.</p>
+        </template>
+      </div>
+    </template>
+  </div>
+
+  <!-- Geography -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-2 mr-1 text-amber-400"></i>Geographic Filters</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-5">Search any place — state, county, national park, city. The boundary polygon is stored silently and applied on fetch. <em class="text-amber-600 not-italic font-semibold">Adding a region does NOT switch tabs — run your query first.</em></p>
+    <div class="mb-5">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-location-dot mr-1 text-amber-400"></i>Search Any Place</label>
+      <div class="flex gap-3 relative">
+        <input x-model="geoQuery" @keydown.enter="searchPlace()" @keydown.escape="geoSuggestions=[]" type="text" placeholder="e.g. California, Kent County, Yellowstone…" class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        <button @click="searchPlace()" :disabled="geoSearching" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2"><i class="fa-solid text-xs" :class="geoSearching ? 'fa-circle-notch spin' : 'fa-search'"></i>Find</button>
+        <div x-show="geoSuggestions.length > 0" x-cloak @click.away="geoSuggestions=[]" class="absolute top-full left-0 right-32 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-60 overflow-y-auto">
+          <template x-for="(s, i) in geoSuggestions" :key="i">
+            <div class="suggest-item" @click="selectPlace(s)">
+              <span class="text-slate-700" x-text="s.display_name.split(',').slice(0,3).join(', ')"></span>
+              <span class="text-slate-400 ml-1 text-[10px]" x-text="'· ' + (s.type || s.class || '')"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+      <template x-if="bboxRegions.length > 0">
+        <div class="mt-2 flex flex-wrap gap-2">
+          <template x-for="(r, i) in bboxRegions" :key="i">
+            <span class="geo-tag">
+              <i class="fa-solid text-[9px]" :class="r.hasPolygon ? 'fa-draw-polygon text-blue-500' : 'fa-vector-square text-blue-300'"></i>
+              <span x-text="r.shortName"></span>
+              <span x-show="r.hasPolygon" class="text-[9px] text-blue-400 font-bold">POLY</span>
+              <button @click="removeRegion(i)" class="text-blue-300 hover:text-red-500 font-bold ml-0.5">×</button>
+            </span>
+          </template>
+        </div>
+      </template>
+      <template x-if="geoDebugLog.length > 0">
+        <div class="mt-3 bg-slate-900 rounded-xl p-3 max-h-32 overflow-y-auto">
+          <template x-for="(e, i) in geoDebugLog" :key="i">
+            <p class="seq-mono text-[11px] leading-relaxed" :class="e.type==='ok'?'text-green-400':e.type==='warn'?'text-amber-400':'text-slate-400'" x-text="e.msg"></p>
+          </template>
+        </div>
+      </template>
+      <div class="mt-3 flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+        <i class="fa-solid fa-circle-info text-blue-400 text-xs mt-0.5 shrink-0"></i>
+        <p class="text-[11px] text-blue-700">Polygon boundary fetched from OpenStreetMap Nominatim. If polygon unavailable, falls back to bounding box. Region added silently — view it on the Map tab after fetching.</p>
+      </div>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-earth-americas mr-1 text-amber-400"></i>Continent</label><select x-model="filters.continent" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"><option value="">Any</option><option value="AFRICA">Africa</option><option value="ANTARCTICA">Antarctica</option><option value="ASIA">Asia</option><option value="EUROPE">Europe</option><option value="NORTH_AMERICA">North America</option><option value="OCEANIA">Oceania</option><option value="SOUTH_AMERICA">South America</option></select></div>
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-flag mr-1 text-amber-400"></i>Country (ISO 2)</label><input x-model="filters.country" type="text" maxlength="2" placeholder="US · GB · DE…" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all uppercase"></div>
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-map mr-1 text-amber-400"></i>State / Province</label><input x-model="filters.stateProvince" type="text" placeholder="California · Ontario…" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"></div>
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-map-location mr-1 text-amber-400"></i>County / District</label><input x-model="filters.county" type="text" placeholder="San Diego County…" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"></div>
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-city mr-1 text-amber-400"></i>Municipality</label><input x-model="filters.municipality" type="text" placeholder="Tucson · Cambridge…" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"><p class="text-[10px] text-slate-400 mt-1">Client-side filtered</p></div>
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-location-crosshairs mr-1 text-amber-400"></i>Locality</label><input x-model="filters.locality" type="text" placeholder="Saguaro NP · Kew Gardens…" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"><p class="text-[10px] text-slate-400 mt-1">Client-side filtered</p></div>
+    </div>
+  </div>
+
+  <!-- Temporal -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-3 mr-1 text-amber-400"></i>Temporal Filters</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-5">Restrict results to a year range and/or specific months of the year.</p>
+    <div class="grid sm:grid-cols-2 gap-4 mb-4">
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Year From</label><input x-model="filters.yearFrom" type="number" placeholder="e.g. 1950" min="1500" max="2025" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"></div>
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Year To</label><input x-model="filters.yearTo" type="number" placeholder="e.g. 2025" min="1500" max="2025" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"></div>
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Months <span class="normal-case font-normal text-slate-300 ml-1">(click to toggle)</span></label>
+      <div class="flex flex-wrap gap-2">
+        <template x-for="(m, i) in monthNames" :key="i">
+          <button type="button" @click="toggleMonth(i+1)" :class="filters.months.includes(i+1) ? 'month-btn on' : 'month-btn'" x-text="m"></button>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Record Type & Quality -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-4 mr-1 text-amber-400"></i>Record Type &amp; Data Quality</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-5">Select basis-of-record types and quality flags.</p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+      <template x-for="bor in borOptions" :key="bor.value">
+        <label class="check-option"><input type="checkbox" :value="bor.value" x-model="filters.basisOfRecord"><div><p class="text-sm font-semibold text-slate-700" x-text="bor.label"></p><p class="text-[10px] text-slate-400 mt-0.5" x-text="bor.desc"></p></div></label>
+      </template>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-3 mb-5">
+      <label class="check-option"><input type="checkbox" x-model="filters.hasCoordinate"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-crosshairs mr-1 text-green-400"></i>Has Coordinates</p><p class="text-[10px] text-slate-400 mt-0.5">Only records with lat/lon</p></div></label>
+      <label class="check-option"><input type="checkbox" x-model="filters.noGeoIssues"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-shield-check mr-1 text-green-400"></i>No Geo Issues</p><p class="text-[10px] text-slate-400 mt-0.5">Exclude geospatial flags</p></div></label>
+      <label class="check-option"><input type="checkbox" x-model="filters.presentOnly"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-circle-check mr-1 text-green-400"></i>Present Only</p><p class="text-[10px] text-slate-400 mt-0.5">Exclude absence records</p></div></label>
+    </div>
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Dataset Exclusions</p>
+    <div class="grid sm:grid-cols-2 gap-3 mb-4">
+      <label class="check-option"><input type="checkbox" x-model="filters.excludeINat"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-ban mr-1 text-red-400"></i>Exclude iNaturalist</p><p class="text-[10px] text-slate-400 mt-0.5">Research-grade iNat records omitted</p></div></label>
+      <label class="check-option"><input type="checkbox" x-model="filters.excludeBugGuide"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-ban mr-1 text-red-400"></i>Exclude BugGuide</p><p class="text-[10px] text-slate-400 mt-0.5">BugGuide dataset excluded</p></div></label>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Max Records <span class="normal-case font-normal text-slate-300 ml-1">(GBIF cap: 100,000)</span></label><input x-model="filters.maxRecords" type="number" min="100" step="100" placeholder="All (up to 100,000)" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"></div>
+      <div><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Specific Dataset Key <span class="normal-case font-normal text-slate-300 ml-1">(optional)</span></label><input x-model="filters.datasetKey" type="text" placeholder="GBIF dataset UUID…" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"></div>
+    </div>
+  </div>
+
+  <!-- Run -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <div class="flex flex-wrap gap-3 items-center mb-5">
+      <button @click="runFetch()" :disabled="loading" :class="loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-700 active:scale-95'" class="bg-amber-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+        <i class="fa-solid text-xs" :class="loading ? 'fa-circle-notch spin' : 'fa-play'"></i>
+        <span x-text="loading ? 'Fetching…' : 'Fetch Occurrences'"></span>
+      </button>
+      <template x-if="occurrences.length > 0 && !loading">
+        <button @click="showTab('map');setTimeout(()=>initMap(),80)" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2"><i class="fa-solid fa-map text-xs"></i>View Map</button>
+      </template>
+      <template x-if="occurrences.length > 0 && !loading">
+        <button @click="showTab('taxa')" class="bg-violet-600 hover:bg-violet-700 active:scale-95 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 shadow-sm"><i class="fa-solid fa-chart-bar text-xs"></i>Taxa Stats</button>
+      </template>
+      <template x-if="occurrences.length > 0 && !loading">
+        <button @click="showTab('citations')" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm"><i class="fa-solid fa-quote-left text-xs"></i>Citations</button>
+      </template>
+      <template x-if="loading"><p class="text-xs text-slate-500 italic" x-text="statusMsg"></p></template>
+    </div>
+    <template x-if="loading || occurrences.length > 0">
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" x-text="loading ? 'Fetching from GBIF…' : '✓ Complete'"></p>
+          <p class="text-[10px] font-mono text-slate-400" x-text="progress + '%'"></p>
+        </div>
+        <div class="h-2 bg-slate-100 rounded-full overflow-hidden mb-4">
+          <div class="progress-bar h-2 rounded-full" :style="'width:' + progress + '%'" :class="loading ? 'bg-amber-400' : 'bg-green-500'"></div>
+        </div>
+      </div>
+    </template>
+    <template x-if="occurrences.length > 0">
+      <div class="flex flex-wrap gap-4 mb-4 fade-in">
+        <div class="stat-pill"><p class="text-[9px] text-slate-400 uppercase tracking-widest">Fetched</p><p class="font-bold text-slate-700 font-mono text-xl" x-text="occurrences.length.toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-amber-500 uppercase tracking-widest">GBIF Total</p><p class="font-bold text-amber-600 font-mono text-xl" x-text="(totalCount||0).toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-green-500 uppercase tracking-widest">With Coords</p><p class="font-bold text-green-600 font-mono text-xl" x-text="stats.withCoords.toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-slate-400 uppercase tracking-widest">Species</p><p class="font-bold text-slate-700 font-mono text-xl" x-text="stats.species.toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-blue-400 uppercase tracking-widest">Datasets</p><p class="font-bold text-blue-700 font-mono text-xl" x-text="stats.datasets.toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-slate-400 uppercase tracking-widest">Year Range</p><p class="font-bold text-slate-700 font-mono text-xl" x-text="stats.yearRange"></p></div>
+      </div>
+    </template>
+    <template x-if="log.length > 0">
+      <div class="bg-slate-900 rounded-xl p-4 max-h-48 overflow-y-auto">
+        <template x-for="(e, i) in log" :key="i">
+          <p class="seq-mono leading-relaxed" :class="e.type==='ok' ? 'text-green-400' : e.type==='warn' ? 'text-amber-400' : 'text-slate-500'" x-text="e.msg"></p>
+        </template>
+      </div>
+    </template>
+    <template x-if="fetchError">
+      <div class="bg-red-50 border border-red-200 rounded-xl p-4 mt-4 flex items-start gap-3">
+        <i class="fa-solid fa-triangle-exclamation text-red-400 mt-0.5 shrink-0"></i>
+        <div><p class="text-sm font-bold text-red-700">Fetch Failed</p><p class="text-xs text-red-600 mt-1" x-text="fetchError"></p></div>
+      </div>
+    </template>
+  </div>
+</div><!-- /build -->
+
+<!-- ══ MAP VIEW ══════════════════════════════════════════════════════════ -->
+<div id="panel-map" class="hidden fade-in space-y-5">
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-pen-ruler mr-1 text-amber-400"></i>Draw Polygon Filter</p>
+    <div class="flex flex-wrap gap-3 items-center">
+      <button @click="startDraw('polygon')" :class="drawMode==='polygon'?'draw-btn on':'draw-btn'"><i class="fa-solid fa-draw-polygon text-amber-500 text-xs"></i>Freehand Polygon</button>
+      <button @click="startDraw('rectangle')" :class="drawMode==='rectangle'?'draw-btn on':'draw-btn'"><i class="fa-solid fa-vector-square text-amber-500 text-xs"></i>Rectangle</button>
+      <button @click="startDraw('circle')" :class="drawMode==='circle'?'draw-btn on':'draw-btn'"><i class="fa-regular fa-circle text-amber-500 text-xs"></i>Circle</button>
+      <template x-if="drawnGeometry">
+        <button @click="clearDrawn()" class="draw-btn text-red-500 border-red-200 hover:border-red-400 hover:bg-red-50"><i class="fa-solid fa-trash text-xs"></i>Clear Shape</button>
+      </template>
+      <template x-if="drawnGeometry">
+        <button @click="refetchWithGeometry()" :disabled="loading" class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all active:scale-95"><i class="fa-solid fa-filter text-xs"></i>Re-fetch within shape</button>
+      </template>
+      <div class="ml-auto flex items-center gap-4 flex-wrap">
+        <select x-model="mapBasemap" @change="switchBasemap()" class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none">
+          <option value="osm">OpenStreetMap</option><option value="dark">Dark (CartoDB)</option><option value="satellite">Satellite (ESRI)</option><option value="topo">Topographic</option>
+        </select>
+        <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600"><input type="checkbox" x-model="mapCluster" @change="renderMapPoints()" class="accent-amber-500">Cluster</label>
+        <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600"><input type="checkbox" x-model="mapColorBySpecies" @change="renderMapPoints()" class="accent-amber-500">Color by species</label>
+      </div>
+    </div>
+    <template x-if="drawMode">
+      <div class="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <i class="fa-solid fa-pen text-amber-500 text-xs"></i>
+        <p class="text-xs text-amber-700 font-semibold">Drawing <span class="italic" x-text="drawMode"></span> — click to place vertices, double-click to finish.</p>
+      </div>
+    </template>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" style="position:relative;z-index:0;">
+    <div id="map-container"><div id="map"></div></div>
+    <div class="absolute bottom-4 left-4 z-[200] bg-white/90 backdrop-blur border border-slate-200 rounded-xl px-4 py-3 shadow-sm pointer-events-none" x-show="occurrences.length > 0">
+      <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-1">Showing</p>
+      <p class="text-2xl font-bold text-amber-600 font-mono" x-text="mapPointCount.toLocaleString()"></p>
+      <p class="text-[10px] text-slate-400 font-mono">occurrence points</p>
+      <template x-if="selectedTaxa.length===1"><p class="text-[11px] text-green-700 italic mt-1 font-semibold" x-text="selectedTaxa[0].canonicalName"></p></template><template x-if="selectedTaxa.length>1"><p class="text-[11px] text-green-700 font-semibold mt-1" x-text="selectedTaxa.length + ' taxa'"></p></template>
+    </div>
+    <template x-if="occurrences.length === 0">
+      <div class="absolute inset-0 flex items-center justify-center bg-slate-50/80 z-[200]">
+        <div class="text-center"><i class="fa-solid fa-map text-5xl text-slate-200 mb-3"></i><p class="text-sm text-slate-400 font-semibold">No data — fetch occurrences first from Query Builder</p></div>
+      </div>
+    </template>
+  </div>
+</div><!-- /map -->
+
+<!-- ══ RESULTS ═══════════════════════════════════════════════════════════ -->
+<div id="panel-results" class="hidden fade-in space-y-5">
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <!-- Toolbar -->
+    <div class="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-400"><i class="fa-solid fa-table mr-1.5"></i>Results <span class="text-amber-600 ml-1" x-text="'(' + filteredOccs.length.toLocaleString() + ' of ' + occurrences.length.toLocaleString() + ')'"></span></p>
+      <div class="relative"><i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs"></i><input x-model="resultSearch" @input="resultPage=1" type="text" placeholder="Search all fields…" class="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none"></div>
+      <select x-model="resultSort" @change="resultPage=1" class="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none">
+        <option value="gbifID">Sort: GBIF ID</option><option value="species">Sort: Species</option><option value="year">Sort: Year</option><option value="countryCode">Sort: Country</option><option value="stateProvince">Sort: State</option>
+      </select>
+      <button @click="resultSortDir = resultSortDir==='asc'?'desc':'asc'; resultPage=1" class="text-xs text-slate-500 border border-slate-200 px-2 py-1.5 rounded-lg hover:bg-slate-50 font-mono"><i class="fa-solid" :class="resultSortDir==='asc'?'fa-arrow-up':'fa-arrow-down'"></i></button>
+      <!-- Rows-per-page selector -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-[10px] text-slate-400 font-mono uppercase tracking-wider whitespace-nowrap">Rows/page:</span>
+        <select x-model.number="resultPageSize" @change="resultPage=1" class="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none">
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="250">250</option>
+        </select>
+      </div>
+      <div class="ml-auto flex gap-2">
+        <button onclick="showTab('export')" class="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-download text-[10px]"></i>Export</button>
+        <button @click="clearAll()" class="flex items-center gap-1.5 text-xs font-bold text-red-400 hover:text-red-600 border border-red-100 hover:border-red-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-trash text-[10px]"></i>Clear</button>
+      </div>
+    </div>
+
+    <!-- Column selector -->
+    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+      <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Visible Columns</p>
+      <div class="flex flex-wrap gap-1.5">
+        <template x-for="col in allColumns" :key="col.key">
+          <div class="col-chip" :class="visibleCols.includes(col.key) ? 'on' : ''" @click="toggleCol(col.key)">
+            <i class="fa-solid text-[9px]" :class="visibleCols.includes(col.key) ? 'fa-check text-amber-500' : 'fa-plus text-slate-300'"></i>
+            <span x-text="col.label"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div style="max-height:520px;overflow:auto;">
+      <table class="data-table" x-show="occurrences.length > 0">
+        <thead><tr>
+          <template x-for="col in allColumns.filter(c => visibleCols.includes(c.key))" :key="col.key">
+            <th @click="resultSort=col.key;resultSortDir=resultSortDir==='asc'?'desc':'asc';resultPage=1"><span x-text="col.label"></span></th>
+          </template>
+        </tr></thead>
+        <tbody>
+          <template x-for="occ in pagedOccs" :key="occ.gbifID">
+            <tr>
+              <template x-for="col in allColumns.filter(c => visibleCols.includes(c.key))" :key="col.key">
+                <td>
+                  <template x-if="col.key === 'gbifID'"><a :href="'https://www.gbif.org/occurrence/' + occ.gbifID" target="_blank" class="text-amber-600 hover:underline" x-text="occ.gbifID"></a></template>
+                  <template x-if="col.key === 'species' || col.key === 'scientificName'"><span class="italic text-green-700 font-semibold" x-text="fmtCell(occ, col.key)"></span></template>
+                  <template x-if="col.key !== 'gbifID' && col.key !== 'species' && col.key !== 'scientificName'"><span x-text="fmtCell(occ, col.key)"></span></template>
+                </td>
+              </template>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <template x-if="occurrences.length === 0">
+        <div class="p-16 text-center text-slate-300"><i class="fa-solid fa-table text-4xl mb-3"></i><p class="text-sm">No data — run a query first.</p></div>
+      </template>
+    </div>
+
+    <!-- ── Pagination footer ── -->
+    <template x-if="filteredOccs.length > 0">
+      <div class="px-5 py-3 border-t border-slate-100 bg-slate-50/40 flex flex-wrap items-center justify-between gap-3">
+
+        <!-- Record count info -->
+        <p class="text-[10px] text-slate-400 font-mono whitespace-nowrap">
+          Showing <span class="font-bold text-slate-600" x-text="((resultPage-1)*resultPageSize + 1).toLocaleString()"></span>–<span class="font-bold text-slate-600" x-text="Math.min(resultPage*resultPageSize, filteredOccs.length).toLocaleString()"></span>
+          of <span class="font-bold text-slate-600" x-text="filteredOccs.length.toLocaleString()"></span> records
+          <template x-if="filteredOccs.length < occurrences.length">
+            <span class="text-amber-500 ml-1">(filtered)</span>
+          </template>
+        </p>
+
+        <!-- Page buttons -->
+        <div class="flex items-center gap-1 flex-wrap">
+
+          <!-- First / Prev -->
+          <button class="page-btn" @click="resultPage=1" :disabled="resultPage===1" title="First page">
+            <i class="fa-solid fa-angles-left text-[9px]"></i>
+          </button>
+          <button class="page-btn" @click="resultPage=Math.max(1,resultPage-1)" :disabled="resultPage===1" title="Previous page">
+            <i class="fa-solid fa-angle-left text-[9px]"></i>
+          </button>
+
+          <!-- Page number pills -->
+          <template x-for="p in paginationPages" :key="p">
+            <button
+              :class="p === '…' ? 'page-btn ellipsis' : (p === resultPage ? 'page-btn active' : 'page-btn')"
+              @click="p !== '…' && (resultPage = p)"
+              :disabled="p === '…'"
+              x-text="p">
+            </button>
+          </template>
+
+          <!-- Next / Last -->
+          <button class="page-btn" @click="resultPage=Math.min(totalPages,resultPage+1)" :disabled="resultPage===totalPages" title="Next page">
+            <i class="fa-solid fa-angle-right text-[9px]"></i>
+          </button>
+          <button class="page-btn" @click="resultPage=totalPages" :disabled="resultPage===totalPages" title="Last page">
+            <i class="fa-solid fa-angles-right text-[9px]"></i>
+          </button>
+        </div>
+
+        <!-- Jump-to-page + export link -->
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] text-slate-400 font-mono">Go to</span>
+            <input
+              type="number" min="1" :max="totalPages"
+              :value="resultPage"
+              @change="resultPage = Math.min(totalPages, Math.max(1, parseInt($event.target.value)||1))"
+              class="w-14 p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-center focus:ring-2 focus:ring-amber-400 outline-none">
+            <span class="text-[10px] text-slate-400 font-mono">/ <span x-text="totalPages"></span></span>
+          </div>
+          <button onclick="showTab('export')" class="text-xs font-bold text-amber-600 hover:underline whitespace-nowrap">Export all →</button>
+        </div>
+
+      </div>
+    </template>
+
+  </div>
+</div><!-- /results -->
+
+<!-- ══ TAXA STATS ════════════════════════════════════════════════════════ -->
+<div id="panel-taxa" class="hidden fade-in space-y-5">
+  <template x-if="occurrences.length > 0">
+    <div class="space-y-5">
+
+      <!-- Summary cards row 1 -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="stat-pill"><p class="text-[9px] text-violet-400 uppercase tracking-widest">Unique Species</p><p class="font-bold text-violet-700 font-mono text-2xl" x-text="stats.species.toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-blue-400 uppercase tracking-widest">Datasets</p><p class="font-bold text-blue-700 font-mono text-2xl" x-text="stats.datasets.toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-amber-400 uppercase tracking-widest">Total Records</p><p class="font-bold text-amber-700 font-mono text-2xl" x-text="occurrences.length.toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-green-400 uppercase tracking-widest">With Coords</p><p class="font-bold text-green-700 font-mono text-2xl" x-text="stats.withCoords.toLocaleString()"></p></div>
+      </div>
+      <!-- Summary cards row 2: extra stats -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="stat-pill"><p class="text-[9px] text-sky-400 uppercase tracking-widest">Countries</p><p class="font-bold text-sky-700 font-mono text-2xl" x-text="stats.countries.toLocaleString()"></p></div>
+        <div class="stat-pill"><p class="text-[9px] text-slate-400 uppercase tracking-widest">Year Range</p><p class="font-bold text-slate-700 font-mono text-lg mt-1" x-text="stats.yearRange"></p></div>
+        <div class="stat-pill">
+          <p class="text-[9px] text-teal-400 uppercase tracking-widest">Elevation (m)</p>
+          <template x-if="stats.elevCount > 0">
+            <div>
+              <p class="font-bold text-teal-700 font-mono text-lg mt-0.5" x-text="stats.elevMin + '–' + stats.elevMax"></p>
+              <p class="text-[9px] text-teal-400 font-mono" x-text="'mean ' + stats.elevMean + 'm · ' + stats.elevCount.toLocaleString() + ' records'"></p>
+            </div>
+          </template>
+          <template x-if="!stats.elevCount"><p class="text-slate-300 font-mono text-lg mt-1">—</p></template>
+        </div>
+        <div class="stat-pill">
+          <p class="text-[9px] text-orange-400 uppercase tracking-widest">Coord Uncertainty</p>
+          <template x-if="stats.uncertCount > 0">
+            <div>
+              <p class="font-bold text-orange-700 font-mono text-lg mt-0.5" x-text="stats.uncertMed ? stats.uncertMed.toLocaleString() + ' m' : '—'"></p>
+              <p class="text-[9px] text-orange-400 font-mono" x-text="'median · ' + stats.uncertCount.toLocaleString() + ' records'"></p>
+            </div>
+          </template>
+          <template x-if="!stats.uncertCount"><p class="text-slate-300 font-mono text-lg mt-1">—</p></template>
+        </div>
+      </div>
+
+      <!-- Species frequency bar chart -->
+      <template x-if="speciesChartRows.length > 0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400"><i class="fa-solid fa-chart-bar mr-1.5 text-violet-400"></i>Records per Species <span class="text-violet-400 ml-1" x-text="'(' + speciesChartRows.length + ' species)'"></span></p>
+            <div class="flex gap-2">
+              <button @click="downloadSpeciesCSV()" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-download text-[10px]"></i>Download CSV</button>
+              <button @click="copySpeciesCSV()" id="btn-copy-taxa" class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-copy text-[10px]"></i>Copy CSV</button>
+            </div>
+          </div>
+          <div class="bg-slate-50 rounded-xl border border-slate-100 p-4 max-h-96 overflow-y-auto">
+            <template x-for="([sp, cnt], i) in speciesChartRows" :key="i">
+              <div class="flex items-center gap-3 px-1 py-[4px] hover:bg-violet-50 rounded transition-colors group">
+                <div class="w-8 shrink-0 text-right"><span class="text-[10px] font-mono text-slate-300" x-text="i+1"></span></div>
+                <div class="w-56 shrink-0 text-right"><span class="text-[11px] italic text-slate-700 truncate block" x-text="sp" style="font-family:Georgia,serif;"></span></div>
+                <div class="flex-1 flex items-center gap-2 min-w-0">
+                  <div class="h-5 rounded-sm"
+                    :style="'width:' + (speciesChartMax > 0 ? (cnt/speciesChartMax*100).toFixed(1) : 0) + '%; background:rgba(139,92,246,' + (0.3 + 0.6*(cnt/speciesChartMax)).toFixed(2) + ');min-width:' + (cnt > 0 ? 3 : 0) + 'px'">
+                  </div>
+                  <span class="text-[10px] font-mono text-slate-400 group-hover:text-slate-600 whitespace-nowrap shrink-0" x-text="cnt.toLocaleString() + ' (' + (occurrences.length > 0 ? (cnt/occurrences.length*100).toFixed(1) : 0) + '%)'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Top institutions -->
+      <template x-if="institutionChartRows.length > 0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4"><i class="fa-solid fa-building-columns mr-1.5 text-blue-400"></i>Records per Institution <span class="text-blue-400 ml-1" x-text="'(top ' + institutionChartRows.length + ')'"></span></p>
+          <div class="bg-slate-50 rounded-xl border border-slate-100 p-4 max-h-80 overflow-y-auto">
+            <template x-for="([inst, cnt], i) in institutionChartRows" :key="i">
+              <div class="flex items-center gap-3 px-1 py-[4px] hover:bg-blue-50 rounded transition-colors group">
+                <div class="w-8 shrink-0 text-right"><span class="text-[10px] font-mono text-slate-300" x-text="i+1"></span></div>
+                <div class="w-40 shrink-0 text-right"><span class="text-[11px] font-mono text-slate-600 truncate block" x-text="inst"></span></div>
+                <div class="flex-1 flex items-center gap-2 min-w-0">
+                  <div class="h-5 rounded-sm"
+                    :style="'width:' + (institutionChartMax > 0 ? (cnt/institutionChartMax*100).toFixed(1) : 0) + '%; background:rgba(59,130,246,' + (0.3 + 0.6*(cnt/institutionChartMax)).toFixed(2) + ');min-width:' + (cnt > 0 ? 3 : 0) + 'px'">
+                  </div>
+                  <span class="text-[10px] font-mono text-slate-400 group-hover:text-slate-600 whitespace-nowrap shrink-0" x-text="cnt.toLocaleString()"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Basis of record breakdown -->
+      <template x-if="borChartRows.length > 0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4"><i class="fa-solid fa-clipboard-list mr-1.5 text-amber-400"></i>Records per Basis of Record</p>
+          <div class="flex flex-wrap gap-3">
+            <template x-for="([bor, cnt], i) in borChartRows" :key="i">
+              <div class="bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 text-center flex-1 min-w-32">
+                <p class="text-[10px] font-bold text-amber-500 uppercase tracking-widest leading-tight" x-text="bor.replace(/_/g,' ')"></p>
+                <p class="text-2xl font-black text-amber-700 font-mono mt-1" x-text="cnt.toLocaleString()"></p>
+                <p class="text-[10px] text-amber-400 font-mono" x-text="(occurrences.length > 0 ? (cnt/occurrences.length*100).toFixed(1) : 0) + '%'"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- Year histogram -->
+      <template x-if="yearChartRows.length > 0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4"><i class="fa-solid fa-timeline mr-1.5 text-green-400"></i>Records per Year (Histogram)</p>
+          <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
+            <div style="height:220px;position:relative;"><canvas id="yearChart"></canvas></div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Phenology inline in taxa stats -->
+      <template x-if="phenologyTotal > 0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400"><i class="fa-solid fa-calendar mr-1.5 text-amber-400"></i>Flight Period / Phenology <span class="text-amber-400 ml-1 normal-case font-normal text-[10px]" x-text="'(' + phenologyTotal.toLocaleString() + ' records with month data)'"></span></p>
+            <div class="flex gap-2">
+              <button @click="downloadPhenologyCSV()" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-download text-[10px]"></i>Download CSV</button>
+              <button @click="copyPhenologyCSV()" id="btn-copy-pheno-taxa" class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-copy text-[10px]"></i>Copy CSV</button>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2 mb-4">
+            <template x-for="[month, data] in Object.entries(phenologyData)" :key="month">
+              <div class="flex-1 min-w-[52px] text-center">
+                <div class="bg-amber-50 border border-amber-100 rounded-lg p-2">
+                  <p class="text-[9px] font-bold text-amber-400 uppercase tracking-widest" x-text="month.slice(0,3)"></p>
+                  <p class="text-lg font-black text-amber-700 font-mono mt-0.5" x-text="data.count"></p>
+                  <p class="text-[9px] text-amber-400 font-mono" x-text="data.percentage + '%'"></p>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
+            <div style="height:200px;position:relative;"><canvas id="phenologyChartTaxa"></canvas></div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Country breakdown -->
+      <template x-if="countryChartRows.length > 0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4"><i class="fa-solid fa-flag mr-1.5 text-sky-400"></i>Records per Country <span class="text-sky-400 ml-1" x-text="'(top ' + countryChartRows.length + ')'"></span></p>
+          <div class="bg-slate-50 rounded-xl border border-slate-100 p-4 max-h-80 overflow-y-auto">
+            <template x-for="([cc, cnt], i) in countryChartRows" :key="i">
+              <div class="flex items-center gap-3 px-1 py-[4px] hover:bg-sky-50 rounded transition-colors group">
+                <div class="w-8 shrink-0 text-right"><span class="text-[10px] font-mono text-slate-300" x-text="i+1"></span></div>
+                <div class="w-24 shrink-0 text-right"><span class="text-[11px] font-mono text-slate-600 font-bold" x-text="cc"></span></div>
+                <div class="flex-1 flex items-center gap-2 min-w-0">
+                  <div class="h-5 rounded-sm" :style="'width:' + (countryChartMax > 0 ? (cnt/countryChartMax*100).toFixed(1) : 0) + '%; background:rgba(14,165,233,' + (0.3 + 0.6*(cnt/countryChartMax)).toFixed(2) + ');min-width:' + (cnt > 0 ? 3 : 0) + 'px'"></div>
+                  <span class="text-[10px] font-mono text-slate-400 group-hover:text-slate-600 whitespace-nowrap shrink-0" x-text="cnt.toLocaleString() + ' (' + (occurrences.length > 0 ? (cnt/occurrences.length*100).toFixed(1) : 0) + '%)'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </template>
+  <template x-if="occurrences.length === 0">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-16 text-center">
+      <i class="fa-solid fa-chart-bar text-5xl text-slate-200 mb-4"></i>
+      <p class="text-base font-semibold text-slate-400 mb-1">No data yet</p>
+      <p class="text-sm text-slate-400">Fetch occurrences from the Query Builder tab first.</p>
+    </div>
+  </template>
+</div><!-- /taxa -->
+
+
+<!-- ══ CITATIONS ═════════════════════════════════════════════════════════ -->
+<div id="panel-citations" class="hidden fade-in space-y-5">
+  <template x-if="citationsData.length > 0">
+    <div class="space-y-5">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-5">
+          <div><p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1"><i class="fa-solid fa-database mr-1.5 text-blue-400"></i>Contributing Datasets</p><p class="text-sm text-slate-600"><span class="font-bold text-slate-800" x-text="citationsData.length"></span> datasets contributed to this query</p></div>
+          <div class="flex gap-2 flex-wrap">
+            <button @click="copyCitations()" id="btn-copy-all-cite" class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-2 rounded-lg bg-white transition-all"><i class="fa-solid fa-copy text-[10px]"></i>Copy All Citations</button>
+            <button @click="copyInTextCitation()" id="btn-intext-cite" class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-2 rounded-lg bg-white transition-all"><i class="fa-solid fa-quote-left text-[10px]"></i>Copy In-text</button>
+            <button @click="downloadCitationsTxt()" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-2 rounded-lg bg-white transition-all"><i class="fa-solid fa-download text-[10px]"></i>Download .txt</button>
+            <button @click="downloadCitationsCSV()" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-2 rounded-lg bg-white transition-all"><i class="fa-solid fa-file-csv text-[10px]"></i>Download CSV</button>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+          <template x-for="[lic, cnt] in Object.entries(licenseSummary)" :key="lic">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold" :class="lic.includes('CC0') ? 'bg-green-100 text-green-700' : lic.includes('CC BY') ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'">
+              <i class="fa-solid fa-scale-balanced text-[9px]"></i><span x-text="lic"></span><span class="opacity-60" x-text="'×' + cnt"></span>
+            </span>
+          </template>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-400"><i class="fa-solid fa-quote-left mr-1.5 text-amber-400"></i>In-text Citation Preview</p>
+          <button @click="copyInTextCitation()" id="btn-intext-cite-2" class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-copy text-[10px]"></i>Copy</button>
+        </div>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4"><p class="text-xs text-slate-700 leading-relaxed font-mono" x-text="inTextPreview || '…'"></p></div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-5 py-3 border-b border-slate-100 bg-slate-50"><p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Full Dataset Listing — <span x-text="citationsData.length"></span> datasets</p></div>
+        <div class="divide-y divide-slate-50 max-h-[600px] overflow-y-auto">
+          <template x-for="(ds, i) in citationsData" :key="i">
+            <div class="flex items-start gap-3 px-5 py-4 hover:bg-slate-50 transition-colors group cite-card cursor-pointer" @click="copySingleCitation(ds.citation)">
+              <span class="text-[10px] font-black font-mono text-slate-300 w-6 shrink-0 mt-0.5 text-right" x-text="(i+1) + '.'"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-slate-800 mb-0.5" x-text="ds.title"></p>
+                <p class="text-xs text-slate-500 leading-relaxed mb-1" x-text="ds.citation"></p>
+                <div class="flex items-center gap-3 flex-wrap">
+                  <span class="text-[10px] text-slate-400 font-mono" x-show="ds.doi" x-text="'doi.org/' + ds.doi"></span>
+                  <a x-show="ds.doi" :href="'https://doi.org/' + ds.doi" target="_blank" @click.stop class="text-[10px] text-amber-500 hover:text-amber-700 hover:underline font-mono">Open DOI ↗</a>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-1.5 shrink-0">
+                <span class="text-[10px] font-bold font-mono px-2 py-0.5 rounded" :class="ds.license.includes('CC0') ? 'bg-green-100 text-green-700' : ds.license.includes('CC BY') ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'" x-text="ds.license"></span>
+                <span class="text-[9px] text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"><i class="fa-solid fa-copy"></i>click to copy</span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+  <template x-if="citationsData.length === 0">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-16 text-center">
+      <i class="fa-solid fa-quote-left text-5xl text-slate-200 mb-4"></i>
+      <p class="text-base font-semibold text-slate-400 mb-1">No citation data yet</p>
+      <p class="text-sm text-slate-400">Run a query first. Dataset metadata is fetched automatically from the GBIF API.</p>
+    </div>
+  </template>
+</div><!-- /citations -->
+
+<!-- ══ EXPORT ════════════════════════════════════════════════════════════ -->
+<div id="panel-export" class="hidden fade-in space-y-5">
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-file-export mr-1 text-amber-400"></i>Export Format</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-5">Choose your output format — opens in Excel, R, Python, QGIS and more.</p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <template x-for="fmt in fmtOptions" :key="fmt.id">
+        <label class="fmt-option"><input type="radio" :value="fmt.id" x-model="exportFmt"><div><p class="text-sm font-bold text-slate-700" x-text="fmt.label"></p><p class="text-[10px] text-slate-400 mt-0.5" x-text="fmt.desc"></p></div></label>
+      </template>
+    </div>
+  </div>
+  <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 items-start" x-show="exportFmt === 'dwca'">
+    <i class="fa-solid fa-circle-info text-blue-400 mt-0.5 shrink-0"></i>
+    <div>
+      <p class="text-sm font-bold text-blue-700">DarwinCore Archive &mdash; occurrence.txt</p>
+      <p class="text-xs text-blue-500 mt-1">Downloads a tab-delimited <code class="font-mono bg-blue-100 px-1 rounded">occurrence.txt</code> with all <strong>226 standard DwC fields</strong> in the exact column order used by GBIF. Compatible with R, Python&rsquo;s pygbif, QGIS, and any Darwin Core&ndash;aware tool. Column selection is bypassed &mdash; all fields are always included.</p>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6" x-show="exportFmt !== 'dwca'">
+    <div class="flex items-center justify-between mb-3">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-table-columns mr-1 text-amber-400"></i>Columns (<span x-text="exportCols.length"></span> selected)</p>
+      <div class="flex gap-2">
+        <button @click="exportCols = allColumns.map(c=>c.key)" class="text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all">All</button>
+        <button @click="exportCols = coreExportCols.slice()" class="text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all">Core</button>
+        <button @click="exportCols = []" class="text-[11px] font-bold text-slate-500 hover:text-red-500 border border-slate-200 hover:border-red-200 px-3 py-1.5 rounded-lg bg-white transition-all">None</button>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <template x-for="col in allColumns" :key="col.key">
+        <div class="col-chip" :class="exportCols.includes(col.key) ? 'on' : ''" @click="toggleExportCol(col.key)">
+          <i class="fa-solid text-[9px]" :class="exportCols.includes(col.key) ? 'fa-check text-amber-500' : 'fa-plus text-slate-300'"></i><span x-text="col.label"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4"><i class="fa-solid fa-gear mr-1 text-amber-400"></i>Export Options</p>
+    <div class="grid sm:grid-cols-2 gap-3 mb-5">
+      <label class="check-option"><input type="checkbox" x-model="exportOpts.includeHeader"><div><p class="text-sm font-semibold text-slate-700">Include header row</p><p class="text-[10px] text-slate-400 mt-0.5">Column names as first row</p></div></label>
+      <label class="check-option"><input type="checkbox" x-model="exportOpts.onlyCoords"><div><p class="text-sm font-semibold text-slate-700">Only records with coordinates</p><p class="text-[10px] text-slate-400 mt-0.5">Drops records missing lat/lon</p></div></label>
+      <label class="check-option"><input type="checkbox" x-model="exportOpts.addGBIFUrl"><div><p class="text-sm font-semibold text-slate-700">Add GBIF occurrence URL</p><p class="text-[10px] text-slate-400 mt-0.5">Appends a clickable link column</p></div></label>
+      <label class="check-option"><input type="checkbox" x-model="exportOpts.dedup"><div><p class="text-sm font-semibold text-slate-700">Deduplicate by Lat/Lon/Date</p><p class="text-[10px] text-slate-400 mt-0.5">Removes duplicate event records</p></div></label>
+      <label class="check-option"><input type="checkbox" x-model="exportOpts.includeCitations"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-quote-left mr-1 text-amber-400"></i>Include citations</p><p class="text-[10px] text-slate-400 mt-0.5">Also download citations .txt</p></div></label>
+      <label class="check-option"><input type="checkbox" x-model="exportOpts.includePhenology"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-calendar mr-1 text-amber-400"></i>Include phenology CSV</p><p class="text-[10px] text-slate-400 mt-0.5">Monthly record counts bundled</p></div></label>
+    </div>
+    <div class="mb-5"><label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Filename <span class="normal-case font-normal text-slate-300">(no extension)</span></label><input x-model="exportFilename" type="text" placeholder="gbif_occurrences" class="w-full max-w-sm p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all"></div>
+    <div class="flex flex-wrap gap-5 mb-5 p-4 bg-slate-50 rounded-xl border border-slate-200">
+      <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Records</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="exportRecordCount.toLocaleString()"></p></div>
+      <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Columns</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="exportFmt==='dwca'?226:exportCols.length"></p></div>
+      <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Format</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="exportFmt==='dwca'?'DwC-A':exportFmt.toUpperCase()"></p></div>
+      <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Citations</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="citationsData.length"></p></div>
+      <div><p class="text-[9px] text-slate-400 uppercase tracking-widest">Est. Size</p><p class="font-bold text-slate-700 font-mono text-lg" x-text="estSize"></p></div>
+    </div>
+    <div class="flex gap-3 flex-wrap">
+      <button @click="runExport()" :disabled="occurrences.length === 0 || (exportFmt !== 'dwca' && exportCols.length === 0)" :class="(occurrences.length === 0 || (exportFmt !== 'dwca' && exportCols.length === 0)) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-green-700 active:scale-95'" class="bg-green-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2"><i class="fa-solid fa-download text-xs"></i>Download <span x-text="exportFmt === 'dwca' ? 'occurrence.txt' : exportFmt.toUpperCase()"></span></button>
+      <template x-if="citationsData.length > 0">
+        <button @click="downloadCitationsTxt()" class="bg-white border border-slate-200 text-slate-600 hover:bg-amber-50 hover:border-amber-300 px-6 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 active:scale-95"><i class="fa-solid fa-quote-left text-xs text-amber-500"></i>Download Citations</button>
+      </template>
+    </div>
+    <template x-if="occurrences.length === 0"><p class="text-xs text-slate-400 italic mt-3">No data yet — run a query from the Query Builder tab first.</p></template>
+  </div>
+</div><!-- /export -->
+
+</main>
+
+<footer class="border-t border-slate-200 bg-white mt-auto">
+  <div class="max-w-5xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-globe text-slate-300"></i>
+      <span class="text-sm font-semibold text-slate-400">GBIF Ultimate Downloader</span>
+    </div>
+    <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
+      <p>Created by Frank Hogland © 2026-present. All Rights Reserved.</p>
+      <span class="text-slate-200">·</span>
+      <p class="font-mono">Data from GBIF.org · Geocoding via OpenStreetMap Nominatim · Maps via Leaflet</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+const TABS = ['build','map','results','taxa','citations','export'];
+function showTab(name) {
+  TABS.forEach(id => {
+    document.getElementById('panel-' + id).classList.toggle('hidden', id !== name);
+    const t = document.getElementById('tab-' + id);
+    if (!t) return;
+    t.classList.toggle('tab-active', id === name);
+    t.classList.toggle('tab-inactive', id !== name);
+  });
+  if (name === 'map') {
+    setTimeout(() => {
+      const a = Alpine.$data(document.querySelector('[x-data="app"]'));
+      if (a) a.initMap();
+    }, 80);
+  }
+  if (name === 'taxa') {
+    setTimeout(() => {
+      const a = Alpine.$data(document.querySelector('[x-data="app"]'));
+      if (a && a.yearChartRows.length > 0) a.renderYearChart();
+      if (a && a.phenologyTotal > 0) a.renderPhenologyChartTaxa();
+    }, 120);
+  }
+}
+
+const INAT_KEY     = '50c9509d-22c7-4a22-a47d-8c48425ef4a7';
+const BUGGUIDE_KEY = '7f5e4129-0717-428e-876a-464fbd5d9a47';
+const MONTH_NAMES  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    // Core
+    loading:false, statusMsg:'', progress:0, fetchError:null,
+    log:[], occurrences:[], totalCount:null,
+    stats:{withCoords:0,species:0,datasets:0,countries:0,yearRange:'—'},
+
+    // Citations
+    citationsData:[], inTextPreview:'', datasetInfoCache:{},
+
+    // Phenology
+    phenologyData:{}, phenologyTotal:0, _phenoChartTaxa:null,
+
+    // Taxa stats
+    _speciesCountData:{}, _institutionCountData:{}, _borCountData:{}, _yearCountData:{}, _countryCountData:{},
+    _yearChart:null,
+
+    // Taxon
+    taxonQuery:'', taxonSearching:false, taxonSuggestions:[], selectedTaxa:[],
+
+    // Geo
+    geoQuery:'', geoSearching:false, geoSuggestions:[], bboxRegions:[], geoDebugLog:[],
+    drawnGeometry:null,
+
+    // Filters
+    filters:{
+      rank:'', continent:'', country:'',
+      stateProvince:'', county:'', municipality:'', locality:'',
+      yearFrom:'', yearTo:'', months:[],
+      basisOfRecord:['PRESERVED_SPECIMEN','MATERIAL_SAMPLE','HUMAN_OBSERVATION'],
+      hasCoordinate:false, noGeoIssues:false, presentOnly:false,
+      excludeINat:true, excludeBugGuide:true, datasetKey:'', maxRecords:'',
+    },
+
+    monthNames:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+
+    borOptions:[
+      {value:'PRESERVED_SPECIMEN',label:'Preserved Specimen',desc:'Museum & herbarium specimens'},
+      {value:'HUMAN_OBSERVATION', label:'Human Observation', desc:'Field observations'},
+      {value:'MATERIAL_SAMPLE',   label:'Material Sample',   desc:'DNA, tissue samples'},
+      {value:'MACHINE_OBSERVATION',label:'Machine Observation',desc:'Camera / sensor data'},
+      {value:'LIVING_SPECIMEN',   label:'Living Specimen',   desc:'Zoo, botanical gardens'},
+      {value:'FOSSIL_SPECIMEN',   label:'Fossil Specimen',   desc:'Palaeontology records'},
+      {value:'LITERATURE',        label:'Literature',        desc:'Literature-derived data'},
+      {value:'OCCURRENCE',        label:'Occurrence (other)',desc:'Unspecified occurrence'},
+    ],
+
+    // Map
+    _map:null, _clusterGroup:null, _drawLayer:null, _baseLayers:{}, _plainLayer:null,
+    _activeDrawHandler:null,
+    drawMode:null, mapPointCount:0,
+    mapBasemap:'osm', mapCluster:true, mapColorBySpecies:false,
+
+    // Results — pagination
+    resultSearch:'', resultSort:'gbifID', resultSortDir:'asc',
+    resultPageSize:50,   // records per page
+    resultPage:1,        // current page (1-indexed)
+
+    allColumns:[
+      {key:'gbifID',               label:'GBIF ID'},
+      {key:'occurrenceID',         label:'Occurrence ID'},
+      {key:'species',              label:'Species'},
+      {key:'scientificName',       label:'Scientific Name'},
+      {key:'kingdom',              label:'Kingdom'},
+      {key:'phylum',               label:'Phylum'},
+      {key:'class',                label:'Class'},
+      {key:'order',                label:'Order'},
+      {key:'family',               label:'Family'},
+      {key:'genus',                label:'Genus'},
+      {key:'taxonRank',            label:'Rank'},
+      {key:'continent',            label:'Continent'},
+      {key:'countryCode',          label:'Country'},
+      {key:'stateProvince',        label:'State/Province'},
+      {key:'county',               label:'County'},
+      {key:'municipality',         label:'Municipality'},
+      {key:'locality',             label:'Locality'},
+      {key:'decimalLatitude',      label:'Latitude'},
+      {key:'decimalLongitude',     label:'Longitude'},
+      {key:'coordinateUncertaintyInMeters',label:'Coord Uncertainty (m)'},
+      {key:'eventDate',            label:'Event Date'},
+      {key:'year',                 label:'Year'},
+      {key:'month',                label:'Month'},
+      {key:'day',                  label:'Day'},
+      {key:'basisOfRecord',        label:'Basis of Record'},
+      {key:'recordedBy',           label:'Recorded By'},
+      {key:'identifiedBy',         label:'Identified By'},
+      {key:'institutionCode',      label:'Institution'},
+      {key:'collectionCode',       label:'Collection'},
+      {key:'catalogNumber',        label:'Catalog #'},
+      {key:'datasetName',          label:'Dataset'},
+      {key:'datasetKey',           label:'Dataset Key'},
+      {key:'occurrenceRemarks',    label:'Remarks'},
+      {key:'sex',                  label:'Sex'},
+      {key:'lifeStage',            label:'Life Stage'},
+      {key:'issue',                label:'Issues'},
+      {key:'license',              label:'License'},
+    ],
+
+    visibleCols:['gbifID','species','countryCode','stateProvince','county','municipality','locality','decimalLatitude','decimalLongitude','year','month','basisOfRecord','recordedBy','institutionCode'],
+    coreExportCols:['gbifID','species','countryCode','stateProvince','county','municipality','locality','decimalLatitude','decimalLongitude','year','month','basisOfRecord','recordedBy','identifiedBy','institutionCode','datasetName'],
+
+    // Export
+    exportFmt:'csv',
+    exportCols:['gbifID','species','countryCode','stateProvince','county','municipality','locality','decimalLatitude','decimalLongitude','year','month','basisOfRecord','recordedBy','identifiedBy','institutionCode','datasetName'],
+    exportFilename:'gbif_occurrences',
+    exportOpts:{includeHeader:true,onlyCoords:false,addGBIFUrl:true,dedup:false,includeCitations:false,includePhenology:false},
+
+    fmtOptions:[
+      {id:'csv',    label:'CSV',    desc:'Comma-separated · Excel, R, Python, QGIS'},
+      {id:'tsv',    label:'TSV',    desc:'Tab-separated · compatible with most tools'},
+      {id:'json',   label:'JSON',   desc:'Structured JSON array · for developers'},
+      {id:'geojson',label:'GeoJSON',desc:'Geographic JSON · QGIS, ArcGIS, Mapbox'},
+      {id:'dwca',   label:'DwC-A',  desc:'DarwinCore occurrence.txt · all 226 standard fields, tab-delimited'},
+    ],
+    dwcaCols:['gbifID','accessRights','bibliographicCitation','language','license','modified','publisher','references','rightsHolder','type','institutionID','collectionID','datasetID','institutionCode','collectionCode','datasetName','ownerInstitutionCode','basisOfRecord','informationWithheld','dataGeneralizations','dynamicProperties','occurrenceID','catalogNumber','recordNumber','recordedBy','recordedByID','individualCount','organismQuantity','organismQuantityType','sex','lifeStage','reproductiveCondition','caste','behavior','vitality','establishmentMeans','degreeOfEstablishment','pathway','georeferenceVerificationStatus','occurrenceStatus','preparations','disposition','associatedOccurrences','associatedReferences','associatedSequences','associatedTaxa','otherCatalogNumbers','occurrenceRemarks','organismID','organismName','organismScope','associatedOrganisms','previousIdentifications','organismRemarks','materialEntityID','materialEntityRemarks','verbatimLabel','materialSampleID','eventID','parentEventID','eventType','fieldNumber','eventDate','eventTime','startDayOfYear','endDayOfYear','year','month','day','verbatimEventDate','habitat','samplingProtocol','sampleSizeValue','sampleSizeUnit','samplingEffort','fieldNotes','eventRemarks','locationID','higherGeographyID','higherGeography','continent','waterBody','islandGroup','island','countryCode','stateProvince','county','municipality','locality','verbatimLocality','verbatimElevation','verticalDatum','verbatimDepth','minimumDistanceAboveSurfaceInMeters','maximumDistanceAboveSurfaceInMeters','locationAccordingTo','locationRemarks','decimalLatitude','decimalLongitude','coordinateUncertaintyInMeters','coordinatePrecision','pointRadiusSpatialFit','verbatimCoordinateSystem','verbatimSRS','footprintWKT','footprintSRS','footprintSpatialFit','georeferencedBy','georeferencedDate','georeferenceProtocol','georeferenceSources','georeferenceRemarks','geologicalContextID','earliestEonOrLowestEonothem','latestEonOrHighestEonothem','earliestEraOrLowestErathem','latestEraOrHighestErathem','earliestPeriodOrLowestSystem','latestPeriodOrHighestSystem','earliestEpochOrLowestSeries','latestEpochOrHighestSeries','earliestAgeOrLowestStage','latestAgeOrHighestStage','lowestBiostratigraphicZone','highestBiostratigraphicZone','lithostratigraphicTerms','group','formation','member','bed','identificationID','verbatimIdentification','identificationQualifier','typeStatus','identifiedBy','identifiedByID','dateIdentified','identificationReferences','identificationVerificationStatus','identificationRemarks','taxonID','scientificNameID','acceptedNameUsageID','parentNameUsageID','originalNameUsageID','nameAccordingToID','namePublishedInID','taxonConceptID','scientificName','acceptedNameUsage','parentNameUsage','originalNameUsage','nameAccordingTo','namePublishedIn','namePublishedInYear','higherClassification','kingdom','phylum','class','order','superfamily','family','subfamily','tribe','subtribe','genus','genericName','subgenus','infragenericEpithet','specificEpithet','infraspecificEpithet','cultivarEpithet','taxonRank','verbatimTaxonRank','vernacularName','nomenclaturalCode','taxonomicStatus','nomenclaturalStatus','taxonRemarks','datasetKey','publishingCountry','lastInterpreted','elevation','elevationAccuracy','depth','depthAccuracy','distanceFromCentroidInMeters','issue','taxonomicIssue','nonTaxonomicIssue','mediaType','hasCoordinate','hasGeospatialIssues','taxonKey','acceptedTaxonKey','kingdomKey','phylumKey','classKey','orderKey','familyKey','genusKey','subgenusKey','speciesKey','species','acceptedScientificName','verbatimScientificName','typifiedName','protocol','lastParsed','lastCrawled','isInvasive','repatriated','relativeOrganismQuantity','projectId','isSequenced','gbifRegion','publishedByGbifRegion','level0Gid','level0Name','level1Gid','level1Name','level2Gid','level2Name','level3Gid','level3Name','iucnRedListCategory'],
+
+    // ── Computed ─────────────────────────────────────────────────────────
+    get filteredOccs() {
+      let arr = this.occurrences;
+      if (this.resultSearch.trim()) {
+        const q = this.resultSearch.toLowerCase();
+        arr = arr.filter(o => Object.values(o).some(v => v && String(v).toLowerCase().includes(q)));
+      }
+      // Sort
+      const key = this.resultSort, dir = this.resultSortDir === 'asc' ? 1 : -1;
+      arr = [...arr].sort((a, b) => {
+        const av = a[key] ?? '', bv = b[key] ?? '';
+        const an = parseFloat(av), bn = parseFloat(bv);
+        if (!isNaN(an) && !isNaN(bn)) return (an - bn) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+      return arr;
+    },
+    get totalPages() {
+      return Math.max(1, Math.ceil(this.filteredOccs.length / this.resultPageSize));
+    },
+    get pagedOccs() {
+      const start = (this.resultPage - 1) * this.resultPageSize;
+      return this.filteredOccs.slice(start, start + this.resultPageSize);
+    },
+    // Generates the page-number pill list with ellipsis compression
+    get paginationPages() {
+      const total = this.totalPages, cur = this.resultPage;
+      if (total <= 7) return Array.from({length: total}, (_, i) => i + 1);
+      const pages = [];
+      const addPage = p => { if (!pages.includes(p)) pages.push(p); };
+      addPage(1); addPage(total);
+      for (let p = Math.max(2, cur - 2); p <= Math.min(total - 1, cur + 2); p++) addPage(p);
+      const sorted = pages.sort((a, b) => a - b);
+      const result = [];
+      for (let i = 0; i < sorted.length; i++) {
+        if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push('…');
+        result.push(sorted[i]);
+      }
+      return result;
+    },
+    get exportRecordCount() {
+      let r=[...this.occurrences];
+      if(this.exportOpts.onlyCoords)r=r.filter(o=>o.decimalLatitude!=null);
+      if(this.exportOpts.dedup){const s=new Set();r=r.filter(o=>{const k=`${o.decimalLatitude}|${o.decimalLongitude}|${o.eventDate}`;if(s.has(k))return false;s.add(k);return true;});}
+      return r.length;
+    },
+    get estSize() {
+      const b=this.exportRecordCount*this.exportCols.length*18;
+      if(b<1024)return b+'B'; if(b<1048576)return(b/1024).toFixed(1)+' KB';
+      return(b/1048576).toFixed(1)+' MB';
+    },
+    get licenseSummary() {
+      const counts={};
+      for(const ds of this.citationsData){counts[ds.license]=(counts[ds.license]||0)+1;}
+      return counts;
+    },
+    // Taxa stats computed
+    get speciesChartRows() {
+      return Object.entries(this._speciesCountData).sort((a,b)=>b[1]-a[1]);
+    },
+    get speciesChartMax() {
+      const v=Object.values(this._speciesCountData);
+      return v.length?Math.max(...v):1;
+    },
+    get institutionChartRows() {
+      return Object.entries(this._institutionCountData).sort((a,b)=>b[1]-a[1]).slice(0,30);
+    },
+    get institutionChartMax() {
+      const r=this.institutionChartRows;
+      return r.length?r[0][1]:1;
+    },
+    get borChartRows() {
+      return Object.entries(this._borCountData).sort((a,b)=>b[1]-a[1]);
+    },
+    get yearChartRows() {
+      return Object.entries(this._yearCountData).sort((a,b)=>parseInt(a[0])-parseInt(b[0]));
+    },
+    get countryChartRows() {
+      return Object.entries(this._countryCountData||{}).sort((a,b)=>b[1]-a[1]).slice(0,30);
+    },
+    get countryChartMax() {
+      const r=this.countryChartRows;return r.length?r[0][1]:1;
+    },
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+    addLog(msg,type='info'){this.log.push({msg,type});if(this.log.length>500)this.log.shift();},
+    fmtCell(occ,key){const v=occ[key];if(v==null||v==='')return'—';if((key==='decimalLatitude'||key==='decimalLongitude')&&!isNaN(parseFloat(v)))return parseFloat(v).toFixed(5);return String(v).replace(/_/g,' ');},
+    toggleMonth(m){const i=this.filters.months.indexOf(m);if(i>=0)this.filters.months.splice(i,1);else this.filters.months.push(m);},
+    toggleCol(key){const i=this.visibleCols.indexOf(key);if(i>=0)this.visibleCols.splice(i,1);else this.visibleCols.push(key);},
+    toggleExportCol(key){const i=this.exportCols.indexOf(key);if(i>=0)this.exportCols.splice(i,1);else this.exportCols.push(key);},
+
+    getLicense(url){
+      if(!url)return'CC BY 4.0';
+      if(url.startsWith('CC'))return url.replace(/_/g,' ');
+      const u=url.toLowerCase();
+      if(u.includes('publicdomain/zero')||u.includes('cc0'))return'CC0 1.0';
+      const parts=[];
+      if(u.includes('/by'))parts.push('BY');
+      if(u.includes('nc'))parts.push('NC');
+      if(u.includes('sa'))parts.push('SA');
+      const vm=u.match(/(\d\.\d)/);
+      const ver=vm?` ${vm[1]}`:'4.0';
+      return parts.length?`CC ${parts.join('-')} ${ver}`:'Copyrighted';
+    },
+
+    async fetchDatasetInfo(datasetKey){
+      if(!datasetKey)return null;
+      if(this.datasetInfoCache[datasetKey]!==undefined)return this.datasetInfoCache[datasetKey];
+      try{
+        const res=await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`,{signal:AbortSignal.timeout(8000)});
+        if(!res.ok){this.datasetInfoCache[datasetKey]=null;return null;}
+        const d=await res.json();
+        const title=d.title||'GBIF Dataset';
+        const doi=d.doi||null;
+        const doiUrl=doi?`https://doi.org/${doi}`:null;
+        let citationText=d.citation?.text||null;
+        if(!citationText&&doi)citationText=`${title} [Dataset]. GBIF. ${doiUrl}`;
+        if(!citationText)citationText=`${title} (via GBIF.org)`;
+        const licenseLabel=this.getLicense(d.license||'');
+        const info={title,doi,doiUrl,license:licenseLabel,citation:citationText};
+        this.datasetInfoCache[datasetKey]=info;
+        return info;
+      }catch(e){this.datasetInfoCache[datasetKey]=null;return null;}
+    },
+
+    async preloadDatasetInfo(datasetKeys){
+      const PARALLEL=10;
+      const keys=[...new Set(datasetKeys)].filter(Boolean);
+      if(!keys.length)return;
+      this.addLog(`📚 Fetching metadata for ${keys.length} dataset(s)…`);
+      for(let i=0;i<keys.length;i+=PARALLEL){
+        const batch=keys.slice(i,i+PARALLEL);
+        await Promise.all(batch.map(k=>this.fetchDatasetInfo(k)));
+        if(i%20===0)await new Promise(r=>setTimeout(r,0));
+      }
+      const resolved=Object.values(this.datasetInfoCache).filter(Boolean).length;
+      this.addLog(`✅ Dataset metadata resolved (${resolved}/${keys.length})`, 'ok');
+    },
+
+    buildCitationsData(){
+      const seen=new Set();const out=[];
+      for(const[key,info]of Object.entries(this.datasetInfoCache)){
+        if(!info)continue;
+        const dedup=info.citation.trim();
+        if(seen.has(dedup))continue;
+        seen.add(dedup);
+        out.push({title:info.title,doi:info.doi||null,license:info.license,citation:info.citation});
+      }
+      this.citationsData=out;
+      this.inTextPreview=this.buildInTextCitation(out);
+    },
+
+    parseInTextRef(citationText){
+      if(!citationText)return{intext:'',year:9999,sortKey:''};
+      const yearMatch=citationText.match(/\((\d{4})\)/);
+      const year=yearMatch?parseInt(yearMatch[1]):9999;
+      const authorPart=citationText.split(/\s*\(\d{4}\)/)[0].trim();
+      const parts=authorPart.split(',').map(s=>s.trim()).filter(Boolean);
+      const isPersonal=parts.some(p=>/\b[A-Z]{1,3}\s*$/.test(p));
+      let intext;
+      if(isPersonal){
+        const lastNames=parts.map(p=>p.trim().split(/\s+/)[0]);
+        if(lastNames.length===1)intext=`${lastNames[0]}, ${year}`;
+        else if(lastNames.length===2)intext=`${lastNames[0]} & ${lastNames[1]}, ${year}`;
+        else intext=`${lastNames[0]} et al., ${year}`;
+      }else{intext=year<9999?`${authorPart}, ${year}`:authorPart;}
+      return{intext,year,sortKey:`${year}_${authorPart.toLowerCase()}`};
+    },
+
+    buildInTextCitation(items){
+      if(!items||!items.length)return'';
+      const parsed=items.map(item=>({...this.parseInTextRef(item.citation||''),license:item.license||'CC BY 4.0'}));
+      parsed.sort((a,b)=>a.sortKey<b.sortKey?-1:a.sortKey>b.sortKey?1:0);
+      const refs=parsed.map(p=>p.intext).filter(Boolean).join('; ');
+      const seenL=new Set();const licenses=[];
+      for(const p of parsed){const lic=(p.license||'CC BY 4.0').trim();if(lic&&!seenL.has(lic)){seenL.add(lic);licenses.push(lic);}}
+      return`Data derived from (${refs}). Data licensed under ${licenses.join(' and ')}.`;
+    },
+
+    async copyCitations(){
+      if(!this.citationsData.length)return;
+      const text=this.citationsData.map((d,i)=>`${i+1}. ${d.citation}`).join('\n\n');
+      try{await navigator.clipboard.writeText(text);this._flashBtn('btn-copy-all-cite');}catch(e){}
+    },
+    async copyInTextCitation(){
+      if(!this.inTextPreview)return;
+      try{await navigator.clipboard.writeText(this.inTextPreview);this._flashBtn('btn-intext-cite');this._flashBtn('btn-intext-cite-2');}catch(e){}
+    },
+    async copySingleCitation(citText){
+      if(!citText)return;
+      try{await navigator.clipboard.writeText(citText);}catch(e){}
+      const flash=document.createElement('div');
+      flash.style.cssText='position:fixed;top:16px;right:16px;background:#dcfce7;border:1px solid #86efac;color:#16a34a;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;z-index:9999;transition:opacity 0.4s';
+      flash.textContent='✓ Citation copied';document.body.appendChild(flash);
+      setTimeout(()=>{flash.style.opacity='0';setTimeout(()=>flash.remove(),400);},1800);
+    },
+    downloadCitationsTxt(){
+      if(!this.citationsData.length)return;
+      const lines=['GBIF Query Citations','='.repeat(70),'','IN-TEXT CITATION:','-'.repeat(70),this.inTextPreview,'','='.repeat(70),'','FULL REFERENCE LIST:','-'.repeat(70),...this.citationsData.map((d,i)=>[`${i+1}. ${d.title}`,`   ${d.citation}`,`   License: ${d.license}${d.doi?' · doi.org/'+d.doi:''}`,'']).flat(),`Total datasets: ${this.citationsData.length}`];
+      this._dl(lines.join('\n'),'gbif_citations.txt','text/plain');
+    },
+    downloadCitationsCSV(){
+      if(!this.citationsData.length)return;
+      const esc=v=>{const s=String(v||'');return s.includes(',')||s.includes('"')||s.includes('\n')?`"${s.replace(/"/g,'""')}"`:`${s}`;};
+      const lines=['Title,Citation,License,DOI'];
+      for(const d of this.citationsData)lines.push([esc(d.title),esc(d.citation),esc(d.license),esc(d.doi||'')].join(','));
+      this._dl(lines.join('\n'),'gbif_citations.csv','text/csv');
+    },
+    _flashBtn(id){
+      const btn=document.getElementById(id);if(!btn)return;
+      const orig=btn.innerHTML;btn.classList.add('copied');
+      btn.innerHTML='<i class="fa-solid fa-check mr-1 text-[10px]"></i>Copied!';
+      setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=orig;},2000);
+    },
+
+    // ── Phenology ─────────────────────────────────────────────────────────
+    buildPhenology(){
+      const pheno={};
+      for(const occ of this.occurrences){
+        const mo=parseInt(occ.month||occ.eventDate?.split('-')[1]);
+        if(!isNaN(mo)&&mo>=1&&mo<=12)pheno[MONTH_NAMES[mo-1]]=(pheno[MONTH_NAMES[mo-1]]||0)+1;
+      }
+      const total=Object.values(pheno).reduce((a,b)=>a+b,0);
+      const final={};
+      for(const m of MONTH_NAMES){
+        if(pheno[m]!==undefined)final[m]={count:pheno[m],percentage:total>0?parseFloat(((pheno[m]/total)*100).toFixed(1)):0};
+      }
+      this.phenologyData=final;this.phenologyTotal=total;
+    },
+    async copyPhenologyCSV(){
+      if(!this.phenologyTotal)return;
+      const header='Month,Count,Percentage';
+      const rows=Object.entries(this.phenologyData).map(([m,d])=>`${m},${d.count},${d.percentage}`);
+      try{await navigator.clipboard.writeText([header,...rows].join('\n'));this._flashBtn('btn-copy-pheno');}catch(e){}
+    },
+    downloadPhenologyCSV(){
+      if(!this.phenologyTotal)return;
+      const lines=['Month,Count,Percentage',...Object.entries(this.phenologyData).map(([m,d])=>`${m},${d.count},${d.percentage}`)];
+      this._dl(lines.join('\n'),'gbif_phenology.csv','text/csv');
+    },
+
+    // ── Taxa stats ─────────────────────────────────────────────────────────
+    buildTaxaStats(){
+      const spCount={}, instCount={}, borCount={}, yearCount={}, ccCount={};
+      for(const o of this.occurrences){
+        const sp=o.species||null;
+        if(sp)spCount[sp]=(spCount[sp]||0)+1;
+        const inst=o.institutionCode||o.collectionCode||null;
+        if(inst)instCount[inst]=(instCount[inst]||0)+1;
+        const bor=o.basisOfRecord||null;
+        if(bor)borCount[bor]=(borCount[bor]||0)+1;
+        const yr=o.year||null;
+        if(yr&&!isNaN(parseInt(yr)))yearCount[yr]=(yearCount[yr]||0)+1;
+        const cc=o.countryCode||null;
+        if(cc)ccCount[cc]=(ccCount[cc]||0)+1;
+      }
+      this._speciesCountData=spCount;
+      this._institutionCountData=instCount;
+      this._borCountData=borCount;
+      this._yearCountData=yearCount;
+      this._countryCountData=ccCount;
+      const badge=document.getElementById('taxa-badge');
+      if(badge){badge.textContent=Object.keys(spCount).length.toLocaleString();badge.classList.remove('hidden');}
+    },
+    renderYearChart(){
+      const canvas=document.getElementById('yearChart');
+      if(!canvas||!this.yearChartRows.length)return;
+      if(this._yearChart){this._yearChart.destroy();this._yearChart=null;}
+      const labels=this.yearChartRows.map(([y])=>y);
+      const counts=this.yearChartRows.map(([,c])=>c);
+      this._yearChart=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data:counts,backgroundColor:'rgba(34,197,94,0.55)',borderColor:'#16a34a',borderWidth:1.5,borderRadius:3,hoverBackgroundColor:'rgba(22,163,74,0.75)'}]},options:{animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#94a3b8',bodyColor:'#f8fafc',borderColor:'#334155',borderWidth:1,padding:8}},scales:{x:{ticks:{font:{size:9,family:"'Courier New',monospace"},color:'#94a3b8',maxRotation:45},grid:{display:false},border:{display:false}},y:{beginAtZero:true,ticks:{precision:0,font:{size:9,family:"'Courier New',monospace"},color:'#94a3b8'},grid:{color:'#f1f5f9'},border:{display:false}}}}});
+    },
+    renderPhenologyChartTaxa(){
+      const canvas=document.getElementById('phenologyChartTaxa');
+      if(!canvas||!this.phenologyTotal)return;
+      if(this._phenoChartTaxa){this._phenoChartTaxa.destroy();this._phenoChartTaxa=null;}
+      const labels=Object.keys(this.phenologyData);
+      const counts=labels.map(m=>this.phenologyData[m].count);
+      this._phenoChartTaxa=new Chart(canvas,{type:'bar',data:{labels,datasets:[{data:counts,backgroundColor:'rgba(251,191,36,0.65)',borderColor:'#d97706',borderWidth:1.5,borderRadius:4,hoverBackgroundColor:'rgba(217,119,6,0.8)'}]},options:{animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1e293b',titleColor:'#94a3b8',bodyColor:'#f8fafc',borderColor:'#334155',borderWidth:1,padding:10,callbacks:{label:ctx=>`  ${ctx.parsed.y} records (${this.phenologyData[ctx.label]?.percentage||0}%)`}}},scales:{x:{ticks:{font:{size:11,style:'italic',family:'Georgia,serif'},color:'#334155'},grid:{display:false},border:{display:false}},y:{beginAtZero:true,ticks:{precision:0,font:{size:10,family:"'Courier New',monospace"},color:'#94a3b8'},grid:{color:'#f1f5f9'},border:{display:false}}}}});
+    },
+
+    async copySpeciesCSV(){
+      if(!this.speciesChartRows.length)return;
+      const header='Species,Count,Percentage';
+      const total=this.occurrences.length;
+      const rows=this.speciesChartRows.map(([sp,cnt])=>`"${sp}",${cnt},${total>0?(cnt/total*100).toFixed(2):0}`);
+      try{await navigator.clipboard.writeText([header,...rows].join('\n'));this._flashBtn('btn-copy-taxa');}catch(e){}
+    },
+    downloadSpeciesCSV(){
+      if(!this.speciesChartRows.length)return;
+      const total=this.occurrences.length;
+      const header='Species,Count,Percentage';
+      const rows=this.speciesChartRows.map(([sp,cnt])=>`"${sp}",${cnt},${total>0?(cnt/total*100).toFixed(2):0}`);
+      this._dl([header,...rows].join('\n'),'gbif_species_counts.csv','text/csv');
+    },
+
+    // ── Taxon search ─────────────────────────────────────────────────────
+    async searchTaxon(){
+      const q=this.taxonQuery.trim();
+      if(!q||q.length<2){this.taxonSuggestions=[];return;}
+      this.taxonSearching=true;
+      try{
+        const r=await fetch(`https://api.gbif.org/v1/species/suggest?q=${encodeURIComponent(q)}&limit=12&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`);
+        const d=await r.json();
+        this.taxonSuggestions=d.filter(s=>['SPECIES','SUBSPECIES','GENUS','FAMILY','ORDER','CLASS','PHYLUM','KINGDOM'].includes(s.rank)).slice(0,10);
+      }catch(e){this.addLog('Taxon search error: '+e.message,'warn');}
+      finally{this.taxonSearching=false;}
+    },
+    addTaxon(s){
+      if(this.selectedTaxa.some(t=>t.key===s.key)){this.taxonSuggestions=[];this.taxonQuery='';return;}
+      this.selectedTaxa.push(s);this.taxonSuggestions=[];this.taxonQuery='';
+      this.addLog(`✅ Taxon added: ${s.canonicalName} (key: ${s.key} · ${s.rank})`,'ok');
+    },
+
+    // ── Place search ──────────────────────────────────────────────────────
+    _gdbg(msg,type='info'){this.geoDebugLog.push({msg,type});console.log('[GEO]',msg);},
+
+    async searchPlace(){
+      const q=this.geoQuery.trim();if(!q)return;
+      this.geoSearching=true;this.geoDebugLog=[];
+      try{
+        const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&polygon_geojson=1&addressdetails=1`;
+        this._gdbg(`Fetching: ${url}`);
+        const r=await fetch(url,{headers:{'Accept-Language':'en'}});
+        this._gdbg(`HTTP ${r.status} ${r.statusText}`);
+        const raw=await r.json();
+        this._gdbg(`Got ${raw.length} results`);
+        if(raw[0])this._gdbg(`Top result: ${raw[0].display_name} | geojson type: ${raw[0].geojson?.type??'NONE'}`);
+        this.geoSuggestions=raw;
+      }catch(e){this._gdbg('FETCH ERROR: '+e.message,'warn');this.addLog('Place search error: '+e.message,'warn');}
+      finally{this.geoSearching=false;}
+    },
+
+    _rdpPerp(p1,p2,p){const dx=p2[0]-p1[0],dy=p2[1]-p1[1];if(!dx&&!dy)return Math.hypot(p[0]-p1[0],p[1]-p1[1]);const t=Math.max(0,Math.min(1,((p[0]-p1[0])*dx+(p[1]-p1[1])*dy)/(dx*dx+dy*dy)));return Math.hypot(p[0]-(p1[0]+t*dx),p[1]-(p1[1]+t*dy));},
+    _rdp(pts,eps){if(pts.length<=2)return pts;let mx=0,mi=0;for(let i=1;i<pts.length-1;i++){const d=this._rdpPerp(pts[0],pts[pts.length-1],pts[i]);if(d>mx){mx=d;mi=i;}}if(mx>eps){const L=this._rdp(pts.slice(0,mi+1),eps),R=this._rdp(pts.slice(mi),eps);return[...L.slice(0,-1),...R];}return[pts[0],pts[pts.length-1]];},
+    _simplifyRing(ring,maxPts=50){
+      if(ring.length<=maxPts)return ring;
+      let eps=0.001,s=ring;
+      while(s.length>maxPts&&eps<1000){s=this._rdp(ring,eps);eps*=2.5;}
+      if(s.length>maxPts){
+        const step=Math.ceil(s.length/maxPts);
+        s=s.filter((_,i)=>i%step===0);
+      }
+      if(s.length>1&&(s[0][0]!==s[s.length-1][0]||s[0][1]!==s[s.length-1][1]))s=[...s,s[0]];
+      return s;
+    },
+    _largestRing(geojson){
+      if(geojson.type==='Polygon')return geojson.coordinates[0];
+      let best=null,bestA=0;
+      for(const poly of geojson.coordinates){
+        const r=poly[0];
+        const lons=r.map(c=>c[0]),lats=r.map(c=>c[1]);
+        const a=(Math.max(...lons)-Math.min(...lons))*(Math.max(...lats)-Math.min(...lats));
+        if(a>bestA){bestA=a;best=r;}
+      }
+      return best;
+    },
+    geojsonToWKT(geojson){
+      const ring=this._largestRing(geojson);
+      if(!ring)return null;
+      const s=this._simplifyRing(ring,50);
+      const coords=s.map(c=>`${parseFloat(c[0]).toFixed(4)} ${parseFloat(c[1]).toFixed(4)}`).join(',');
+      return `POLYGON((${coords}))`;
+    },
+
+    async selectPlace(s){
+      this.geoSuggestions=[];
+      const shortName=s.display_name.split(',').slice(0,2).join(', ');
+      this._gdbg(`Selected: ${s.display_name}`);
+      this._gdbg(`osm_type=${s.osm_type} osm_id=${s.osm_id}`);
+      this._gdbg(`geojson in result: ${JSON.stringify(s.geojson)?.slice(0,120)??'null'}`);
+
+      // Extract structured address for smart no-coord filtering
+      const _addr=s.address||{};
+      const _normA=v=>(v||'').toLowerCase().trim().replace(/\s+(county|parish|district|borough|prefecture)$/i,'').trim();
+      const _rawState=_addr.state||_addr.region||_addr.state_district||'';
+      const _rawCounty=_addr.county||_addr.state_district||'';
+      const _rawCity=_addr.city||_addr.town||_addr.village||_addr.municipality||_addr.suburb||_addr.neighbourhood||'';
+      const _rawCountry=(_addr.country_code||'').toUpperCase();
+      const _gran=_rawCity?'city':_rawCounty?'county':_rawState?'state':_rawCountry?'country':'world';
+      const adminMatch={
+        country:_rawCountry, state:_rawState, county:_rawCounty, city:_rawCity,
+        stateNorm:_normA(_rawState), countyNorm:_normA(_rawCounty), cityNorm:_normA(_rawCity),
+        granularity:_gran
+      };
+      this._gdbg(`adminMatch: gran=${_gran} state="${_rawState}" county="${_rawCounty}" city="${_rawCity}"`, 'ok');
+
+      let wkt=null,hasPolygon=false;
+      const geojson=s.geojson||null;
+
+      if(geojson&&(geojson.type==='Polygon'||geojson.type==='MultiPolygon')){
+        this._gdbg(`geojson type=${geojson.type}`);
+        try{
+          wkt=this.geojsonToWKT(geojson);
+          this._gdbg(`WKT ok, length=${wkt?.length}, vertices=${wkt?.split(',').length}`,'ok');
+          hasPolygon=true;
+        }catch(err){this._gdbg('geojsonToWKT error: '+err.message,'warn');}
+      }else{
+        this._gdbg(`No polygon geojson — trying lookup fallback`,'warn');
+        try{
+          const typeMap={node:'N',way:'W',relation:'R'};
+          const prefix=(typeMap[s.osm_type]||'R');
+          const lookupUrl=`https://nominatim.openstreetmap.org/lookup?osm_ids=${prefix}${s.osm_id}&format=json&polygon_geojson=1`;
+          this._gdbg(`Lookup: ${lookupUrl}`);
+          const lr=await fetch(lookupUrl,{headers:{'Accept-Language':'en'}});
+          const ld=await lr.json();
+          const lg=ld[0]?.geojson;
+          if(lg&&(lg.type==='Polygon'||lg.type==='MultiPolygon')){
+            wkt=this.geojsonToWKT(lg);hasPolygon=true;
+            this._gdbg(`Lookup polygon ok, vertices=${wkt?.split(',').length}`,'ok');
+          }
+        }catch(e2){this._gdbg('Lookup also failed: '+e2.message,'warn');}
+      }
+
+      if(!wkt){
+        const bb=s.boundingbox;
+        if(bb){
+          const [minLat,maxLat,minLon,maxLon]=[+bb[0],+bb[1],+bb[2],+bb[3]];
+          wkt=`POLYGON((${minLon} ${minLat},${maxLon} ${minLat},${maxLon} ${maxLat},${minLon} ${maxLat},${minLon} ${minLat}))`;
+          this._gdbg(`Using bbox fallback`,'warn');
+        }
+      }
+
+      this.bboxRegions.push({shortName,wkt,hasPolygon,adminMatch});
+      this.geoQuery='';
+      this.addLog(`📍 Region added: "${shortName}" — ${hasPolygon?'polygon boundary':'bounding box'}. Run fetch to apply.`,'ok');
+    },
+
+    removeRegion(i){
+      this.bboxRegions.splice(i,1);
+    },
+
+    // Determines if a no-coord occurrence record belongs to a Nominatim region.
+    // Rules:
+    //   - State-level region  → record must have matching stateProvince
+    //   - County-level region → record must have county (or sub-county) info AND county must match
+    //   - City-level region   → record must have county-level info; municipality conflict drops it
+    //   Drawn geometries pass adminMatch=null → caller decides (we allow by stateProvince match only)
+    _adminMatchesRegion(occ, am){
+      if(!am||!am.granularity||am.granularity==='world') return true;
+      const norm=v=>(v||'').toLowerCase().trim().replace(/\s+(county|parish|district|borough|prefecture)$/i,'').trim();
+      const fuzzy=(a,b)=>!!(a&&b&&(a.includes(b)||b.includes(a)));
+      const occState=norm(occ.stateProvince);
+      const occCounty=norm(occ.county);
+      const occMuni=norm(occ.municipality);
+      // Country check
+      if(am.country&&occ.countryCode&&am.country!==occ.countryCode) return false;
+      // State check: if both have state info and they conflict, drop
+      if(am.stateNorm&&occState&&!fuzzy(occState,am.stateNorm)) return false;
+      // Sub-state granularity: record must have at least county-level info
+      if(am.granularity==='county'||am.granularity==='city'){
+        const hasSubState=occCounty||occMuni;
+        if(!hasSubState) return false; // record is only state-level: too coarse for this region
+        if(am.countyNorm&&occCounty&&!fuzzy(occCounty,am.countyNorm)) return false;
+      }
+      // City granularity: record must have municipality/locality that positively matches the city.
+      // County-only records are too coarse — the user searched for a specific city, not the whole county.
+      if(am.granularity==='city'){
+        const occLocality=norm(occ.locality||'');
+        const hasCity=occMuni||occLocality;
+        if(!hasCity) return false; // only county-level info: too coarse for city search
+        if(am.cityNorm&&occMuni&&!fuzzy(occMuni,am.cityNorm)) return false; // municipality conflicts
+        if(am.cityNorm&&!occMuni&&occLocality&&!fuzzy(occLocality,am.cityNorm)) return false; // locality conflicts
+      }
+      return true;
+    },
+
+    // ── Build params ──────────────────────────────────────────────────────
+    buildParams(offset=0,limit=300){
+      const p=new URLSearchParams();
+      p.set('limit',limit);p.set('offset',offset);
+      // taxonKey injected per-fetch in runFetch for multi-taxa support
+      if(this.filters.continent)  p.set('continent',this.filters.continent);
+      if(this.filters.country)    p.set('country',this.filters.country.toUpperCase());
+      if(this.filters.stateProvince)p.set('stateProvince',this.filters.stateProvince);
+      if(this.filters.county)     p.set('county',this.filters.county);
+      if(this.filters.yearFrom&&this.filters.yearTo)p.set('year',`${this.filters.yearFrom},${this.filters.yearTo}`);
+      else if(this.filters.yearFrom)p.set('year',`${this.filters.yearFrom},${new Date().getFullYear()}`);
+      else if(this.filters.yearTo)p.set('year',`1000,${this.filters.yearTo}`);
+      this.filters.months.forEach(m=>p.append('month',m));
+      this.filters.basisOfRecord.forEach(b=>p.append('basisOfRecord',b));
+      if(this.filters.hasCoordinate)p.set('hasCoordinate','true');
+      if(this.filters.noGeoIssues)p.set('hasGeospatialIssue','false');
+      if(this.filters.presentOnly)p.set('occurrenceStatus','PRESENT');
+      if(this.filters.datasetKey)p.set('datasetKey',this.filters.datasetKey);
+      // Inline polygon WKT resolution (no helper-method call)
+      const _bpRgn=this.bboxRegions.find(function(r){return r.wkt;});
+      const _bpWkt=(_bpRgn&&_bpRgn.wkt)||(this.drawnGeometry&&this.drawnGeometry.wkt)||null;
+      const _bpClip=!!(_bpWkt&&this.filters.stateProvince);
+      if(_bpWkt&&!_bpClip){
+        p.set('geometry',_bpWkt);
+        const verts=_bpWkt.split(',').length;
+        const urlEst=('https://api.gbif.org/v1/occurrence/search?'+p).length;
+        this.addLog('📐 Geometry filter via API · '+verts+' vertices · URL ~'+urlEst+' chars','ok');
+      }else if(_bpWkt&&_bpClip){
+        this.addLog('📐 Polygon+state: fetching all state records, clipping coordinated records to polygon client-side','ok');
+      }
+      return p;
+    },
+
+    // ── Run fetch ─────────────────────────────────────────────────────────
+    async runFetch(){
+      if(this.loading)return;
+      this.loading=true;this.fetchError=null;this.log=[];
+      this.occurrences=[];this.totalCount=null;this.progress=0;
+      this.citationsData=[];this.inTextPreview='';this.datasetInfoCache={};
+      this.phenologyData={};this.phenologyTotal=0;
+      this._speciesCountData={};this._institutionCountData={};this._borCountData={};this._yearCountData={};this._countryCountData={};
+      this.resultPage=1; // reset to first page on new fetch
+      try{
+        const rawMax=parseInt(this.filters.maxRecords);
+        const maxRecs=(!this.filters.maxRecords||isNaN(rawMax)||rawMax<=0)?100000:Math.min(rawMax,100000);
+        const PAGE=300;
+        const MAX_RETRIES=8;
+        const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+        // Multi-taxa: build list of taxon keys to iterate
+        const taxonKeys=this.selectedTaxa.length>0?this.selectedTaxa.map(t=>t.key):[null];
+
+        // ── Step 1: probe all taxa for total count ─────────────────────
+        this.statusMsg='Probing GBIF for record count…';
+        let totalAll=0;const taxonTotals=[];
+        for(const tk of taxonKeys){
+          const probeParams=this.buildParams(0,1);
+          if(tk)probeParams.set('taxonKey',tk);
+          const probeRes=await fetch(`https://api.gbif.org/v1/occurrence/search?${probeParams}`);
+          if(!probeRes.ok){const t=await probeRes.text().catch(()=>'');throw new Error(`GBIF API error ${probeRes.status}: ${t.slice(0,300)}`);}
+          const probeData=await probeRes.json();
+          taxonTotals.push(probeData.count);
+          totalAll+=probeData.count;
+          if(taxonKeys.length>1){const nm=this.selectedTaxa.find(t=>t.key===tk)?.canonicalName||'taxon';this.addLog(`  📊 ${nm}: ${probeData.count.toLocaleString()} occurrences`,'ok');}
+        }
+        this.totalCount=totalAll;
+        this.addLog(`📊 GBIF total: ${totalAll.toLocaleString()} occurrences${taxonKeys.length>1?' across '+taxonKeys.length+' taxa':''}`, 'ok');
+        if(totalAll===0)throw new Error('No occurrences found. Try broadening your filters.');
+
+        const pagesToFetch=Math.ceil(Math.min(totalAll,maxRecs)/PAGE);
+        this.addLog(`🚀 Fetching up to ${maxRecs.toLocaleString()} records${taxonKeys.length>1?' ('+taxonKeys.length+' taxa)':''}…`,'ok');
+
+        // ── Step 2: row filter ───────────────────────────────────────────
+        const filterRow=r=>{
+          if(this.filters.excludeINat&&r.datasetKey===INAT_KEY)return false;
+          if(this.filters.excludeBugGuide&&r.datasetKey===BUGGUIDE_KEY)return false;
+          if(this.filters.municipality){const mu=(r.municipality||'').toLowerCase();if(!mu.includes(this.filters.municipality.toLowerCase()))return false;}
+          if(this.filters.locality){const lo=(r.locality||r.verbatimLocality||'').toLowerCase();if(!lo.includes(this.filters.locality.toLowerCase()))return false;}
+          return true;
+        };
+
+        const all=[];
+
+        // GBIF deep-pagination is slow: timeout and inter-page delay scale with offset depth.
+        // At offset ~10k+ with a geometry filter, server-side query time can exceed 60s.
+        const _timeoutFor=offset=>Math.min(30000 + Math.floor(offset/3000)*8000, 90000); // 30s → 90s
+        const _interPageDelay=offset=>offset>9000?1800:offset>5000?900:offset>2000?400:0;
+
+        const fetchOnePage=async(offset,pageSize=PAGE)=>{
+          let attempt=0;
+          let curPageSize=pageSize;
+          while(attempt<=MAX_RETRIES){
+            const timeout=_timeoutFor(offset);
+            const controller=new AbortController();
+            const timer=setTimeout(()=>controller.abort(),timeout);
+            try{
+              const params=this.buildParams(offset,curPageSize);
+              const res=await fetch(`https://api.gbif.org/v1/occurrence/search?${params}`,{signal:controller.signal});
+              clearTimeout(timer);
+              if(res.status===429){
+                attempt++;
+                const wait=Math.min(4000*Math.pow(2,attempt-1),90000);
+                this.addLog(`  ⏳ Rate limited — waiting ${(wait/1000).toFixed(0)}s (retry ${attempt}/${MAX_RETRIES})…`,'warn');
+                this.statusMsg=`Rate limited — retrying in ${(wait/1000).toFixed(0)}s…`;
+                await sleep(wait);
+                continue;
+              }
+              if(!res.ok){const t=await res.text().catch(()=>'');throw new Error(`HTTP ${res.status}: ${t.slice(0,150)}`);}
+              const data=await res.json();
+              // If we had reduced page size, log recovery
+              if(curPageSize<pageSize) this.addLog(`  ↩ Recovered at offset ${offset} with smaller page (${curPageSize})`);;
+              return data;
+            }catch(err){
+              clearTimeout(timer);
+              const isTimeout=err.name==='AbortError';
+              const isNetwork=err.message==='Failed to fetch'||err.message.includes('NetworkError');
+              if(isTimeout||isNetwork){
+                attempt++;
+                // On timeout: halve page size (min 50) and give GBIF a longer rest before retry
+                if(isTimeout&&curPageSize>50) curPageSize=Math.max(50,Math.floor(curPageSize/2));
+                const wait=isTimeout?Math.min(5000+attempt*3000,30000):Math.min(3000*attempt,15000);
+                this.addLog(`  ⚠ ${isTimeout?'Timeout ('+timeout/1000+'s)':'Network error'} at offset ${offset}${isTimeout?' — retrying with page='+curPageSize:''} — waiting ${(wait/1000).toFixed(0)}s (${attempt}/${MAX_RETRIES})…`,'warn');
+                this.statusMsg=`${isTimeout?'Slow response — retrying with smaller page':'Network error — retrying'}…`;
+                await sleep(wait);
+                continue;
+              }
+              throw err;
+            }
+          }
+          this.addLog(`  ✗ Offset ${offset} gave up after ${MAX_RETRIES} retries — ${all.length.toLocaleString()} records so far.`,'warn');
+          return null;
+        };
+
+        // Fetch loop - supports multiple taxa
+        let globalPageIdx=0;
+        for(let ti=0;ti<taxonKeys.length;ti++){
+          const tk=taxonKeys[ti];
+          const taxonMax=taxonKeys.length>1?Math.ceil(maxRecs/taxonKeys.length):maxRecs;
+          const taxonTotal=taxonTotals[ti];
+          const taxonPages=Math.ceil(Math.min(taxonTotal,taxonMax)/PAGE);
+          if(taxonKeys.length>1){const nm=this.selectedTaxa.find(t=>t.key===tk)?.canonicalName||'taxon';this.addLog(`  🔍 Fetching ${nm} (${taxonTotal.toLocaleString()} records)…`);}
+          for(let pageIdx=0;pageIdx<taxonPages;pageIdx++){
+            const offset=pageIdx*PAGE;
+            // inject taxonKey into params for this fetch
+            const _origBuild=this.buildParams.bind(this);
+            const _patchedParams=(off,lim)=>{const p=_origBuild(off,lim);if(tk)p.set('taxonKey',tk);return p;};
+            const origBuildParams=this.buildParams;
+            this.buildParams=(off,lim)=>_patchedParams(off,lim);
+            const data=await fetchOnePage(offset);
+            this.buildParams=origBuildParams;
+            if(!data)break;
+            all.push(...data.results.filter(filterRow));
+            globalPageIdx++;
+            this.progress=Math.min(70,Math.round((globalPageIdx/Math.max(pagesToFetch,1))*70));
+            this.statusMsg=`${taxonKeys.length>1?'Taxon '+(ti+1)+'/'+taxonKeys.length+' · ':''}Page ${pageIdx+1}/${taxonPages} — ${all.length.toLocaleString()} records…`;
+            if((pageIdx+1)%10===0||pageIdx===taxonPages-1)
+              this.addLog(`  ✓ ${taxonKeys.length>1?(this.selectedTaxa.find(t=>t.key===tk)?.canonicalName||'taxon')+' ':''}Page ${pageIdx+1}/${taxonPages} — ${all.length.toLocaleString()} records`);
+            if(all.length>=maxRecs)break;
+            // Inter-page breathing room — GBIF deep pagination needs it
+            const _delay=_interPageDelay(offset);
+            if(_delay>0)await sleep(_delay);
+          }
+          if(all.length>=maxRecs)break;
+        }
+
+        if(all.length===0)throw new Error('No records retrieved. Check your filters and try again.');
+
+        // ── Polygon clip + smart no-coord filtering ─────────────────────────
+        {
+          const _fRgn=this.bboxRegions.find(function(r){return r.wkt;});
+          const _fWkt=(_fRgn&&_fRgn.wkt)||(this.drawnGeometry&&this.drawnGeometry.wkt)||null;
+          const _adminMatch=_fRgn?.adminMatch||null; // null for drawn geometries
+
+          // ── Case A: client-side clip (polygon + stateProvince set by user) ──
+          if(_fWkt&&this.filters.stateProvince){
+            const _rings=[];
+            const _rre=/\(([^()]+)\)/g;let _rm;
+            while((_rm=_rre.exec(_fWkt))!==null){
+              _rings.push(_rm[1].trim().split(',').map(function(pair){const pts=pair.trim().split(/\s+/);return{lng:+pts[0],lat:+pts[1]};}));
+            }
+            const _inPoly=function(lat,lng){
+              if(!_rings.length)return true;
+              for(let ri=0;ri<_rings.length;ri++){
+                const ring=_rings[ri];let inside=false;const n=ring.length;
+                for(let i=0,j=n-1;i<n;j=i++){
+                  const xi=ring[i].lng,yi=ring[i].lat,xj=ring[j].lng,yj=ring[j].lat;
+                  if(((yi>lat)!==(yj>lat))&&(lng<(xj-xi)*(lat-yi)/(yj-yi)+xi))inside=!inside;
+                }
+                if(ri===0&&!inside)return false;
+                if(ri>0&&inside)return false;
+              }
+              return true;
+            };
+            const _before=all.length;
+            const _clipped=all.filter((o)=>{
+              if(o.decimalLatitude==null||o.decimalLongitude==null){
+                // No-coord record: use smart admin matching if we have Nominatim data
+                // For drawn geometries (no adminMatch), include if stateProvince matches (it always does since we fetched by state)
+                if(_adminMatch) return this._adminMatchesRegion(o,_adminMatch);
+                return true; // drawn polygon + state filter → allow all state-level no-coord records
+              }
+              return _inPoly(+o.decimalLatitude,+o.decimalLongitude);
+            });
+            const _withCoord=all.filter(o=>o.decimalLatitude!=null).length;
+            const _noCoord=all.filter(o=>o.decimalLatitude==null).length;
+            const _keptCoord=_clipped.filter(o=>o.decimalLatitude!=null).length;
+            const _keptNoCoord=_clipped.filter(o=>o.decimalLatitude==null).length;
+            const _droppedCoord=_withCoord-_keptCoord;
+            const _droppedNoCoord=_noCoord-_keptNoCoord;
+            this.addLog('✂️ Polygon clip: '+_keptCoord.toLocaleString()+' coord records inside polygon ('+_droppedCoord.toLocaleString()+' outside/error dropped)','ok');
+            this.addLog('📍 No-coord filter: '+_keptNoCoord.toLocaleString()+' matched region admin fields ('+_droppedNoCoord.toLocaleString()+' too coarse/mismatched dropped)','ok');
+            all.length=0;all.push(..._clipped);
+          }
+
+          // ── Case B: API geometry was used (polygon without stateProvince) ──
+          // GBIF only returns coordinated records via geometry filter.
+          // Fetch no-coord records separately per-taxon using the region's admin fields.
+          else if(_fWkt&&!this.filters.stateProvince&&_adminMatch&&_adminMatch.state){
+            const _existingIds=new Set(all.map(o=>o.gbifID));
+            for(const _ncTk of taxonKeys){
+              const _ncTaxonName=_ncTk?this.selectedTaxa.find(t=>t.key===_ncTk)?.canonicalName||'taxon':'(no taxon filter)';
+              this.addLog('📍 Fetching no-coord records ['+_ncTaxonName+'] by region admin fields ('+_adminMatch.granularity+'-level)...');
+              try{
+                const _ncP=this.buildParams(0,1);
+                _ncP.delete('geometry');
+                _ncP.set('hasCoordinate','false');
+                _ncP.set('stateProvince',_adminMatch.state);
+                if(_adminMatch.county&&(_adminMatch.granularity==='county'||_adminMatch.granularity==='city'))_ncP.set('county',_adminMatch.county);
+                if(_ncTk)_ncP.set('taxonKey',_ncTk);
+                const _ncProbe=await fetch('https://api.gbif.org/v1/occurrence/search?'+_ncP);
+                const _ncProbeData=await _ncProbe.json();
+                const _ncTotal=_ncProbeData.count||0;
+                this.addLog('📍 '+_ncTotal.toLocaleString()+' no-coord records for '+_ncTaxonName+' in region');
+                if(_ncTotal>0){
+                  const _ncCap=Math.min(_ncTotal,5000);
+                  const _ncPages=Math.ceil(_ncCap/300);
+                  const _ncRecords=[];
+                  for(let _pi=0;_pi<_ncPages;_pi++){
+                    _ncP.set('offset',_pi*300);_ncP.set('limit',300);
+                    const _ncRes=await fetch('https://api.gbif.org/v1/occurrence/search?'+_ncP);
+                    const _ncData=await _ncRes.json();
+                    _ncRecords.push(...(_ncData.results||[]).filter(filterRow).filter(o=>this._adminMatchesRegion(o,_adminMatch)));
+                  }
+                  const _newRecs=_ncRecords.filter(o=>!_existingIds.has(o.gbifID));
+                  _newRecs.forEach(o=>_existingIds.add(o.gbifID));
+                  all.push(..._newRecs);
+                  this.addLog('📍 '+_newRecs.length.toLocaleString()+' no-coord records added for '+_ncTaxonName,'ok');
+                }
+              }catch(_ncErr){this.addLog('! No-coord fetch failed ['+_ncTaxonName+']: '+_ncErr.message,'warn');}
+            }
+          }
+        }
+
+        this.occurrences=all.slice(0,maxRecs);
+        this.computeStats();
+
+        this.statusMsg='Fetching dataset citations…';this.progress=75;
+        await new Promise(r=>setTimeout(r,0));
+        const allDatasetKeys=[...new Set(all.map(r=>r.datasetKey).filter(Boolean))];
+        await this.preloadDatasetInfo(allDatasetKeys);
+        this.buildCitationsData();
+        this.addLog('📚 Citations: '+this.citationsData.length+' dataset(s)','ok');
+
+        this.buildPhenology();
+        this.addLog('📅 Phenology: '+this.phenologyTotal+' records with month data','ok');
+
+        this.buildTaxaStats();
+        this.addLog('📊 Taxa stats: '+Object.keys(this._speciesCountData).length+' species','ok');
+
+        this.progress=100;
+        this.addLog('✅ '+this.occurrences.length.toLocaleString()+' records ready','ok');
+        const badge=document.getElementById('results-badge');
+        badge.textContent=this.occurrences.length.toLocaleString();badge.classList.remove('hidden');
+        setTimeout(()=>this.renderMapPoints(),300);
+        setTimeout(()=>this.renderYearChart(),500);
+        setTimeout(()=>this.renderPhenologyChartTaxa(),600);
+      }catch(e){
+        this.fetchError=e.message;this.addLog('❌ '+e.message,'warn');this.progress=0;
+      }finally{this.loading=false;}
+    },
+
+
+    // ── Map functions ─────────────────────────────────────────────────────
+    initMap(){
+      if(this._map){this._map.invalidateSize();return;}
+      this._map=L.map("map").setView([20,0],2);
+      this._baseLayers={
+        osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap contributors",maxZoom:19}),
+        dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{attribution:"© CartoDB",maxZoom:19}),
+        satellite:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{attribution:"© Esri",maxZoom:18}),
+        topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{attribution:"© OpenTopoMap",maxZoom:17}),
+      };
+      this._baseLayers[this.mapBasemap].addTo(this._map);
+      this._clusterGroup=L.markerClusterGroup({maxClusterRadius:40,disableClusteringAtZoom:14});
+      this._map.addLayer(this._clusterGroup);
+      this._drawLayer=new L.FeatureGroup();
+      this._map.addLayer(this._drawLayer);
+      const drawCtrl=new L.Control.Draw({draw:{polygon:true,rectangle:true,circle:true,marker:false,polyline:false,circlemarker:false},edit:{featureGroup:this._drawLayer}});
+      this._map.addControl(drawCtrl);
+      this._map.on(L.Draw.Event.CREATED,(e)=>{
+        this._drawLayer.clearLayers();
+        this._drawLayer.addLayer(e.layer);
+        this.drawMode=null;
+        if(this._activeDrawHandler){this._activeDrawHandler.disable();this._activeDrawHandler=null;}
+        if(e.layerType==="rectangle"||e.layerType==="polygon"){
+          const latlngs=e.layer.getLatLngs()[0];
+          const coords=latlngs.map(ll=>ll.lng.toFixed(5)+" "+ll.lat.toFixed(5));
+          coords.push(latlngs[0].lng.toFixed(5)+" "+latlngs[0].lat.toFixed(5));
+          this.drawnGeometry={wkt:"POLYGON(("+coords.join(",")+"))"};
+        }else if(e.layerType==="circle"){
+          const c=e.layer.getLatLng(),r=e.layer.getRadius();
+          const pts=[];
+          for(let i=0;i<32;i++){const a=i/32*2*Math.PI;pts.push((c.lng+r/111320*Math.cos(a)/Math.cos(c.lat*Math.PI/180)).toFixed(5)+" "+(c.lat+r/111320*Math.sin(a)).toFixed(5));}
+          pts.push(pts[0]);
+          this.drawnGeometry={wkt:"POLYGON(("+pts.join(",")+"))"};
+        }
+        this.addLog("✏️ Shape drawn — click Re-fetch within shape to filter.","ok");
+      });
+      if(this.occurrences.length>0)this.renderMapPoints();
+    },
+
+    switchBasemap(){
+      if(!this._map)return;
+      Object.values(this._baseLayers).forEach(l=>{if(this._map.hasLayer(l))this._map.removeLayer(l);});
+      this._baseLayers[this.mapBasemap].addTo(this._map);
+    },
+
+    startDraw(type){
+      if(!this._map){this.initMap();}
+      this.drawMode=type;
+      const handlers={polygon:L.Draw.Polygon,rectangle:L.Draw.Rectangle,circle:L.Draw.Circle};
+      const Handler=handlers[type];
+      if(Handler){
+        if(this._activeDrawHandler){this._activeDrawHandler.disable();}
+        this._activeDrawHandler=new Handler(this._map,{shapeOptions:{color:"#d97706",fillOpacity:0.15}});
+        this._activeDrawHandler.enable();
+      }
+    },
+
+    clearDrawn(){
+      if(this._drawLayer)this._drawLayer.clearLayers();
+      if(this._activeDrawHandler){this._activeDrawHandler.disable();this._activeDrawHandler=null;}
+      this.drawnGeometry=null;
+      this.drawMode=null;
+    },
+
+    renderMapPoints(){
+      if(!this._map)this.initMap();
+      if(!this._map)return;
+      if(this._clusterGroup)this._clusterGroup.clearLayers();
+      if(this._plainLayer){this._map.removeLayer(this._plainLayer);this._plainLayer=null;}
+      const pts=this.occurrences.filter(o=>o.decimalLatitude!=null&&o.decimalLongitude!=null);
+      this.mapPointCount=pts.length;
+      if(!pts.length)return;
+      const COLORS=["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#6366f1","#a855f7","#ec4899","#14b8a6","#f59e0b"];
+      const speciesColors={};
+      if(this.mapColorBySpecies){
+        const spp=[...new Set(pts.map(o=>o.species||o.acceptedScientificName).filter(Boolean))];
+        spp.forEach((sp,i)=>speciesColors[sp]=COLORS[i%COLORS.length]);
+      }
+      const markers=pts.map(o=>{
+        const sp=o.species||o.acceptedScientificName||"";
+        const color=this.mapColorBySpecies&&sp&&speciesColors[sp]?speciesColors[sp]:"#d97706";
+        const m=L.circleMarker([+o.decimalLatitude,+o.decimalLongitude],{radius:5,color,fillColor:color,fillOpacity:0.7,weight:1});
+        m.bindPopup("<div style=font-family:monospace;font-size:11px;min-width:180px><p style=font-weight:700;font-style:italic;color:#1e293b;margin:0 0 4px>"+(sp||"Unknown taxon")+"</p><p style=color:#64748b;margin:2px 0>"+(o.countryCode||"")+" "+(o.stateProvince||"")+" "+(o.county||"")+"</p><p style=color:#64748b;margin:2px 0>"+(o.year||"")+""+(o.month?" / "+o.month:"")+" · "+(o.basisOfRecord||"").replace(/_/g," ")+"</p><p style=color:#94a3b8;margin:2px 0>"+(+o.decimalLatitude).toFixed(4)+", "+(+o.decimalLongitude).toFixed(4)+"</p><a href=https://www.gbif.org/occurrence/"+o.gbifID+" target=_blank style=color:#d97706;font-size:10px>View on GBIF →</a></div>");
+        return m;
+      });
+      if(this.mapCluster){
+        this._clusterGroup.addLayers(markers);
+      }else{
+        this._plainLayer=L.layerGroup(markers);
+        this._map.addLayer(this._plainLayer);
+      }
+      if(pts.length>0){
+        const lats=pts.map(o=>+o.decimalLatitude),lngs=pts.map(o=>+o.decimalLongitude);
+        try{this._map.fitBounds([[Math.min(...lats),Math.min(...lngs)],[Math.max(...lats),Math.max(...lngs)]],{padding:[30,30]});}catch(e){}
+      }
+    },
+
+    async refetchWithGeometry(){if(!this.drawnGeometry)return;await this.runFetch()},
+
+    computeStats(){
+      const o=this.occurrences;
+      const withCoords=o.filter(r=>r.decimalLatitude!=null).length;
+      // Use only o.species to match buildTaxaStats (avoids inflated count from acceptedScientificName)
+      const species=new Set(o.map(r=>r.species).filter(Boolean)).size;
+      const datasets=new Set(o.map(r=>r.datasetKey).filter(Boolean)).size;
+      const countries=new Set(o.map(r=>r.countryCode).filter(Boolean)).size;
+      const years=o.map(r=>r.year).filter(y=>y&&!isNaN(+y)).map(Number);
+      const yearRange=years.length?`${Math.min(...years)}–${Math.max(...years)}`:'—';
+      // Elevation stats
+      const elevs=o.map(r=>parseFloat(r.elevation)).filter(v=>!isNaN(v)&&isFinite(v));
+      const elevMin=elevs.length?Math.min(...elevs):null;
+      const elevMax=elevs.length?Math.max(...elevs):null;
+      const elevMean=elevs.length?Math.round(elevs.reduce((a,b)=>a+b,0)/elevs.length):null;
+      // Coord uncertainty
+      const uncerts=o.map(r=>parseFloat(r.coordinateUncertaintyInMeters)).filter(v=>!isNaN(v)&&v>0);
+      const uncertSorted=[...uncerts].sort((a,b)=>a-b);
+      const uncertMed=uncertSorted.length?uncertSorted[Math.floor(uncertSorted.length/2)]:null;
+      this.stats={withCoords,species,datasets,countries,yearRange,elevMin,elevMax,elevMean,elevCount:elevs.length,uncertMed,uncertCount:uncerts.length};
+    },
+
+    clearAll(){
+      this.occurrences=[];this.totalCount=null;this.log=[];this.progress=0;this.fetchError=null;
+      this.selectedTaxa=[];this.taxonQuery='';
+      this.stats={withCoords:0,species:0,datasets:0,countries:0,yearRange:'\u2014'};
+      this.citationsData=[];this.inTextPreview='';this.phenologyData={};this.phenologyTotal=0;
+      this._speciesCountData={};this._institutionCountData={};this._borCountData={};this._yearCountData={};this._countryCountData={};
+      this.resultPage=1;
+      if(this._phenoChartTaxa){this._phenoChartTaxa.destroy();this._phenoChartTaxa=null;}
+      if(this._yearChart){this._yearChart.destroy();this._yearChart=null;}
+      document.getElementById('results-badge').classList.add('hidden');
+      const tb=document.getElementById('taxa-badge');if(tb)tb.classList.add('hidden');
+      if(this._clusterGroup)this._clusterGroup.clearLayers();
+      if(this._plainLayer){this._map?.removeLayer(this._plainLayer);this._plainLayer=null;}
+      this.mapPointCount=0;
+    },
+
+    // ── Export ────────────────────────────────────────────────────────────
+    runExport(){
+      let recs=[...this.occurrences];
+      if(this.exportOpts.onlyCoords)recs=recs.filter(o=>o.decimalLatitude!=null);
+      if(this.exportOpts.dedup){const s=new Set();recs=recs.filter(o=>{const k=`${o.decimalLatitude}|${o.decimalLongitude}|${o.eventDate}`;if(s.has(k))return false;s.add(k);return true;});}
+      if(this.exportOpts.addGBIFUrl)recs=recs.map(o=>({...o,gbif_url:`https://www.gbif.org/occurrence/${o.gbifID}`}));
+      const fmt=this.exportFmt,fn=this.exportFilename||'gbif_occurrences';
+      if(fmt==='dwca'){
+        const cols=this.dwcaCols;
+        const sep='\t';
+        const esc=v=>{if(v==null)return'';return String(v).replace(/\t/g,' ').replace(/\n/g,' ').replace(/\r/g,' ');}
+        const rows=[cols.join(sep)];
+        for(const o of recs)rows.push(cols.map(k=>esc(o[k])).join(sep));
+        this._dl(rows.join('\n'),'occurrence.txt','text/plain;charset=utf-8');
+      } else {
+        const cols=this.exportOpts.addGBIFUrl?[...this.exportCols,'gbif_url']:this.exportCols;
+        if(fmt==='json'){this._dl(JSON.stringify(recs.map(o=>Object.fromEntries(cols.map(k=>[k,o[k]??null]))),null,2),fn+'.json','application/json');}
+        else if(fmt==='geojson'){const features=recs.filter(o=>o.decimalLatitude!=null).map(o=>({type:'Feature',geometry:{type:'Point',coordinates:[+o.decimalLongitude,+o.decimalLatitude]},properties:Object.fromEntries(cols.map(k=>[k,o[k]??null]))}));this._dl(JSON.stringify({type:'FeatureCollection',features},null,2),fn+'.geojson','application/geo+json');}
+        else{
+          const sep=fmt==='tsv'?'\t':',';
+          const esc=v=>{const s=v==null?'':String(v);return(sep===','&&(s.includes(',')||s.includes('"')||s.includes('\n')))?`"${s.replace(/"/g,'""')}`:`${s}`;}
+          const rows=[];
+          if(this.exportOpts.includeHeader)rows.push(cols.map(c=>esc(c)).join(sep));
+          for(const o of recs)rows.push(cols.map(k=>esc(o[k])).join(sep));
+          this._dl(rows.join('\n'),fn+(fmt==='tsv'?'.tsv':'.csv'),'text/plain;charset=utf-8');
+        }
+      }
+      if(this.exportOpts.includeCitations&&this.citationsData.length)this.downloadCitationsTxt();
+      if(this.exportOpts.includePhenology&&this.phenologyTotal)this.downloadPhenologyCSV();
+      this.addLog('✅ Exported '+recs.length.toLocaleString()+' records as '+(fmt==='dwca'?'DwC-A':fmt.toUpperCase()),'ok');
+    },
+
+    _dl(content,filename,mime){
+      const blob=new Blob([content],{type:mime});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+      URL.revokeObjectURL(a.href);
+    },
+
+
+  }));
+});
+</script>
+</body>
+</html>

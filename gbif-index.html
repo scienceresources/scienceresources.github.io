@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Science Resources</title>
+<title>GBIF Tools — Science Resources</title>
 <link rel="icon" type="image/png" href="favicon.png">
-     <link rel="apple-touch-icon" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
 
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -16,14 +16,13 @@
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
   .tool-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   }
   .tool-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 16px 32px -8px rgba(0,0,0,0.1);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.12);
   }
-  .tool-card-blue:hover  { border-color: #93c5fd; }
-.tool-card-amber:hover { border-color: oklch(82.8% 0.189 84.429) }
+  .tool-card-amber:hover { border-color: #fbbf24; }
 
   .feature-pill {
     display: inline-flex;
@@ -37,21 +36,49 @@
     font-weight: 600;
     letter-spacing: 0.02em;
   }
+
+  .back-arrow-desktop { display: none; }
+  .back-arrow-mobile  { display: flex; }
+  @media (min-width: 1122px) {
+    .back-arrow-desktop { display: flex; }
+    .back-arrow-mobile  { display: none; }
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
 
 <!-- ── HEADER ────────────────────────────────────────────────────────────── -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-  <a href="index.html">
-  <div class="mx-auto px-4 py-3 flex items-center gap-3">
-    <div class="bg-slate-800 p-2 rounded-lg">
-      <i class="fa-solid fa-flask-vial text-white text-xl"></i>
-    </div>
+
+  <!-- Mobile back arrow -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="index.html"
+       class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+
+  <!-- Title row -->
+  <div class="relative">
+    <!-- Desktop back arrow -->
+    <a href="index.html"
+       class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <a href="index.html" class="flex items-center gap-3 no-underline group">
+        <div class="bg-slate-800 p-2 rounded-lg group-hover:bg-slate-700 transition-colors">
+          <i class="fa-solid fa-flask-vial text-white text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Science Resources</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Toolkits for Science</p>
+        </div>
       </a>
-    <div>
-      <h1 class="text-lg font-bold text-slate-900 leading-tight">Science Resources</h1>
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Toolkits for Science</p>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+        Darwin Core · JSON · CSV · AI-Enhanced
+      </p>
     </div>
   </div>
 </header>
@@ -59,67 +86,107 @@
 <!-- ── HERO ──────────────────────────────────────────────────────────────── -->
 <section class="bg-white border-b border-slate-200">
   <div class="max-w-5xl mx-auto px-4 py-12 text-center">
+    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
+      <i class="fa-solid fa-database mr-1.5 text-amber-300"></i>GBIF Tools
+    </p>
     <h2 class="text-3xl font-black text-slate-900 tracking-tight mb-3">
-      GBIF data filters
+      GBIF Data Filters
     </h2>
     <p class="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-      Tools for filtering and downloading GBIF data.<br>
+      Tools for filtering, analysing, and exporting GBIF occurrence data.
       No installation, no account — your data stays on your device.
     </p>
   </div>
 </section>
 
 <!-- ── TOOL CARDS ────────────────────────────────────────────────────────── -->
-<main class="max-w-5xl mx-auto px-4 py-12 flex-1 w-full">
+<main class="max-w-5xl mx-auto px-4 py-10 flex-1 w-full">
 
-  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Select a Tool</p>
+  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5">
+    <i class="fa-solid fa-grid-2 mr-1.5"></i>Select a Tool
+  </p>
 
   <div class="grid md:grid-cols-2 gap-5">
 
-        <a href="gbif-api.html"
+    <!-- ── Bee GBIF JSON Builder ──────────────────────────────────────── -->
+    <a href="gbif-api.html"
       class="tool-card tool-card-amber bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-amber-100 p-3.5 rounded-xl">
           <i class="fa-solid fa-database text-amber-600 text-2xl"></i>
         </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-amber-400 transition-colors mt-1"></i>
+        <div class="bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-amber-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
       </div>
-
-      <h2 class="text-xl font-black text-slate-900 mb-1">Bee GBIF Json builder</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Species Json API Constructor</p>
+      <h2 class="text-xl font-black text-slate-900 mb-1">Bee GBIF JSON Builder</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Species JSON API Constructor</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Build and export Json bee species APIs using GBIF data. Use AI interpretation to find flower records from historic lables and do analyses in the browser.
+        Build and export structured JSON species APIs from GBIF data. Use
+        in-browser AI to extract flower records from historic specimen labels,
+        reverse-geocode coordinates, and generate citable dataset references.
       </p>
-            <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-amber-400 text-[9px]"></i>Json</span>
-        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-amber-400 text-[9px]"></i>AI flower records</span>
-        <span class="feature-pill"><i class="fa-solid fa-code-compare text-amber-400 text-[9px]"></i>Citation generator</span>
+      <div class="flex flex-wrap gap-2">
+        <span class="feature-pill"><i class="fa-solid fa-hammer text-amber-400 text-[9px]"></i>JSON Builder</span>
+        <span class="feature-pill"><i class="fa-solid fa-wand-magic-sparkles text-amber-400 text-[9px]"></i>AI Flower Records</span>
+        <span class="feature-pill"><i class="fa-solid fa-quote-left text-amber-400 text-[9px]"></i>Citation Generator</span>
+        <span class="feature-pill"><i class="fa-solid fa-chart-bar text-amber-400 text-[9px]"></i>Host Analysis</span>
       </div>
     </a>
 
-        <!-- SeqLab -->
-        <a href="gbif-csv.html"
+    <!-- ── GBIF Ultimate Downloader ──────────────────────────────────── -->
+    <a href="gbif-downloader.html"
       class="tool-card tool-card-amber bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-amber-100 p-3.5 rounded-xl">
-          <i class="fa-solid fa-file-csv text-amber-600 text-xl"></i>
+          <i class="fa-solid fa-globe text-amber-600 text-2xl"></i>
         </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-amber-400 transition-colors mt-1"></i>
+        <div class="bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-amber-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
       </div>
-
-      <h2 class="text-xl font-black text-slate-900 mb-1">GBIF to table filter</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">GBIF data to readable tables</p>
+      <h2 class="text-xl font-black text-slate-900 mb-1">GBIF Ultimate Downloader</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Occurrences · Live Map · Citations · Export</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Build and export CSV, TSV, and TXT species tables using GBIF data. Automated maping, downloading, and analysis all in your browser
+        Query GBIF occurrences with a full visual filter builder — search by
+        taxon, place, date range, and record type. View results on an
+        interactive Leaflet map with cluster support, draw polygon filters,
+        analyse taxa statistics and phenology, then export as CSV, TSV, JSON,
+        GeoJSON, or DarwinCore Archive.
       </p>
-
       <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-amber-400 text-[9px]"></i>CSV</span>
-        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-amber-400 text-[9px]"></i>TSV</span>
-        <span class="feature-pill"><i class="fa-solid fa-code-compare text-amber-400 text-[9px]"></i>Filter</span>
+        <span class="feature-pill"><i class="fa-solid fa-map text-amber-400 text-[9px]"></i>Interactive Map</span>
+        <span class="feature-pill"><i class="fa-solid fa-draw-polygon text-amber-400 text-[9px]"></i>Polygon Filter</span>
+        <span class="feature-pill"><i class="fa-solid fa-chart-bar text-amber-400 text-[9px]"></i>Taxa Stats</span>
+        <span class="feature-pill"><i class="fa-solid fa-quote-left text-amber-400 text-[9px]"></i>Citations</span>
+        <span class="feature-pill"><i class="fa-solid fa-download text-amber-400 text-[9px]"></i>DwC-A · CSV · GeoJSON</span>
       </div>
     </a>
 
+    <!-- ── GBIF to Table Filter ────────────────────────────────────────── -->
+    <a href="gbif-csv.html"
+      class="tool-card tool-card-amber bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
+      <div class="flex items-start justify-between mb-5">
+        <div class="bg-amber-100 p-3.5 rounded-xl">
+          <i class="fa-solid fa-file-csv text-amber-600 text-2xl"></i>
+        </div>
+        <div class="bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-amber-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
+      </div>
+      <h2 class="text-xl font-black text-slate-900 mb-1">GBIF to Table Filter</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">GBIF Data to Readable Tables</p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
+        Convert GBIF occurrence downloads into clean, filterable CSV, TSV, and
+        TXT tables. Automated mapping, downloading, and analysis — all
+        processed directly in your browser.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <span class="feature-pill"><i class="fa-solid fa-table text-amber-400 text-[9px]"></i>CSV / TSV</span>
+        <span class="feature-pill"><i class="fa-solid fa-filter text-amber-400 text-[9px]"></i>Filter & Sort</span>
+        <span class="feature-pill"><i class="fa-solid fa-file-arrow-down text-amber-400 text-[9px]"></i>Export</span>
+      </div>
+    </a>
 
   </div>
 </main>
@@ -130,10 +197,10 @@
       <i class="fa-solid fa-flask-vial text-slate-300"></i>
       <span class="text-sm font-semibold text-slate-400">Science Resources</span>
     </div>
-    <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
-<p  class="transition-colors flex items-center gap-1.5">Created by - Frank Hogland
-© 2026-present. All Rights Reserved.</p>
-    </div>
+    <p class="text-xs font-semibold text-slate-400">
+      Created by — Frank Hogland &nbsp;·&nbsp; © 2026-present. All Rights Reserved.
+    </p>
+  </div>
 </footer>
 
 </body>

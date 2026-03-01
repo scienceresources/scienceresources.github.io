@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Science Resources</title>
+<title>DNA Sequencer Tools — Science Resources</title>
 <link rel="icon" type="image/png" href="favicon.png">
-     <link rel="apple-touch-icon" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
 
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -16,14 +16,14 @@
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
   .tool-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   }
   .tool-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 16px 32px -8px rgba(0,0,0,0.1);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.12);
   }
-  .tool-card-blue:hover  { border-color: #93c5fd; }
-  .tool-card-purple:hover { border-color: rgb(183, 106, 255); }
+  .tool-card-blue:hover   { border-color: #93c5fd; }
+  .tool-card-purple:hover { border-color: #c4b5fd; }
 
   .feature-pill {
     display: inline-flex;
@@ -37,21 +37,49 @@
     font-weight: 600;
     letter-spacing: 0.02em;
   }
+
+  .back-arrow-desktop { display: none; }
+  .back-arrow-mobile  { display: flex; }
+  @media (min-width: 1122px) {
+    .back-arrow-desktop { display: flex; }
+    .back-arrow-mobile  { display: none; }
+  }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
 
 <!-- ── HEADER ────────────────────────────────────────────────────────────── -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-  <a href="index.html">
-  <div class="mx-auto px-4 py-3 flex items-center gap-3">
-    <div class="bg-slate-800 p-2 rounded-lg">
-      <i class="fa-solid fa-flask-vial text-white text-xl"></i>
-    </div>
+
+  <!-- Mobile back arrow -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="index.html"
+       class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+
+  <!-- Title row -->
+  <div class="relative">
+    <!-- Desktop back arrow -->
+    <a href="index.html"
+       class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <a href="index.html" class="flex items-center gap-3 no-underline group">
+        <div class="bg-slate-800 p-2 rounded-lg group-hover:bg-slate-700 transition-colors">
+          <i class="fa-solid fa-flask-vial text-white text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Science Resources</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Toolkits for Science</p>
+        </div>
       </a>
-    <div>
-      <h1 class="text-lg font-bold text-slate-900 leading-tight">Science Resources</h1>
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Toolkits for Science</p>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+        DNA · RNA · Protein Analysis
+      </p>
     </div>
   </div>
 </header>
@@ -59,71 +87,79 @@
 <!-- ── HERO ──────────────────────────────────────────────────────────────── -->
 <section class="bg-white border-b border-slate-200">
   <div class="max-w-5xl mx-auto px-4 py-12 text-center">
+    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
+      <i class="fa-solid fa-dna mr-1.5 text-blue-300"></i>DNA Sequencer Tools
+    </p>
     <h2 class="text-3xl font-black text-slate-900 tracking-tight mb-3">
-      DNA Sequencer tools
+      DNA Sequence Analysis
     </h2>
     <p class="text-slate-500 text-sm max-w-md mx-auto leading-relaxed">
-      Tools for doing DNA seuqnece analysis.<br>
+      Tools for DNA sequence analysis, translation, and species identification.
       No installation, no account — your data stays on your device.
     </p>
   </div>
 </section>
 
 <!-- ── TOOL CARDS ────────────────────────────────────────────────────────── -->
-<main class="max-w-5xl mx-auto px-4 py-12 flex-1 w-full">
+<main class="max-w-5xl mx-auto px-4 py-10 flex-1 w-full">
 
-  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Select a Tool</p>
+  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5">
+    <i class="fa-solid fa-grid-2 mr-1.5"></i>Select a Tool
+  </p>
 
   <div class="grid md:grid-cols-2 gap-5">
 
-    <!-- SeqLab -->
+    <!-- ── Invertebrate DNA Sequencer ─────────────────────────────────── -->
     <a href="invertebrate-dna-sequencer.html"
       class="tool-card tool-card-blue bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-blue-100 p-3.5 rounded-xl">
           <i class="fa-solid fa-dna text-blue-600 text-2xl"></i>
         </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-blue-400 transition-colors mt-1"></i>
+        <div class="bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-blue-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
       </div>
-
       <h2 class="text-xl font-black text-slate-900 mb-1">Invertebrate DNA Sequencer</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">DNA · RNA · Protein Analysis</p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">transl_table=5 · COI-5P · BOLD</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Align overlapping DNA fragments, translate sequences using The Invertebrate Mitochondrial Code (transl_table=5),
-        and compare amino acid sequences with mismatch highlighting.
+        Align overlapping DNA fragments, translate sequences using the
+        Invertebrate Mitochondrial Code (transl_table=5), and compare amino
+        acid sequences with mismatch highlighting. Includes BOLD-based species
+        identification with K2P distances.
       </p>
-
       <div class="flex flex-wrap gap-2">
         <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-blue-400 text-[9px]"></i>Fragment Aligner</span>
         <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-blue-400 text-[9px]"></i>DNA → Amino Acid</span>
         <span class="feature-pill"><i class="fa-solid fa-code-compare text-blue-400 text-[9px]"></i>Protein Comparator</span>
+        <span class="feature-pill"><i class="fa-solid fa-magnifying-glass-chart text-blue-400 text-[9px]"></i>Species ID</span>
       </div>
     </a>
 
-        <!-- SeqLab -->
+    <!-- ── Bear DNA Sequencer ──────────────────────────────────────────── -->
     <a href="bear-dna-sequencer.html"
       class="tool-card tool-card-purple bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
         <div class="bg-purple-100 p-3.5 rounded-xl">
           <i class="fa-solid fa-dna text-purple-600 text-2xl"></i>
         </div>
-        <i class="fa-solid fa-arrow-right text-slate-300 group-hover:text-purple-400 transition-colors mt-1"></i>
+        <div class="bg-purple-50 border border-purple-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-purple-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
       </div>
-
       <h2 class="text-xl font-black text-slate-900 mb-1">Bear DNA Sequencer</h2>
-      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">DNA · RNA · Protein Analysis</p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">transl_table=2 · Vertebrate Mitochondrial</p>
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
-        Align overlapping DNA fragments, translate sequences using The Vertebrate Mitochondrial Code (transl_table=2),
-        and compare amino acid sequences with mismatch highlighting.
+        Align overlapping DNA fragments, translate sequences using the
+        Vertebrate Mitochondrial Code (transl_table=2), and compare amino acid
+        sequences with mismatch highlighting.
       </p>
-
       <div class="flex flex-wrap gap-2">
         <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-purple-400 text-[9px]"></i>Fragment Aligner</span>
         <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-purple-400 text-[9px]"></i>DNA → Amino Acid</span>
         <span class="feature-pill"><i class="fa-solid fa-code-compare text-purple-400 text-[9px]"></i>Protein Comparator</span>
       </div>
     </a>
-
 
   </div>
 </main>
@@ -134,10 +170,10 @@
       <i class="fa-solid fa-flask-vial text-slate-300"></i>
       <span class="text-sm font-semibold text-slate-400">Science Resources</span>
     </div>
-    <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
-<p  class="transition-colors flex items-center gap-1.5">Created by - Frank Hogland
-© 2026-present. All Rights Reserved.</p>
-    </div>
+    <p class="text-xs font-semibold text-slate-400">
+      Created by — Frank Hogland &nbsp;·&nbsp; © 2026-present. All Rights Reserved.
+    </p>
+  </div>
 </footer>
 
 </body>

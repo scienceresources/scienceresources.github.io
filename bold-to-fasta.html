@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOLD → FASTA Converter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="icon" type="image/png" href="favicon6.png">
+     <link rel="apple-touch-icon" href="favicon6.png">
+
+<style>
+  [x-cloak] { display: none !important; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+  .tab-active   { border-bottom: 2px solid #0d9488; color: #0f766e !important; background: #f0fdfa; }
+  .tab-inactive { border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #334155; background: #f8fafc; }
+
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .drop-zone { transition: all 0.2s; border: 2px dashed #e2e8f0; }
+  .drop-zone.active { border-color: #0d9488 !important; background: #f0fdfa !important; }
+
+  .data-table-wrap { overflow: auto; max-height: 420px; }
+  .data-table { border-collapse: collapse; font-size: 11px; min-width: 100%; }
+  .data-table th {
+    background: #1e293b; color: #94a3b8; padding: 7px 10px;
+    text-align: left; font-family: 'Courier New', monospace;
+    font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    white-space: nowrap; position: sticky; top: 0; z-index: 10;
+  }
+  .data-table td {
+    padding: 5px 10px; border-bottom: 1px solid #f1f5f9; color: #475569;
+    font-family: 'Courier New', monospace; white-space: nowrap;
+    max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .data-table tr:hover td { background: #f8fafc; }
+
+  .stat-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+
+  .step-card { background: white; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 20px; transition: border-color 0.2s, background 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .step-card.active { border-color: #2dd4bf; background: #f0fdfa; }
+  .step-card.done   { border-color: #86efac; background: #f0fdf4; }
+
+  .step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; flex-shrink: 0; }
+  .step-num.pending { background: #f1f5f9; color: #94a3b8; }
+  .step-num.active  { background: #14b8a6; color: white; }
+  .step-num.done    { background: #22c55e; color: white; }
+
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .suggest-item { padding: 8px 14px; cursor: pointer; font-size: 12px; font-family: 'Courier New', monospace; transition: background 0.1s; border-bottom: 1px solid #f1f5f9; }
+  .suggest-item:hover { background: #f0fdfa; }
+  .suggest-item:last-child { border-bottom: none; }
+
+  .marker-chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1.5px solid #e2e8f0; background: white; transition: all 0.15s; font-family: 'Courier New', monospace; color: #475569; user-select: none; }
+  .marker-chip:hover { border-color: #2dd4bf; }
+  .marker-chip.selected { border-color: #0d9488; background: #f0fdfa; color: #134e4a; }
+
+  .back-arrow-desktop { display: none; }
+  .back-arrow-mobile  { display: flex; }
+  @media (min-width: 1122px) {
+    .back-arrow-desktop { display: flex; }
+    .back-arrow-mobile  { display: none; }
+  }
+</style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col" x-data="app()">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+
+  <!-- Mobile back arrow -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="index.html"
+       class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+
+  <!-- Title row -->
+  <div class="relative">
+    <!-- Desktop back arrow -->
+    <a href="index.html"
+       class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-teal-100 p-2 rounded-lg">
+          <i class="fa-solid fa-dna text-teal-600 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">BOLD → FASTA Converter</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">portal.boldsystems.org · BCDM · FASTA</p>
+        </div>
+      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+        TSV · JSON · JSONL · Darwin Core · All processing in-browser
+      </p>
+    </div>
+  </div>
+
+  <!-- Tab row -->
+  <div class="max-w-5xl mx-auto px-4 flex gap-1 flex-wrap">
+    <button id="tab-convert" onclick="showTab('convert')"
+      class="tab-active text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-right-left mr-2 opacity-70"></i>Convert
+    </button>
+    <button id="tab-guide" onclick="showTab('guide')"
+      class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-circle-info mr-2 opacity-70"></i>Guide
+    </button>
+  </div>
+</header>
+
+<main class="flex-1 max-w-5xl mx-auto w-full px-4 py-8 space-y-5">
+
+  <!-- ══ CONVERT TAB ══ -->
+  <div id="panel-convert" class="space-y-5">
+
+    <!-- STEP 1 -->
+    <div class="step-card" :class="boldUrl ? 'done' : 'active'">
+      <div class="flex items-start gap-4">
+        <div class="step-num mt-0.5" :class="boldUrl ? 'done' : 'active'">
+          <i :class="boldUrl ? 'fa-solid fa-check' : 'fa-solid fa-magnifying-glass'" class="text-[10px]"></i>
+        </div>
+        <div class="flex-1">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+            <i class="fa-solid fa-circle-1 mr-1 text-teal-400"></i>Find Your Data on BOLD
+          </p>
+          <p class="text-sm text-slate-500 leading-relaxed mb-5">
+            Enter a taxon name and we'll open BOLD with the right search pre-filled.
+          </p>
+          <div class="flex gap-3 flex-wrap">
+            <div class="relative flex-1 min-w-44">
+              <i class="fa-solid fa-leaf absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+              <input type="text" x-model="searchInput"
+                @keydown.enter.prevent="openBOLD()"
+                @input="onSearchInput()"
+                @blur="setTimeout(()=>{suggestions=[]},160)"
+                placeholder="Genus, family, or order…"
+                class="w-full pl-8 pr-3 py-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 font-mono bg-slate-50 transition-all"
+              />
+              <div x-show="suggestions.length > 0" class="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-20 mt-1 overflow-hidden" x-cloak>
+                <template x-for="s in suggestions" :key="s">
+                  <div class="suggest-item" @mousedown.prevent="searchInput=s; suggestions=[]">
+                    <i class="fa-solid fa-leaf text-teal-400 mr-2 text-xs"></i><span x-text="s"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <button @click="openBOLD()" :disabled="!searchInput.trim()"
+              class="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-widest px-6 py-3 rounded-lg transition-all shadow-sm whitespace-nowrap active:scale-95">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in BOLD
+            </button>
+          </div>
+          <div x-show="boldUrl" class="mt-4 bg-white border border-green-200 rounded-xl p-4 text-xs text-slate-600 space-y-1" x-cloak>
+            <p class="font-bold text-green-700 flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-check text-green-500"></i>
+              Opened BOLD for "<span x-text="lastSearched" class="italic"></span>"
+            </p>
+            <ol class="pl-4 space-y-0.5 list-decimal text-slate-500">
+              <li>Wait for results to load in the BOLD tab</li>
+              <li>Click <strong class="text-slate-700">Download</strong> → choose <strong class="text-slate-700">TSV — BCDM</strong> or <strong class="text-slate-700">JSON</strong></li>
+              <li>Drop the file into Step 2 below <i class="fa-solid fa-arrow-down text-teal-500"></i></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="step-card" :class="sequences.length > 0 ? 'done' : (boldUrl ? 'active' : '')">
+      <div class="flex items-start gap-4">
+        <div class="step-num mt-0.5" :class="sequences.length > 0 ? 'done' : (boldUrl ? 'active' : 'pending')">
+          <i :class="sequences.length > 0 ? 'fa-solid fa-check' : 'fa-solid fa-upload'" class="text-[10px]"></i>
+        </div>
+        <div class="flex-1">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+            <i class="fa-solid fa-circle-2 mr-1 text-teal-400"></i>Upload the BOLD Export
+          </p>
+          <p class="text-sm text-slate-500 leading-relaxed mb-5">
+            Drop your downloaded file. Accepts <strong>TSV (BCDM)</strong>, <strong>JSON</strong>, or <strong>JSONL</strong> from the new portal, or any export from the old system.
+          </p>
+
+          <div class="drop-zone rounded-xl p-8 cursor-pointer hover:border-teal-300 hover:bg-teal-50/50 transition-all flex flex-col items-center justify-center min-h-[180px]"
+            :class="dragging ? 'active' : ''"
+            @click="$refs.fileInput.click()"
+            @dragenter.prevent="dragging=true"
+            @dragover.prevent="dragging=true"
+            @dragleave.prevent="dragging=false"
+            @drop.prevent="dragging=false; handleDrop($event)">
+
+            <template x-if="!processing && sequences.length === 0 && !fileError">
+              <div class="flex items-center gap-6 text-center w-full justify-center">
+                <div class="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-file-arrow-up text-teal-400 text-xl"></i>
+                </div>
+                <div class="text-left">
+                  <p class="text-sm font-bold text-slate-600 mb-0.5">Drop file here</p>
+                  <p class="text-xs text-slate-400 mb-2">or click to browse</p>
+                  <div class="flex gap-1.5 flex-wrap">
+                    <span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded">.tsv</span>
+                    <span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded">.json</span>
+                    <span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded">.jsonl</span>
+                    <span class="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded">.txt</span>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="processing">
+              <div class="flex items-center gap-4 justify-center w-full">
+                <i class="fa-solid fa-circle-notch spin text-teal-500 text-2xl shrink-0"></i>
+                <p class="text-sm font-bold text-slate-600" x-text="processingMsg"></p>
+              </div>
+            </template>
+
+            <template x-if="!processing && sequences.length > 0 && !fileError">
+              <div class="flex items-center gap-4 justify-center w-full">
+                <i class="fa-solid fa-circle-check text-green-500 text-2xl shrink-0"></i>
+                <div>
+                  <p class="text-sm font-bold text-slate-600 mb-0.5" x-text="fileName"></p>
+                  <p class="text-xs text-green-600 font-bold" x-text="sequences.length.toLocaleString() + ' sequences loaded'"></p>
+                  <p class="text-[10px] text-slate-400 mt-1">Drop another file to replace</p>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="!processing && fileError">
+              <div class="flex items-center gap-4 justify-center w-full">
+                <i class="fa-solid fa-circle-xmark text-red-400 text-2xl shrink-0"></i>
+                <div>
+                  <p class="text-sm font-bold text-red-600 mb-0.5">Could not parse file</p>
+                  <p class="text-xs text-slate-500" x-text="fileError"></p>
+                  <p class="text-[10px] text-slate-400 mt-1">Drop another file to try again</p>
+                </div>
+              </div>
+            </template>
+          </div>
+          <input type="file" accept=".tsv,.json,.jsonl,.txt,.csv" x-ref="fileInput" class="hidden" @change="handleFileInput($event)">
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="step-card" :class="sequences.length > 0 ? 'active' : ''">
+      <div class="flex items-start gap-4">
+        <div class="step-num mt-0.5" :class="sequences.length > 0 ? 'active' : 'pending'">
+          <i class="fa-solid fa-file-arrow-down text-[10px]"></i>
+        </div>
+        <div class="flex-1">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+            <i class="fa-solid fa-circle-3 mr-1 text-teal-400"></i>Download FASTA
+          </p>
+          <p class="text-sm text-slate-500 leading-relaxed mb-5">
+            Download as a FASTA file ready for phylogenetics or alignment tools.
+          </p>
+
+          <!-- Marker filter chips -->
+          <div class="flex flex-wrap gap-2 mb-4">
+            <template x-for="m in markerOptions" :key="m">
+              <span class="marker-chip" :class="markerFilter===m ? 'selected' : ''"
+                @click="markerFilter = markerFilter===m ? '' : m">
+                <i class="fa-solid fa-filter text-[9px] mr-1.5" x-show="markerFilter===m"></i>
+                <span x-text="m"></span>
+                <span x-show="markerFilter===m" class="ml-1 text-teal-400">✓</span>
+              </span>
+            </template>
+            <span x-show="markerFilter" @click="markerFilter=''" class="marker-chip text-slate-400 border-dashed" x-cloak>
+              <i class="fa-solid fa-xmark mr-1"></i> clear
+            </span>
+          </div>
+
+          <!-- Stats -->
+          <div x-show="sequences.length > 0" class="flex flex-wrap gap-2 mb-4" x-cloak>
+            <span class="stat-chip bg-teal-100 text-teal-800">
+              <i class="fa-solid fa-dna"></i>
+              <span x-text="filteredSequences.length.toLocaleString()"></span>
+              <span x-show="markerFilter && filteredSequences.length !== sequences.length" class="text-teal-500 font-normal" x-text="' of '+sequences.length.toLocaleString()"></span>
+              sequences
+            </span>
+            <span class="stat-chip bg-slate-100 text-slate-700">
+              <i class="fa-solid fa-leaf"></i><span x-text="uniqueSpecies.toLocaleString()"></span> taxa
+            </span>
+            <span x-show="skipped > 0" class="stat-chip bg-slate-100 text-slate-500" x-cloak>
+              <i class="fa-solid fa-ban"></i><span x-text="skipped.toLocaleString()"></span> skipped
+            </span>
+            <span x-show="markerFilter" class="stat-chip bg-teal-50 text-teal-700 border border-teal-200" x-cloak>
+              <i class="fa-solid fa-filter"></i><span x-text="markerFilter"></span>
+            </span>
+          </div>
+
+          <div class="flex gap-3 flex-wrap" :class="sequences.length === 0 ? 'opacity-40 pointer-events-none' : ''">
+            <button @click="downloadFASTA()"
+              class="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold text-xs uppercase tracking-widest px-6 py-2.5 rounded-lg transition-all shadow-sm">
+              <i class="fa-solid fa-file-arrow-down"></i>
+              Download FASTA
+              <span x-show="filteredSequences.length > 0" class="bg-teal-500 px-1.5 py-0.5 rounded-full text-[10px]" x-text="filteredSequences.length.toLocaleString()"></span>
+            </button>
+            <button @click="copyFASTA()" id="btn-copy"
+              class="flex items-center gap-1.5 px-4 py-2.5 border border-slate-200 bg-white rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition-all font-mono shadow-sm">
+              <i class="fa-regular fa-copy"></i> Copy
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview table -->
+    <div x-show="filteredSequences.length > 0" class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden fade-in" x-cloak>
+      <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+        <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+          <i class="fa-solid fa-table text-teal-500 mr-1.5"></i>Preview
+          <span class="text-slate-400 font-normal ml-1"
+            x-text="filteredSequences.length > 300 ? '(first 300 of '+filteredSequences.length.toLocaleString()+')' : '('+filteredSequences.length.toLocaleString()+')'"></span>
+        </h3>
+        <div x-show="Object.keys(markerCounts).length > 1" class="flex gap-1.5 flex-wrap justify-end" x-cloak>
+          <template x-for="[m, c] in sortedMarkers" :key="m">
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full cursor-pointer transition-all"
+              :class="markerFilter===m ? 'bg-teal-400 text-white' : 'bg-slate-100 text-slate-500 hover:bg-teal-50'"
+              @click="markerFilter = markerFilter===m ? '' : m"
+              x-text="m+' ('+c+')'">
+            </span>
+          </template>
+        </div>
+      </div>
+      <div class="data-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>FASTA Header</th>
+              <th>Process ID</th>
+              <th>Marker</th>
+              <th>Sequence Preview</th>
+              <th>Length</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(seq, i) in filteredSequences.slice(0, 300)" :key="i">
+              <tr>
+                <td class="text-slate-400" x-text="i+1"></td>
+                <td class="text-teal-700 font-bold" x-text="'>'+seq.header"></td>
+                <td class="text-slate-400 text-[10px]" x-text="seq.processId || '—'"></td>
+                <td class="text-slate-400" x-text="seq.marker || '—'"></td>
+                <td class="text-slate-500" x-text="seq.sequence.substring(0,48)+(seq.sequence.length>48?'…':'')"></td>
+                <td class="text-slate-400" x-text="seq.sequence.length+' bp'"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /convert -->
+
+  <!-- ══ GUIDE TAB ══ -->
+  <div id="panel-guide" class="hidden space-y-5 fade-in">
+    <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5">
+        <i class="fa-solid fa-circle-play mr-1.5 text-teal-500"></i>Quick Start
+      </p>
+      <div class="grid sm:grid-cols-3 gap-4 text-sm text-slate-600">
+        <div class="bg-slate-50 rounded-xl p-4 space-y-2 border border-slate-100">
+          <div class="flex items-center gap-2 font-bold text-slate-700">
+            <span class="w-6 h-6 bg-teal-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shrink-0">1</span>Search BOLD
+          </div>
+          <p class="text-xs text-slate-500">Type your taxon (e.g. <em>Bombus</em>) and click <strong>Open in BOLD</strong>. The portal opens with your search pre-filled.</p>
+        </div>
+        <div class="bg-slate-50 rounded-xl p-4 space-y-2 border border-slate-100">
+          <div class="flex items-center gap-2 font-bold text-slate-700">
+            <span class="w-6 h-6 bg-teal-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shrink-0">2</span>Download from BOLD
+          </div>
+          <p class="text-xs text-slate-500">In the portal, click <strong>Download → TSV (BCDM)</strong>. Drop the file into Step 2.</p>
+        </div>
+        <div class="bg-slate-50 rounded-xl p-4 space-y-2 border border-slate-100">
+          <div class="flex items-center gap-2 font-bold text-slate-700">
+            <span class="w-6 h-6 bg-teal-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shrink-0">3</span>Convert &amp; Download
+          </div>
+          <p class="text-xs text-slate-500">Filter by marker (e.g. COI-5P) if needed, then click <strong>Download FASTA</strong> for use in phylogenetics or alignment.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-5">
+
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
+          <i class="fa-solid fa-file-lines mr-1.5 text-teal-500"></i>Supported Upload Formats
+        </p>
+        <div class="text-xs text-slate-600 space-y-2.5">
+          <div class="flex gap-2.5 items-start"><code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0 text-[10px]">TSV (BCDM)</code><span>New portal default — <code class="bg-slate-100 px-1 rounded text-[10px]">nucraw</code> + <code class="bg-slate-100 px-1 rounded text-[10px]">processid</code> columns</span></div>
+          <div class="flex gap-2.5 items-start"><code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0 text-[10px]">JSON (BCDM)</code><span>New portal JSON, records keyed by process ID</span></div>
+          <div class="flex gap-2.5 items-start"><code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0 text-[10px]">JSONL</code><span>One record per line</span></div>
+          <div class="flex gap-2.5 items-start"><code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0 text-[10px]">Old BOLD JSON</code><span>Legacy format with <code class="bg-slate-100 px-1 rounded text-[10px]">nuc</code> field</span></div>
+          <div class="flex gap-2.5 items-start"><code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0 text-[10px]">Darwin Core TSV</code><span>Maps <code class="bg-slate-100 px-1 rounded text-[10px]">scientificName</code> to header</span></div>
+        </div>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
+          <i class="fa-solid fa-code mr-1.5 text-teal-500"></i>FASTA Header Format
+        </p>
+        <p class="text-xs text-slate-600 mb-3">Headers formatted as <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">Genus_species</code> — spaces → underscores, duplicates suffixed <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">_2</code>, <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">_3</code>…</p>
+        <div class="bg-slate-900 rounded-xl p-4 font-mono text-[10px] text-green-400 leading-relaxed">
+          &gt;Melissodes_agilis<br>
+          AATTTTATATTTTATTTTTGGAATTTGAGCAGG…<br>
+          &gt;Melissodes_agilis_2<br>
+          AATTTTATATTTTATTTTTGGAATTTGAGCAGG…<br>
+          &gt;Melissodes_tepida<br>
+          TATTTCATATTTCATTTTTGGAATTTGAGCAGG…
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="border-t border-slate-200 bg-white">
+  <div class="max-w-5xl mx-auto px-4 py-5 flex flex-wrap justify-between items-center gap-3">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-dna text-slate-300"></i>
+      <span class="text-sm font-semibold text-slate-400">Barcode Tools</span>
+    </div>
+    <div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
+      <span>Sequence data © BOLD Systems / original contributors</span>
+      <span class="hidden sm:inline">·</span>
+      <span class="hidden sm:inline">No data uploaded to any server</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+function app() {
+  return {
+    // Step 1
+    searchInput: '',
+    suggestions: [],
+    boldUrl: '',
+    lastSearched: '',
+
+    // Step 2
+    dragging: false,
+    processing: false,
+    processingMsg: '',
+    fileName: '',
+    fileError: '',
+    sequences: [],
+    skipped: 0,
+
+    // Step 3
+    markerFilter: '',
+    markerOptions: ['COI-5P','COI-3P','ITS','matK','rbcL','trnH-psbA','16S','18S'],
+
+    get filteredSequences() {
+      return this.markerFilter
+        ? this.sequences.filter(s => s.marker === this.markerFilter)
+        : this.sequences;
+    },
+    get uniqueSpecies() {
+      return new Set(this.filteredSequences.map(s => s.header.replace(/_\d+$/, ''))).size;
+    },
+    get markerCounts() {
+      const c = {};
+      for (const s of this.sequences) { const m = s.marker||'unknown'; c[m]=(c[m]||0)+1; }
+      return c;
+    },
+    get sortedMarkers() {
+      return Object.entries(this.markerCounts).sort((a,b)=>b[1]-a[1]);
+    },
+
+    onSearchInput() {
+      const q = this.searchInput.trim().toLowerCase();
+      if (!q || q.length < 2) { this.suggestions = []; return; }
+      const pool = [
+        'Arthropoda','Insecta','Arachnida','Diplopoda',
+        'Hymenoptera','Lepidoptera','Diptera','Coleoptera','Hemiptera','Odonata','Orthoptera',
+        'Apidae','Vespidae','Formicidae','Halictidae','Megachilidae','Andrenidae','Colletidae',
+        'Nymphalidae','Papilionidae','Pieridae','Lycaenidae','Hesperiidae','Sphingidae','Saturniidae',
+        'Bombus','Apis','Melissodes','Xylocopa','Andrena','Lasioglossum','Megachile','Osmia',
+        'Halictus','Ceratina','Nomada','Agapostemon','Colletes','Polistes','Vespula','Vespa',
+        'Drosophila','Aedes','Culex','Anopheles','Danaus','Papilio','Pieris','Vanessa','Manduca',
+        'Apis mellifera','Bombus terrestris','Bombus impatiens','Drosophila melanogaster','Aedes aegypti',
+      ];
+      this.suggestions = pool.filter(s => s.toLowerCase().startsWith(q)).slice(0,8);
+    },
+
+    openBOLD() {
+      const t = this.searchInput.trim();
+      if (!t) return;
+      const url = `https://portal.boldsystems.org/result?query=${encodeURIComponent(t)}[tax]`;
+      this.boldUrl = url;
+      this.lastSearched = t;
+      window.open(url, '_blank');
+    },
+
+    handleFileInput(e) { const f=e.target.files[0]; if(f) this.processFile(f); e.target.value=''; },
+    handleDrop(e)      { const f=e.dataTransfer.files[0]; if(f) this.processFile(f); },
+
+    async processFile(file) {
+      this.processing = true;
+      this.processingMsg = 'Reading file…';
+      this.fileError = '';
+      this.sequences = [];
+      this.skipped = 0;
+      this.markerFilter = '';
+      this.fileName = file.name;
+      await new Promise(r => setTimeout(r, 30));
+
+      try {
+        this.processingMsg = 'Parsing records…';
+        await new Promise(r => setTimeout(r, 10));
+        const text = await file.text();
+        const nameCount = {};
+        const { seqs, skipped } = this.parseAny(text, nameCount);
+
+        if (seqs.length === 0) {
+          this.fileError = skipped > 0
+            ? `Found ${skipped.toLocaleString()} records but none had sequence data. Check the file has a "nucraw", "nuc", or "nucleotides" column.`
+            : 'Could not find any barcode records. Make sure this is a BOLD export file (TSV or JSON).';
+        } else {
+          this.processingMsg = `Parsed ${seqs.length.toLocaleString()} sequences…`;
+          await new Promise(r => setTimeout(r, 10));
+          this.sequences = seqs;
+          this.skipped = skipped;
+          const counts = {};
+          for (const s of seqs) { const m=s.marker||''; counts[m]=(counts[m]||0)+1; }
+          if (counts['COI-5P'] && counts['COI-5P'] / seqs.length > 0.3) {
+            this.markerFilter = 'COI-5P';
+          }
+        }
+      } catch(e) {
+        this.fileError = `Parse error: ${e.message}`;
+      }
+      this.processing = false;
+    },
+
+    parseAny(text, nameCount) {
+      text = text.trim();
+      if (!text) return { seqs: [], skipped: 0 };
+      if (!text.startsWith('{') && !text.startsWith('[') && !text.startsWith('>') && text.includes('\t'))
+        return this.parseTSV(text, nameCount);
+      if (text.startsWith('>'))
+        return this.parseFASTA(text, nameCount);
+      return this.parseJSON(text, nameCount);
+    },
+
+    parseTSV(text, nameCount) {
+      const lines = text.split('\n');
+      const hdrs  = lines[0].split('\t').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+      const idx   = (...names) => { for(const n of names){ const i=hdrs.indexOf(n); if(i>=0)return i; } return -1; };
+
+      const iNuc  = idx('nucraw','nuc','nucleotides','sequence','sequences','dna_sequence');
+      const iGenus= idx('genus');
+      const iSp   = idx('species','species_name','specificepithet');
+      const iMark = idx('marker_code','marker','gene_name','target_gene');
+      const iSci  = idx('scientificname','scientific_name');
+      const iIdent= idx('identification','taxon_name');
+      const iPid  = idx('processid','process_id','sampleid','sample_id');
+
+      const seqs=[]; let skipped=0;
+
+      for (let i=1; i<lines.length; i++) {
+        const line = lines[i]; if(!line.trim()) continue;
+        const cols = this.splitTSV(line);
+        const get  = j => j>=0 && j<cols.length ? cols[j].trim().replace(/^"|"$/g,'') : '';
+
+        const processId = get(iPid) || undefined;
+        const sequence = get(iNuc).replace(/[\s\-]/g,'');
+        if (!sequence) { skipped++; continue; }
+
+        const genus   = get(iGenus);
+        const species = get(iSp);
+        const marker  = get(iMark) || undefined;
+
+        let baseName;
+        if (genus) {
+          baseName = this.buildName(genus, species);
+        } else {
+          const full = get(iSci) || get(iIdent);
+          if (full) {
+            const parts = full.trim().split(/\s+/);
+            baseName = parts.length>=2 ? `${parts[0]}_${parts[1]}` : parts[0];
+            baseName = baseName.replace(/[^\w]/g,'_');
+          } else { baseName='Unknown_sp'; }
+        }
+        seqs.push({ header: this.dedupeHeader(baseName, nameCount), sequence, marker, processId });
+      }
+      return { seqs, skipped };
+    },
+
+    splitTSV(line) {
+      const cols=[]; let cur='', inQ=false;
+      for(let i=0;i<line.length;i++){
+        const ch=line[i];
+        if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+        else if(ch==='\t'&&!inQ){cols.push(cur);cur='';}
+        else cur+=ch;
+      }
+      cols.push(cur); return cols;
+    },
+
+    parseFASTA(text, nameCount) {
+      const seqs=[]; let skipped=0;
+      for(const entry of text.split(/\n(?=>)/)){
+        const nl=entry.indexOf('\n'); if(nl<0) continue;
+        const hdr=entry.slice(1,nl).trim();
+        const seq=entry.slice(nl+1).replace(/[\s\r\n\-]/g,'');
+        if(!seq){skipped++;continue;}
+        let base, processId;
+        if(hdr.includes('|')){
+          const p=hdr.split('|');
+          processId = p[0] || undefined;
+          base=p[2]?`${p[1]}_${p[2]}`:(p[1]||p[0]).replace(/\s+/g,'_');
+        } else {
+          const w=hdr.split(/\s+/);
+          base=w.length>=2?`${w[0]}_${w[1]}`:w[0];
+        }
+        seqs.push({ header: this.dedupeHeader(base.replace(/[^\w]/g,'_'), nameCount), sequence: seq, processId });
+      }
+      return { seqs, skipped };
+    },
+
+    parseJSON(text, nameCount) {
+      let records=[];
+      try {
+        const parsed=JSON.parse(text);
+        if(Array.isArray(parsed)){
+          records=parsed;
+        } else if(parsed&&typeof parsed==='object'){
+          const vals=Object.values(parsed);
+          if(!vals.length) return {seqs:[],skipped:0};
+          const first=vals[0];
+          if(typeof first==='object'&&(first.nucraw!==undefined||first.nuc!==undefined||first.processid!==undefined||first.genus!==undefined||first.sequences!==undefined)){
+            records=vals;
+          } else if(parsed.records) records=parsed.records;
+          else if(parsed.data) records=Array.isArray(parsed.data)?parsed.data:Object.values(parsed.data);
+          else records=vals.filter(v=>v&&typeof v==='object');
+        }
+      } catch {
+        for(const line of text.split('\n')){const l=line.trim();if(l)try{records.push(JSON.parse(l));}catch{}}
+      }
+      return this.recordsToSeqs(records, nameCount);
+    },
+
+    recordsToSeqs(records, nameCount) {
+      const seqs=[]; let skipped=0;
+      for(const rec of records){
+        const r=this.flattenRecord(rec);
+        const processId=r.processid||r.process_id||r.sampleid||undefined;
+
+        let seq=r.nucraw||r.nuc||r.nucleotides||r.sequence||'';
+        if(typeof seq!=='string'||!seq.trim()){skipped++;continue;}
+        seq=seq.replace(/[\s\r\n\-]/g,'');
+        if(!seq){skipped++;continue;}
+
+        const base=this.buildName(r.genus||'',r.species||'');
+        const marker=r.marker_code||r.marker||undefined;
+        seqs.push({header:this.dedupeHeader(base,nameCount),sequence:seq,marker,processId});
+      }
+      return {seqs,skipped};
+    },
+
+    flattenRecord(r) {
+      const f={...r};
+      if(r.sequences){
+        const s=Array.isArray(r.sequences)?r.sequences[0]:r.sequences;
+        if(s&&typeof s==='object'){f.nucraw=f.nucraw||s.nucraw||s.nuc||s.sequence;f.marker_code=f.marker_code||s.marker_code;}
+      }
+      if(!f.genus&&r.taxonomy){f.genus=r.taxonomy.genus?.taxon?.name||r.taxonomy.genus?.name;f.species=r.taxonomy.species?.taxon?.name||r.taxonomy.species?.name;}
+      if(!f.genus&&r.identification?.taxon?.name){const p=r.identification.taxon.name.split(' ');f.genus=p[0];f.species=p.slice(1).join(' ');}
+      return f;
+    },
+
+    buildName(genus, species) {
+      genus=(genus||'Unknown').trim(); species=(species||'').trim();
+      let base=species
+        ? (species.toLowerCase().startsWith(genus.toLowerCase()) ? species : `${genus} ${species}`)
+        : `${genus} sp`;
+      return base.trim().replace(/\s+/g,'_').replace(/[^\w]/g,'_');
+    },
+
+    dedupeHeader(base, nameCount) {
+      if(!base||base==='_') base='Unknown_sp';
+      if(!(base in nameCount)){nameCount[base]=1;return base;}
+      nameCount[base]++; return `${base}_${nameCount[base]}`;
+    },
+
+    buildFASTAText() { return this.filteredSequences.map(s=>`>${s.header}\n${s.sequence}`).join('\n'); },
+
+    downloadFASTA() {
+      if(!this.filteredSequences.length) return;
+      const name=(this.fileName||'bold').replace(/\.[^.]+$/,'').replace(/\s+/g,'_').slice(0,50);
+      const suffix=this.markerFilter?`_${this.markerFilter}`:'';
+      const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([this.buildFASTAText()],{type:'text/plain'})),download:`${name}${suffix}.fasta`});
+      a.click(); URL.revokeObjectURL(a.href);
+    },
+
+    async copyFASTA() {
+      if(!this.filteredSequences.length) return;
+      try {
+        await navigator.clipboard.writeText(this.buildFASTAText());
+        const btn=document.getElementById('btn-copy');
+        const orig=btn.innerHTML;
+        btn.innerHTML='<i class="fa-solid fa-check text-green-500"></i> Copied!';
+        setTimeout(()=>{btn.innerHTML=orig;},2000);
+      } catch {}
+    },
+  };
+}
+
+const PANELS = ['convert','guide'];
+function showTab(name) {
+  PANELS.forEach(id => {
+    const p=document.getElementById('panel-'+id), t=document.getElementById('tab-'+id);
+    if(!p||!t) return;
+    if(id===name){ p.classList.remove('hidden'); t.classList.remove('tab-inactive'); t.classList.add('tab-active'); }
+    else         { p.classList.add('hidden');    t.classList.remove('tab-active');   t.classList.add('tab-inactive'); }
+  });
+}
+</script>
+</body>
+</html>
