@@ -59,6 +59,7 @@
   .suggest-item { padding: 8px 14px; cursor: pointer; font-size: 12px; font-family: 'Courier New', monospace; transition: background 0.1s; border-bottom: 1px solid #f1f5f9; }
   .suggest-item:hover { background: #f0fdfa; }
   .suggest-item:last-child { border-bottom: none; }
+  .suggest-item .suggest-rank { font-size: 9px; color: #94a3b8; margin-left: 6px; font-style: italic; }
 
   .marker-chip { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1.5px solid #e2e8f0; background: white; transition: all 0.15s; font-family: 'Courier New', monospace; color: #475569; user-select: none; }
   .marker-chip:hover { border-color: #2dd4bf; }
@@ -139,7 +140,7 @@
             <i class="fa-solid fa-circle-1 mr-1 text-teal-400"></i>Find Your Data on BOLD
           </p>
           <p class="text-sm text-slate-500 leading-relaxed mb-5">
-            Enter a taxon name and we'll open BOLD with the right search pre-filled.
+            Enter any taxon name and we'll open BOLD with the right search pre-filled.
           </p>
           <div class="flex gap-3 flex-wrap">
             <div class="relative flex-1 min-w-44">
@@ -147,14 +148,22 @@
               <input type="text" x-model="searchInput"
                 @keydown.enter.prevent="openBOLD()"
                 @input="onSearchInput()"
-                @blur="setTimeout(()=>{suggestions=[]},160)"
-                placeholder="Genus, family, or order…"
+
+                placeholder="Any genus, species, family, or order…"
                 class="w-full pl-8 pr-3 py-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100 font-mono bg-slate-50 transition-all"
               />
-              <div x-show="suggestions.length > 0" class="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-20 mt-1 overflow-hidden" x-cloak>
-                <template x-for="s in suggestions" :key="s">
-                  <div class="suggest-item" @mousedown.prevent="searchInput=s; suggestions=[]">
-                    <i class="fa-solid fa-leaf text-teal-400 mr-2 text-xs"></i><span x-text="s"></span>
+              <!-- Suggestions dropdown -->
+              <div x-show="suggestions.length > 0 || suggestLoading" @click.away="suggestions=[];suggestLoading=false" class="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-20 mt-1 overflow-hidden max-h-60 overflow-y-auto">
+                <template x-if="suggestLoading && suggestions.length === 0">
+                  <div class="suggest-item text-slate-400 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-notch spin text-teal-400 text-xs"></i> Searching taxa…
+                  </div>
+                </template>
+                <template x-for="s in suggestions" :key="s.name">
+                  <div class="suggest-item" @mousedown.prevent="searchInput=s.name; suggestions=[]">
+                    <i class="fa-solid fa-leaf text-teal-400 mr-2 text-xs"></i>
+                    <span class="font-mono italic text-slate-800" x-text="s.name"></span>
+                    <span class="suggest-rank" x-text="(s.rank || '') + (s.family ? ' · ' + s.family : '')"></span>
                   </div>
                 </template>
               </div>
@@ -376,7 +385,7 @@
           <div class="flex items-center gap-2 font-bold text-slate-700">
             <span class="w-6 h-6 bg-teal-500 text-white rounded-full flex items-center justify-center text-[10px] font-black shrink-0">1</span>Search BOLD
           </div>
-          <p class="text-xs text-slate-500">Type your taxon (e.g. <em>Bombus</em>) and click <strong>Open in BOLD</strong>. The portal opens with your search pre-filled.</p>
+          <p class="text-xs text-slate-500">Type any taxon name (e.g. <em>Melissodes rivalis</em>) and click <strong>Open in BOLD</strong>. Suggestions come live from BOLD's taxonomy.</p>
         </div>
         <div class="bg-slate-50 rounded-xl p-4 space-y-2 border border-slate-100">
           <div class="flex items-center gap-2 font-bold text-slate-700">
@@ -447,6 +456,8 @@ function app() {
     // Step 1
     searchInput: '',
     suggestions: [],
+    suggestLoading: false,
+    suggestDebounce: null,
     boldUrl: '',
     lastSearched: '',
 
@@ -480,26 +491,51 @@ function app() {
       return Object.entries(this.markerCounts).sort((a,b)=>b[1]-a[1]);
     },
 
+    // ── Autocomplete: GBIF backbone species suggest (mirrors GBIF downloader) ──
     onSearchInput() {
-      const q = this.searchInput.trim().toLowerCase();
-      if (!q || q.length < 2) { this.suggestions = []; return; }
-      const pool = [
-        'Arthropoda','Insecta','Arachnida','Diplopoda',
-        'Hymenoptera','Lepidoptera','Diptera','Coleoptera','Hemiptera','Odonata','Orthoptera',
-        'Apidae','Vespidae','Formicidae','Halictidae','Megachilidae','Andrenidae','Colletidae',
-        'Nymphalidae','Papilionidae','Pieridae','Lycaenidae','Hesperiidae','Sphingidae','Saturniidae',
-        'Bombus','Apis','Melissodes','Xylocopa','Andrena','Lasioglossum','Megachile','Osmia',
-        'Halictus','Ceratina','Nomada','Agapostemon','Colletes','Polistes','Vespula','Vespa',
-        'Drosophila','Aedes','Culex','Anopheles','Danaus','Papilio','Pieris','Vanessa','Manduca',
-        'Apis mellifera','Bombus terrestris','Bombus impatiens','Drosophila melanogaster','Aedes aegypti',
-      ];
-      this.suggestions = pool.filter(s => s.toLowerCase().startsWith(q)).slice(0,8);
+      const q = this.searchInput.trim();
+      if (!q || q.length < 2) {
+        this.suggestions = [];
+        this.suggestLoading = false;
+        clearTimeout(this.suggestDebounce);
+        return;
+      }
+      clearTimeout(this.suggestDebounce);
+      this.suggestLoading = true;
+      this.suggestDebounce = setTimeout(() => this.fetchSuggestions(q), 350);
     },
 
+    async fetchSuggestions(q) {
+      try {
+        const res = await fetch(
+          `https://api.gbif.org/v1/species/suggest?q=${encodeURIComponent(q)}&limit=12&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`
+        );
+        const data = await res.json();
+        const items = data
+          .filter(s => ['SPECIES','SUBSPECIES','GENUS','FAMILY','ORDER','CLASS','PHYLUM','KINGDOM'].includes(s.rank))
+          .slice(0, 10)
+          .map(s => ({
+            name: s.canonicalName || s.scientificName,
+            rank: s.rank ? s.rank.charAt(0) + s.rank.slice(1).toLowerCase() : '',
+            family: s.family || ''
+          }));
+        if (q === this.searchInput.trim()) {
+          this.suggestions = items;
+        }
+      } catch {
+        if (q === this.searchInput.trim()) {
+          this.suggestions = [];
+        }
+      }
+      this.suggestLoading = false;
+    },
+
+    // ── Open BOLD with quoted exact-match query ───────────────────────────
     openBOLD() {
       const t = this.searchInput.trim();
       if (!t) return;
-      const url = `https://portal.boldsystems.org/result?query=${encodeURIComponent(t)}[tax]`;
+      // Wrap in quotes so BOLD does an exact taxon name match
+      const url = `https://portal.boldsystems.org/result?query=%22${encodeURIComponent(t)}%22[tax]`;
       this.boldUrl = url;
       this.lastSearched = t;
       window.open(url, '_blank');
