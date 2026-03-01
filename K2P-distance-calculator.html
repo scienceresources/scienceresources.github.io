@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K2P Distance Calculator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="icon" type="image/png" href="favicon2.png">
+     <link rel="apple-touch-icon" href="favicon2.png">
+
+<style>
+  [x-cloak] { display: none !important; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+  .seq-mono {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    white-space: pre;
+    letter-spacing: 0.04em;
+    line-height: 1.8;
+  }
+
+  /* Blue colour scheme */
+  .tab-active   { border-bottom: 2px solid #2563eb; color: #1d4ed8 !important; background: #eff6ff; }
+  .tab-inactive { border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #334155; background: #f8fafc; }
+  .back-arrow-desktop { display: none; }
+  .back-arrow-mobile  { display: flex; }
+  @media (min-width: 1122px) {
+    .back-arrow-desktop { display: flex; }
+    .back-arrow-mobile  { display: none; }
+  }
+
+  .fade-in { animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+
+  /* Mutation chips */
+  .ts-chip { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 700; display:inline-block; }
+  .tv-chip { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 700; display:inline-block; }
+
+  /* DNA base colours */
+  .base-A { color: #16a34a; font-weight: 800; }
+  .base-T { color: #d97706; font-weight: 800; }
+  .base-C { color: #2563eb; font-weight: 800; }
+  .base-G { color: #dc2626; font-weight: 800; }
+
+  /* Highlighted mismatch chars in alignment */
+  .mm-ts { 
+    background: #dbeafe; 
+    color: #1d4ed8; 
+    font-weight: 900; 
+    border-radius: 3px; 
+    border-bottom: 2px solid #3b82f6;
+    padding: 0 1px;
+  }
+  .mm-tv { 
+    background: #fee2e2; 
+    color: #b91c1c; 
+    font-weight: 900; 
+    border-radius: 3px; 
+    border-bottom: 2px solid #ef4444;
+    padding: 0 1px;
+  }
+  .mm-gap {
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  /* Walkthrough step cards */
+  .walk-card {
+    border-left: 3px solid #93c5fd;
+    background: white;
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  }
+
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #2563eb; color: white;
+    font-size: 11px; font-weight: 800;
+    margin-right: 10px; flex-shrink: 0;
+  }
+
+  /* Formula fractions */
+  .formula-frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 3px; }
+  .formula-frac .num { border-bottom: 1.5px solid #334155; padding: 0 4px; font-size: 13px; line-height: 1.4; }
+  .formula-frac .den { padding: 0 4px; font-size: 13px; line-height: 1.4; }
+
+  /* Mutation table */
+  .mut-table { border-collapse: collapse; font-size: 12px; font-family: 'Courier New', monospace; width: 100%; }
+  .mut-table th { background: #1e293b; color: #94a3b8; padding: 8px 14px; text-align: center; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+  .mut-table td { padding: 7px 14px; border-bottom: 1px solid #f1f5f9; text-align: center; }
+  .mut-table tr:last-child td { border-bottom: none; }
+  .mut-table tr:hover td { background: #eff6ff; }
+
+  /* Run button */
+  .run-btn {
+    background: #1e40af; color: white;
+    padding: 10px 24px; border-radius: 8px;
+    font-size: 14px; font-weight: 700;
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer; transition: all 0.15s;
+    border: none; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  .run-btn:hover:not([disabled]) { background: #1e3a8a; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,.15); }
+  .run-btn[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  /* Result value display */
+  .result-value {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'Courier New', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e3a8a;
+    display: inline-block;
+    min-width: 140px;
+    text-align: right;
+  }
+
+  /* Number input for manual entry */
+  .count-input {
+    font-family: 'Courier New', monospace;
+    font-size: 18px; font-weight: 800;
+    border: 2px solid #bfdbfe; border-radius: 8px;
+    padding: 8px 14px; background: white; color: #1e40af;
+    width: 110px; text-align: center;
+    transition: border 0.15s;
+    -moz-appearance: textfield;
+  }
+  .count-input::-webkit-outer-spin-button,
+  .count-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .count-input:focus { border-color: #2563eb; outline: none; box-shadow: 0 0 0 3px #bfdbfe; }
+  .count-input.tv { border-color: #fca5a5; color: #991b1b; }
+  .count-input.tv:focus { border-color: #ef4444; box-shadow: 0 0 0 3px #fecaca; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col" x-data="app">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-[500] shadow-sm">
+  <!-- Mobile back arrow (hidden above 1122px) -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="dna-index.html"
+       class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+  <!-- Title row -->
+  <div class="relative">
+    <!-- Desktop back arrow (visible above 1122px) -->
+    <a href="dna-index.html"
+       class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-blue-100 p-2 rounded-lg"><i class="fa-solid fa-dna text-blue-600 text-xl"></i></div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">K2P Distance Calculator</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Kimura 2-Parameter · Auto-Align · Guided Calculation</p>
+        </div>
+      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">Kimura (1980) · J. Mol. Evol. 16:111–120</p>
+    </div>
+  </div>
+  <div class="max-w-5xl mx-auto px-4 flex items-stretch flex-wrap">
+    <button onclick="showTab('align')" id="tab-align" class="tab-active text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-arrows-left-right mr-2 opacity-70"></i>Align &amp; Classify
+    </button>
+    <button onclick="showTab('calc')" id="tab-calc" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-calculator mr-2 opacity-70"></i>Calculate K2P
+    </button>
+    <button onclick="showTab('learn')" id="tab-learn" class="tab-inactive text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all">
+      <i class="fa-solid fa-book-open mr-2 opacity-70"></i>Learn
+    </button>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-5 flex-1 w-full">
+
+  <!-- ══ ALIGN & CLASSIFY ══════════════════════════════════════════════════ -->
+  <div id="panel-align" class="fade-in space-y-5">
+
+    <p class="text-sm text-slate-500 leading-relaxed">
+      Paste two DNA sequences below. The tool will align them and highlight every mismatch directly in the alignment — <span class="ts-chip">Transitions</span> in blue and <span class="tv-chip">Transversions</span> in red. The counts are automatically loaded into the Calculate tab, or you can adjust them manually.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <i class="fa-solid fa-1 mr-1 text-blue-400"></i>Sequence 1
+        </label>
+        <textarea x-model="seq1raw" rows="5" placeholder="ATGCGATCGATCG…"
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono resize-none transition-all uppercase tracking-wider focus:ring-2 focus:ring-blue-400 outline-none"></textarea>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+          <i class="fa-solid fa-2 mr-1 text-blue-400"></i>Sequence 2
+        </label>
+        <textarea x-model="seq2raw" rows="5" placeholder="ATGCGATCAATCG…"
+          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono resize-none transition-all uppercase tracking-wider focus:ring-2 focus:ring-blue-400 outline-none"></textarea>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3 flex-wrap">
+      <button @click="runAlignment()" :disabled="!seq1raw.trim() || !seq2raw.trim() || aligning" class="run-btn">
+        <i class="fa-solid fa-play text-xs"></i>
+        <span x-text="aligning ? 'Aligning…' : 'Run Alignment'"></span>
+      </button>
+      <button @click="loadExample()" class="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 border border-blue-200 hover:border-blue-400 hover:bg-blue-50 px-3 py-1.5 rounded-lg bg-white transition-all">
+        <i class="fa-solid fa-flask text-[10px]"></i>Load Example
+      </button>
+      <button @click="clearAll()" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg bg-white transition-all">
+        <i class="fa-solid fa-xmark text-[10px]"></i>Clear
+      </button>
+    </div>
+
+    <template x-if="alignError">
+      <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 text-sm text-red-700 font-semibold flex items-center gap-2">
+        <i class="fa-solid fa-triangle-exclamation shrink-0"></i><span x-text="alignError"></span>
+      </div>
+    </template>
+
+    <template x-if="alignResult">
+      <div class="space-y-5 fade-in">
+
+        <!-- Alignment summary -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4"><i class="fa-solid fa-chart-bar mr-1.5"></i>Alignment Summary</p>
+          <div class="flex flex-wrap gap-6">
+            <div>
+              <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-1">Direction</p>
+              <p class="font-bold text-slate-700 font-mono text-sm" x-text="alignResult.direction"></p>
+            </div>
+            <div>
+              <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-1">DNA Identity</p>
+              <p class="font-bold text-blue-600 font-mono text-sm">
+                <span x-text="alignResult.frac"></span>
+                <span class="text-slate-400 font-normal"> (<span x-text="alignResult.identity"></span>%)</span>
+              </p>
+            </div>
+            <div>
+              <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-1">Overlap Length</p>
+              <p class="font-bold text-slate-700 font-mono text-sm"><span x-text="alignResult.ovLen"></span> bp</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Full alignment with coloured mismatches -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-align-left mr-1.5"></i>Full Alignment — Mismatches Highlighted</p>
+          <div class="bg-slate-950 rounded-lg border border-slate-800 p-4 overflow-x-auto">
+            <div class="seq-mono text-slate-300 mb-1 flex">
+              <span class="text-slate-500 select-none inline-block w-16 shrink-0">SEQ 1  </span>
+              <span x-html="alignResult.html1"></span>
+            </div>
+            <div class="seq-mono text-slate-600 mb-1 flex">
+              <span class="text-slate-700 select-none inline-block w-16 shrink-0">       </span>
+              <span x-html="alignResult.htmlMatch"></span>
+            </div>
+            <div class="seq-mono text-slate-300 flex">
+              <span class="text-slate-500 select-none inline-block w-16 shrink-0">SEQ 2  </span>
+              <span x-html="alignResult.html2"></span>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-3 mt-3 text-[11px] font-mono text-slate-400">
+            <span><span class="font-bold text-slate-300">|</span> = match</span>
+            <span>·&nbsp; = mismatch</span>
+            <span>-&nbsp; = gap</span>
+            <span class="ts-chip">Ts = Transition</span>
+            <span class="tv-chip">Tv = Transversion</span>
+          </div>
+        </div>
+
+        <!-- Ts/Tv stats -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+            <p class="text-[9px] text-slate-400 uppercase tracking-widest font-bold mb-1">Sites (N)</p>
+            <p class="text-2xl font-black text-slate-700 font-mono" x-text="alignResult.N"></p>
+          </div>
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+            <p class="text-[9px] text-blue-400 uppercase tracking-widest font-bold mb-1">Transitions</p>
+            <p class="text-2xl font-black text-blue-700 font-mono" x-text="alignResult.nTs"></p>
+            <p class="text-[10px] text-blue-400 font-mono mt-0.5">P = <span x-text="alignResult.P.toFixed(4)"></span></p>
+          </div>
+          <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+            <p class="text-[9px] text-red-400 uppercase tracking-widest font-bold mb-1">Transversions</p>
+            <p class="text-2xl font-black text-red-600 font-mono" x-text="alignResult.nTv"></p>
+            <p class="text-[10px] text-red-400 font-mono mt-0.5">Q = <span x-text="alignResult.Q.toFixed(4)"></span></p>
+          </div>
+          <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+            <p class="text-[9px] text-green-500 uppercase tracking-widest font-bold mb-1">K2P Distance</p>
+            <p class="text-2xl font-black text-green-700 font-mono" x-text="isNaN(k2pFromAlignment()) ? 'N/A' : k2pFromAlignment().toFixed(4)"></p>
+            <p class="text-[10px] text-green-500 font-mono mt-0.5">see Calc tab →</p>
+          </div>
+        </div>
+
+        <!-- Next step prompt -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+          <i class="fa-solid fa-arrow-right text-blue-400 mt-0.5 shrink-0"></i>
+          <div class="text-sm text-blue-800">
+            <strong>Alignment complete.</strong> P = <strong x-text="alignResult.P.toFixed(4)"></strong>, Q = <strong x-text="alignResult.Q.toFixed(4)"></strong>, N = <strong x-text="alignResult.N"></strong>.
+            These values have been loaded into the <strong>Calculate K2P</strong> tab where you can see every step of the formula worked out.
+          </div>
+        </div>
+
+        <!-- Mismatch table -->
+        <template x-if="alignResult.mismatches.length > 0">
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-list mr-1.5"></i>Mismatch Detail</p>
+              <div class="flex gap-2">
+                <span class="ts-chip"><span x-text="alignResult.nTs"></span> Transitions</span>
+                <span class="tv-chip"><span x-text="alignResult.nTv"></span> Transversions</span>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="mut-table">
+                <thead><tr><th>Position</th><th>Seq 1</th><th>Seq 2</th><th>Change</th><th>Type</th></tr></thead>
+                <tbody>
+                  <template x-for="m in alignResult.mismatches" :key="m.pos">
+                    <tr>
+                      <td class="text-slate-500" x-text="m.pos + 1"></td>
+                      <td><span :class="'base-'+m.a" x-text="m.a"></span></td>
+                      <td><span :class="'base-'+m.b" x-text="m.b"></span></td>
+                      <td class="text-slate-600" x-text="m.a+'→'+m.b"></td>
+                      <td><span :class="m.type==='ts' ? 'ts-chip' : 'tv-chip'" x-text="m.type==='ts'?'Transition':'Transversion'"></span></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+
+        <div class="flex justify-end">
+          <button @click="goToCalc()" class="run-btn">
+            <i class="fa-solid fa-calculator text-xs"></i>See Full Calculation →
+          </button>
+        </div>
+      </div>
+    </template>
+
+  </div><!-- /align -->
+
+  <!-- ══ CALCULATE K2P ═════════════════════════════════════════════════════ -->
+  <div id="panel-calc" class="hidden fade-in space-y-5">
+
+    <p class="text-sm text-slate-500 leading-relaxed">
+      Enter the counts below — either loaded from the alignment or typed manually — and every step of the K2P formula will be worked out for you in full.
+    </p>
+
+    <!-- Manual count inputs -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-5"><i class="fa-solid fa-sliders mr-1.5"></i>Input Values</p>
+
+      <template x-if="alignResult">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-5 flex items-center gap-3 text-sm text-blue-800 flex-wrap">
+          <i class="fa-solid fa-link-simple text-blue-400 shrink-0"></i>
+          <span>Loaded from alignment — adjust freely below</span>
+          <button @click="useAlignmentValues()" class="ml-auto text-[11px] font-bold text-blue-600 border border-blue-300 hover:bg-blue-100 px-2 py-0.5 rounded transition-all">
+            <i class="fa-solid fa-rotate-left mr-1 text-[9px]"></i>Reset to alignment values
+          </button>
+        </div>
+      </template>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <!-- Transitions -->
+        <div class="text-center">
+          <label class="block text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-3">
+            <span class="ts-chip mr-1">Ts</span> Transitions
+          </label>
+          <div class="flex items-center justify-center gap-2">
+            <button @click="calcTs = Math.max(0, calcTs-1)" class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-lg flex items-center justify-center hover:bg-blue-200 transition-all">−</button>
+            <input type="number" x-model.number="calcTs" @input="calcTs = Math.max(0, parseInt($event.target.value)||0)" min="0" class="count-input">
+            <button @click="calcTs++" class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold text-lg flex items-center justify-center hover:bg-blue-200 transition-all">+</button>
+          </div>
+          <p class="text-[11px] text-blue-400 font-mono mt-2">P = <strong x-text="calcN > 0 ? (calcTs/calcN).toFixed(4) : '—'"></strong></p>
+        </div>
+
+        <!-- Transversions -->
+        <div class="text-center">
+          <label class="block text-[10px] font-bold text-red-500 uppercase tracking-widest mb-3">
+            <span class="tv-chip mr-1">Tv</span> Transversions
+          </label>
+          <div class="flex items-center justify-center gap-2">
+            <button @click="calcTv = Math.max(0, calcTv-1)" class="w-8 h-8 rounded-full bg-red-100 text-red-700 font-bold text-lg flex items-center justify-center hover:bg-red-200 transition-all">−</button>
+            <input type="number" x-model.number="calcTv" @input="calcTv = Math.max(0, parseInt($event.target.value)||0)" min="0" class="count-input tv">
+            <button @click="calcTv++" class="w-8 h-8 rounded-full bg-red-100 text-red-700 font-bold text-lg flex items-center justify-center hover:bg-red-200 transition-all">+</button>
+          </div>
+          <p class="text-[11px] text-red-400 font-mono mt-2">Q = <strong x-text="calcN > 0 ? (calcTv/calcN).toFixed(4) : '—'"></strong></p>
+        </div>
+
+        <!-- Sites -->
+        <div class="text-center">
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+            <i class="fa-solid fa-ruler mr-1"></i>Sites compared (N)
+          </label>
+          <div class="flex items-center justify-center gap-2">
+            <button @click="calcN = Math.max(1, calcN-1)" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-lg flex items-center justify-center hover:bg-slate-200 transition-all">−</button>
+            <input type="number" x-model.number="calcN" @input="calcN = Math.max(1, parseInt($event.target.value)||1)" min="1" class="count-input" style="border-color:#cbd5e1;color:#334155;">
+            <button @click="calcN++" class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-lg flex items-center justify-center hover:bg-slate-200 transition-all">+</button>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono mt-2">Total aligned sites</p>
+        </div>
+      </div>
+
+      <!-- Validation warning -->
+      <template x-if="calcTs + calcTv > calcN">
+        <div class="mt-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-700 font-semibold flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation shrink-0"></i>
+          Transitions + Transversions (<span x-text="calcTs+calcTv"></span>) exceed N (<span x-text="calcN"></span>). Check your inputs.
+        </div>
+      </template>
+    </div>
+
+    <!-- Formula reference -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4"><i class="fa-solid fa-function mr-1.5"></i>The K2P Formula</p>
+      <div class="bg-slate-50 border border-slate-100 rounded-xl p-6 text-center">
+        <div class="text-sm text-slate-400 mb-2">Kimura (1980) · J. Mol. Evol. 16:111–120</div>
+        <div class="text-2xl font-serif my-4 text-slate-800 leading-loose">
+          <em>d</em> &nbsp;=&nbsp; −
+          <span class="formula-frac"><span class="num">1</span><span class="den">2</span></span>
+          ln(1 − 2<em>P</em> − <em>Q</em>)
+          &nbsp;−&nbsp;
+          <span class="formula-frac"><span class="num">1</span><span class="den">4</span></span>
+          ln(1 − 2<em>Q</em>)
+        </div>
+        <div class="flex flex-wrap justify-center gap-3 mt-4 text-sm">
+          <div class="bg-white border border-blue-100 rounded-lg px-3 py-2"><span class="font-bold text-blue-700">P</span> = transitions ÷ sites</div>
+          <div class="bg-white border border-red-100 rounded-lg px-3 py-2"><span class="font-bold text-red-600">Q</span> = transversions ÷ sites</div>
+          <div class="bg-white border border-slate-200 rounded-lg px-3 py-2"><span class="font-bold">d</span> = K2P distance (substitutions/site)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step-by-step walkthrough -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-5"><i class="fa-solid fa-list-ol mr-1.5"></i>Step-by-Step Calculation</p>
+
+      <template x-if="calcN <= 0">
+        <div class="text-sm text-slate-400 italic py-4 text-center">Enter values above to see the calculation.</div>
+      </template>
+
+      <template x-if="calcN > 0">
+        <div class="space-y-3">
+
+          <!-- Step 0: P and Q -->
+          <div class="walk-card">
+            <div class="flex items-center mb-3">
+              <span class="step-num">0</span>
+              <span class="text-sm font-bold text-slate-700">Compute P and Q proportions</span>
+            </div>
+            <div class="ml-8 font-mono text-sm text-slate-600 space-y-2">
+              <div class="flex flex-wrap gap-8">
+                <div>
+                  <span class="text-blue-500 font-bold">P</span> = transitions ÷ N
+                  = <span class="text-blue-700 font-bold" x-text="calcTs"></span> ÷ <span x-text="calcN"></span>
+                  = <span class="result-value text-sm" style="font-size:14px" x-text="(calcTs/calcN).toFixed(6)"></span>
+                </div>
+                <div>
+                  <span class="text-red-500 font-bold">Q</span> = transversions ÷ N
+                  = <span class="text-red-600 font-bold" x-text="calcTv"></span> ÷ <span x-text="calcN"></span>
+                  = <span class="result-value text-sm" style="font-size:14px" x-text="(calcTv/calcN).toFixed(6)"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 1 -->
+          <div class="walk-card">
+            <div class="flex items-center mb-3">
+              <span class="step-num">1</span>
+              <span class="text-sm font-bold text-slate-700">First inner term: &nbsp;<code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono">1 − 2P − Q</code></span>
+            </div>
+            <div class="ml-8 font-mono text-sm text-slate-600 space-y-1.5">
+              <div>= 1 − 2 × <span class="text-blue-600 font-bold" x-text="(calcTs/calcN).toFixed(6)"></span> − <span class="text-red-500 font-bold" x-text="(calcTv/calcN).toFixed(6)"></span></div>
+              <div>= 1 − <span x-text="(2*calcTs/calcN).toFixed(6)"></span> − <span x-text="(calcTv/calcN).toFixed(6)"></span></div>
+              <div class="flex items-center gap-3 pt-1">
+                <span>= </span>
+                <span class="result-value" x-text="step1().toFixed(6)"></span>
+                <span class="text-[11px] text-slate-400 font-sans">(must be &gt; 0 for K2P to be valid)</span>
+              </div>
+              <template x-if="step1() <= 0">
+                <p class="text-amber-600 text-[12px] font-sans font-semibold">⚠ This value is ≤ 0 — the sequences are too divergent for K2P. Use a more complex model.</p>
+              </template>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="walk-card" :class="step1() <= 0 ? 'opacity-40 pointer-events-none' : ''">
+            <div class="flex items-center mb-3">
+              <span class="step-num">2</span>
+              <span class="text-sm font-bold text-slate-700">Natural log of step 1: &nbsp;<code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono">ln(1 − 2P − Q)</code></span>
+            </div>
+            <div class="ml-8 font-mono text-sm text-slate-600 space-y-1.5">
+              <div>= ln(<span class="text-blue-600 font-bold" x-text="step1().toFixed(6)"></span>)</div>
+              <p class="text-[11px] text-slate-400 font-sans">↳ The ln of a value between 0 and 1 is always negative. That's expected — the minus sign outside will flip it.</p>
+              <div class="flex items-center gap-3 pt-1">
+                <span>= </span>
+                <span class="result-value" x-text="step2().toFixed(6)"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="walk-card" :class="step1() <= 0 ? 'opacity-40 pointer-events-none' : ''">
+            <div class="flex items-center mb-3">
+              <span class="step-num">3</span>
+              <span class="text-sm font-bold text-slate-700">Second inner term: &nbsp;<code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono">1 − 2Q</code></span>
+            </div>
+            <div class="ml-8 font-mono text-sm text-slate-600 space-y-1.5">
+              <div>= 1 − 2 × <span class="text-red-500 font-bold" x-text="(calcTv/calcN).toFixed(6)"></span></div>
+              <div>= 1 − <span x-text="(2*calcTv/calcN).toFixed(6)"></span></div>
+              <div class="flex items-center gap-3 pt-1">
+                <span>= </span>
+                <span class="result-value" x-text="step3().toFixed(6)"></span>
+                <template x-if="step3() <= 0">
+                  <span class="text-amber-600 text-[12px] font-sans font-semibold">⚠ Must be &gt; 0</span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="walk-card" :class="(step1() <= 0 || step3() <= 0) ? 'opacity-40 pointer-events-none' : ''">
+            <div class="flex items-center mb-3">
+              <span class="step-num">4</span>
+              <span class="text-sm font-bold text-slate-700">Natural log of step 3: &nbsp;<code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono">ln(1 − 2Q)</code></span>
+            </div>
+            <div class="ml-8 font-mono text-sm text-slate-600 space-y-1.5">
+              <div>= ln(<span class="text-red-500 font-bold" x-text="step3().toFixed(6)"></span>)</div>
+              <div class="flex items-center gap-3 pt-1">
+                <span>= </span>
+                <span class="result-value" x-text="step4().toFixed(6)"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 5 -->
+          <div class="walk-card" :class="(step1() <= 0 || step3() <= 0) ? 'opacity-40 pointer-events-none' : ''">
+            <div class="flex items-center mb-3">
+              <span class="step-num">5</span>
+              <span class="text-sm font-bold text-slate-700">Combine everything: &nbsp;<code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs font-mono">d = −½ × (step 2) − ¼ × (step 4)</code></span>
+            </div>
+            <div class="ml-8 font-mono text-sm text-slate-600 space-y-1.5">
+              <div>= −½ × (<span class="text-purple-600 font-bold" x-text="step2().toFixed(6)"></span>) − ¼ × (<span class="text-purple-600 font-bold" x-text="step4().toFixed(6)"></span>)</div>
+              <div>= <span x-text="(-0.5*step2()).toFixed(6)"></span> − (<span x-text="(-0.25*step4()).toFixed(6)"></span>)</div>
+              <p class="text-[11px] text-slate-400 font-sans">↳ Negative × negative = positive, so the final distance is a small positive number.</p>
+              <div class="flex items-center gap-3 pt-1">
+                <span class="font-bold text-slate-700 text-base">d = </span>
+                <span class="result-value text-base font-black" x-text="finalK2P().toFixed(6)"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Final result banner -->
+          <template x-if="!isNaN(finalK2P()) && step1() > 0 && step3() > 0">
+            <div class="bg-green-50 border-2 border-green-300 rounded-xl p-5 mt-1 fade-in">
+              <div class="flex items-center gap-4 flex-wrap">
+                <div class="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center font-black shrink-0">
+                  <i class="fa-solid fa-dna text-sm"></i>
+                </div>
+                <div>
+                  <p class="text-[10px] font-black text-green-600 uppercase tracking-widest mb-0.5">K2P Distance</p>
+                  <p class="text-3xl font-black text-green-700 font-mono" x-text="finalK2P().toFixed(6)"></p>
+                </div>
+                <div class="ml-auto text-right">
+                  <p class="text-[10px] text-green-500 uppercase tracking-widest font-bold">As percentage</p>
+                  <p class="text-xl font-bold text-green-600 font-mono" x-text="(finalK2P()*100).toFixed(3) + '%'"></p>
+                  <p class="text-[11px] text-green-500 mt-0.5 font-sans" x-text="interpK2P(finalK2P())"></p>
+                </div>
+              </div>
+            </div>
+          </template>
+
+        </div>
+      </template>
+    </div>
+
+  </div><!-- /calc -->
+
+  <!-- ══ LEARN ══════════════════════════════════════════════════════════════ -->
+  <div id="panel-learn" class="hidden fade-in space-y-5">
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4"><i class="fa-solid fa-atom mr-1.5"></i>What is the K2P Model?</p>
+      <div class="text-sm text-slate-600 space-y-3">
+        <p>The <strong class="text-slate-800">Kimura 2-Parameter model</strong> estimates genetic distance while correcting for two biological realities:</p>
+        <ul class="list-disc pl-5 space-y-1.5">
+          <li><strong>Multiple hits</strong> — a site can mutate more than once. Raw mismatch counts underestimate true divergence because later mutations overwrite earlier ones.</li>
+          <li><strong>Unequal rates</strong> — transitions occur more frequently than transversions in most genomes. One correction factor for both would be inaccurate.</li>
+        </ul>
+        <p>K2P is widely used in <strong>DNA barcoding</strong> (COI in insects) where ~2–3% K2P marks the species boundary.</p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4"><i class="fa-solid fa-arrows-left-right mr-1.5"></i>Transitions vs Transversions</p>
+      <div class="grid sm:grid-cols-2 gap-4 mb-5">
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p class="font-bold text-blue-700 mb-2"><span class="ts-chip mr-2">Ts</span> Transitions</p>
+          <p class="text-sm text-blue-800 mb-3">Changes within the same chemical class. More common because the structural change is smaller.</p>
+          <div class="grid grid-cols-2 gap-2 font-mono text-sm">
+            <div class="bg-white rounded-lg p-2 text-center border border-blue-100"><span class="base-A">A</span> ↔ <span class="base-G">G</span><p class="text-[10px] text-slate-400 mt-1">Purine ↔ Purine</p></div>
+            <div class="bg-white rounded-lg p-2 text-center border border-blue-100"><span class="base-C">C</span> ↔ <span class="base-T">T</span><p class="text-[10px] text-slate-400 mt-1">Pyrimidine ↔ Pyrimidine</p></div>
+          </div>
+        </div>
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+          <p class="font-bold text-red-700 mb-2"><span class="tv-chip mr-2">Tv</span> Transversions</p>
+          <p class="text-sm text-red-800 mb-3">Changes between chemical classes. Less common but more structurally disruptive.</p>
+          <div class="grid grid-cols-2 gap-2 font-mono text-sm">
+            <div class="bg-white rounded-lg p-2 text-center border border-red-100"><span class="base-A">A</span>↔<span class="base-C">C</span> &nbsp; <span class="base-A">A</span>↔<span class="base-T">T</span></div>
+            <div class="bg-white rounded-lg p-2 text-center border border-red-100"><span class="base-G">G</span>↔<span class="base-C">C</span> &nbsp; <span class="base-G">G</span>↔<span class="base-T">T</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="mut-table">
+          <thead><tr><th>Change</th><th>Seq 1</th><th>Seq 2</th><th class="text-left px-4">Chemical class</th><th>Type</th></tr></thead>
+          <tbody>
+            <tr><td>A↔G</td><td><span class="base-A">A</span></td><td><span class="base-G">G</span></td><td class="text-slate-500 text-left px-4 font-sans">Purine ↔ Purine</td><td><span class="ts-chip">Transition</span></td></tr>
+            <tr><td>C↔T</td><td><span class="base-C">C</span></td><td><span class="base-T">T</span></td><td class="text-slate-500 text-left px-4 font-sans">Pyrimidine ↔ Pyrimidine</td><td><span class="ts-chip">Transition</span></td></tr>
+            <tr><td>A↔C</td><td><span class="base-A">A</span></td><td><span class="base-C">C</span></td><td class="text-slate-500 text-left px-4 font-sans">Purine ↔ Pyrimidine</td><td><span class="tv-chip">Transversion</span></td></tr>
+            <tr><td>A↔T</td><td><span class="base-A">A</span></td><td><span class="base-T">T</span></td><td class="text-slate-500 text-left px-4 font-sans">Purine ↔ Pyrimidine</td><td><span class="tv-chip">Transversion</span></td></tr>
+            <tr><td>G↔C</td><td><span class="base-G">G</span></td><td><span class="base-C">C</span></td><td class="text-slate-500 text-left px-4 font-sans">Purine ↔ Pyrimidine</td><td><span class="tv-chip">Transversion</span></td></tr>
+            <tr><td>G↔T</td><td><span class="base-G">G</span></td><td><span class="base-T">T</span></td><td class="text-slate-500 text-left px-4 font-sans">Purine ↔ Pyrimidine</td><td><span class="tv-chip">Transversion</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── EXPANDED: Why the Natural Log? ── -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-5"><i class="fa-solid fa-function mr-1.5"></i>Why the Natural Log? — A Deep Dive</p>
+
+      <!-- The core problem: raw counts lie -->
+      <div class="mb-6">
+        <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+          <span class="bg-slate-800 text-white text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest">PROBLEM</span>
+          Raw mismatch counts underestimate true divergence
+        </h3>
+        <div class="text-sm text-slate-600 space-y-3">
+          <p>When two sequences diverge, the simplest measure is the <strong>p-distance</strong> — the fraction of sites that look different. But this is a direct observation of the <em>present state</em> of the sequence, not a count of how many mutations actually happened over evolutionary time.</p>
+          <p>The deeper the divergence, the more this matters. At low divergence (e.g. 1–2%), most mismatches represent a single real mutation event, so p-distance is a reasonable proxy. But as sequences diverge further, sites can be hit <em>more than once</em>, and those extra hits are invisible to a raw count.</p>
+        </div>
+      </div>
+
+      <!-- Multiple hits illustrated -->
+      <div class="mb-6">
+        <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+          <span class="bg-blue-700 text-white text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest">CONCEPT</span>
+          The Multiple-Hits Problem — Visualised
+        </h3>
+        <div class="bg-slate-950 rounded-xl p-5 font-mono text-sm mb-4 overflow-x-auto">
+          <p class="text-slate-400 text-[10px] uppercase tracking-widest mb-3">Example: a single site evolving over deep time</p>
+          <div class="space-y-1">
+            <div class="flex items-center gap-3"><span class="text-slate-500 w-28 shrink-0 text-[11px]">Ancestor:</span> <span class="base-A text-lg">A</span></div>
+            <div class="flex items-center gap-3"><span class="text-slate-500 w-28 shrink-0 text-[11px]">Mutation 1:</span> <span class="base-A">A</span> <span class="text-slate-500">→</span> <span class="base-G text-lg">G</span> <span class="ts-chip ml-2">Transition</span></div>
+            <div class="flex items-center gap-3"><span class="text-slate-500 w-28 shrink-0 text-[11px]">Mutation 2:</span> <span class="base-G">G</span> <span class="text-slate-500">→</span> <span class="base-T text-lg" style="color:#d97706;font-weight:800">T</span> <span class="tv-chip ml-2">Transversion</span></div>
+            <div class="flex items-center gap-3"><span class="text-slate-500 w-28 shrink-0 text-[11px]">Mutation 3:</span> <span style="color:#d97706;font-weight:800">T</span> <span class="text-slate-500">→</span> <span class="base-C text-lg">C</span> <span class="ts-chip ml-2">Transition</span></div>
+            <div class="flex items-center gap-3 mt-2 pt-2 border-t border-slate-700"><span class="text-slate-400 w-28 shrink-0 text-[11px]">You observe:</span> <span class="base-A">A</span> <span class="text-slate-500">vs</span> <span class="base-C">C</span> <span class="text-amber-400 ml-2 text-[11px] font-bold">→ looks like 1 mutation, but 3 occurred</span></div>
+          </div>
+        </div>
+        <div class="text-sm text-slate-600 space-y-2">
+          <p>You would count <strong>one mismatch</strong> at this site, but <strong>three substitution events</strong> actually took place in the evolutionary history. This is called <em>homoplasy</em> — the same site mutating independently multiple times. As divergence increases, more and more sites accumulate these hidden hits, causing raw p-distance to plateau and increasingly underestimate the true number of events.</p>
+          <p>The natural logarithm is the mathematical tool that corrects for this saturation. It effectively "stretches" the distance back out to account for the hidden mutations, based on a probabilistic model of how substitutions accumulate over time.</p>
+        </div>
+      </div>
+
+      <!-- Where ln comes from -->
+      <div class="mb-6">
+        <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+          <span class="bg-purple-700 text-white text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest">MATHS</span>
+          Where does the ln formula come from?
+        </h3>
+        <div class="text-sm text-slate-600 space-y-3">
+          <p>Under the K2P model, substitutions follow a continuous-time Markov process. Kimura (1980) worked out the probability that a site shows a transition or transversion after time <em>t</em>, given separate rates α (for transitions) and β (for transversions). Solving those probability equations for the <em>distance d</em> (= total expected substitutions per site) gives:</p>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 text-center font-mono text-base my-4">
+            <em>d</em> = −½ ln(1 − 2P − Q) − ¼ ln(1 − 2Q)
+          </div>
+          <p>This is an <strong>exact inversion</strong> of the probability model — the ln arises naturally from solving the exponential equations that describe how mutation probabilities accumulate over time. It is not an approximation or a heuristic; it is the precise correction implied by the Markov model.</p>
+        </div>
+      </div>
+
+      <!-- The two terms explained -->
+      <div class="mb-6">
+        <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+          <span class="bg-green-700 text-white text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest">TERMS</span>
+          What each term corrects for
+        </h3>
+        <div class="grid sm:grid-cols-2 gap-4 mb-4">
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+            <div class="font-mono text-center text-base font-black text-blue-800 mb-3 pb-3 border-b border-blue-200">
+              −½ ln(1 − 2P − Q)
+            </div>
+            <p class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-2">Corrects for transitions AND transversions together</p>
+            <div class="text-sm text-blue-900 space-y-2">
+              <p>The term <strong>(1 − 2P − Q)</strong> is the probability that a site is <em>still identical</em> under a model where both Ts and Tv occur. When this probability is low (much less than 1), many mutations have happened — and this term captures the combined saturation effect of both mutation types.</p>
+              <p>The coefficient <strong>−½</strong> comes from the algebra of solving the Ts probability equation in the Markov model. The negative sign converts the negative ln (since the argument is between 0 and 1) into a positive distance.</p>
+            </div>
+          </div>
+          <div class="bg-red-50 border border-red-200 rounded-xl p-5">
+            <div class="font-mono text-center text-base font-black text-red-800 mb-3 pb-3 border-b border-red-200">
+              − ¼ ln(1 − 2Q)
+            </div>
+            <p class="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">Extra correction for transversions specifically</p>
+            <div class="text-sm text-red-900 space-y-2">
+              <p>Because transversions happen at a <em>different rate</em> than transitions, the first term alone is not sufficient. This second term isolates the Tv saturation: <strong>(1 − 2Q)</strong> is the probability of no transversion at a site, and its ln gives an additional correction beyond what the first term provides.</p>
+              <p>The coefficient <strong>−¼</strong> again comes from solving the Tv probability equation. Together, the two terms allow K2P to handle separate Ts and Tv rates — something Jukes–Cantor (which uses a single rate) cannot do.</p>
+            </div>
+          </div>
+        </div>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-5">
+          <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Why not just use a single ln correction (like Jukes–Cantor)?</p>
+          <div class="text-sm text-slate-700 space-y-2">
+            <p>The <strong>Jukes–Cantor model</strong> uses a single correction: <em>d = −¾ ln(1 − 4p/3)</em>. It assumes all six substitution types (A↔G, C↔T, A↔C, A↔T, G↔C, G↔T) happen at equal rates. In reality, transitions are typically 2–10× more frequent than transversions in mitochondrial DNA, because the structural change is chemically smaller.</p>
+            <p>If you applied JC to a dataset with a high Ts/Tv ratio, you would <em>overestimate</em> the contribution of transversions. K2P separates the two rates explicitly, making the correction more biologically accurate — especially for divergences below ~25%, which is the typical range for barcoding comparisons.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sign and magnitude -->
+      <div class="mb-6">
+        <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+          <span class="bg-amber-600 text-white text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest">SIGNS</span>
+          Why is the result always positive even though ln gives a negative?
+        </h3>
+        <div class="text-sm text-slate-600 space-y-3">
+          <p>The arguments inside both ln terms — <strong>(1 − 2P − Q)</strong> and <strong>(1 − 2Q)</strong> — are always between 0 and 1 when the model is valid (i.e., when sequence divergence is not too extreme). The natural log of any number strictly between 0 and 1 is always <strong>negative</strong>.</p>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 font-mono text-sm space-y-1">
+            <p>ln(0.9)  = −0.1054   <span class="text-amber-600 font-sans text-xs">(close sequences, small correction)</span></p>
+            <p>ln(0.5)  = −0.6931   <span class="text-amber-600 font-sans text-xs">(moderate divergence)</span></p>
+            <p>ln(0.1)  = −2.3026   <span class="text-amber-600 font-sans text-xs">(highly diverged, large correction)</span></p>
+            <p>ln(0.01) = −4.6052   <span class="text-amber-600 font-sans text-xs">(severely diverged)</span></p>
+          </div>
+          <p>The <strong>negative coefficients −½ and −¼</strong> then multiply those negative ln values, giving: negative × negative = <strong>positive</strong>. The final distance <em>d</em> is always a positive number representing substitutions per site.</p>
+          <p>The magnitude grows non-linearly: as sequences diverge further, the arguments approach zero, the ln becomes more and more negative, and the correction gets proportionally larger — this is exactly what is needed to undo the saturation that flattens raw p-distances at high divergence.</p>
+        </div>
+      </div>
+
+      <!-- Saturation and breakdown -->
+      <div class="mb-6">
+        <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+          <span class="bg-red-700 text-white text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest">LIMITS</span>
+          When the formula breaks down — saturation
+        </h3>
+        <div class="text-sm text-slate-600 space-y-3">
+          <p>The K2P formula has a hard mathematical boundary. Both ln terms require their arguments to be strictly greater than zero:</p>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div class="bg-red-50 border border-red-200 rounded-xl p-4 font-mono text-sm text-center">
+              <p class="text-red-700 font-black">(1 − 2P − Q) &gt; 0</p>
+              <p class="text-red-500 font-sans text-xs mt-1">requires P &lt; ½ − Q/2</p>
+            </div>
+            <div class="bg-red-50 border border-red-200 rounded-xl p-4 font-mono text-sm text-center">
+              <p class="text-red-700 font-black">(1 − 2Q) &gt; 0</p>
+              <p class="text-red-500 font-sans text-xs mt-1">requires Q &lt; ½</p>
+            </div>
+          </div>
+          <p>If either condition is violated, the argument of a ln becomes zero or negative, which is mathematically undefined. This is called <strong>saturation</strong> — the sequences have diverged so much that the simple two-parameter model can no longer describe what happened.</p>
+          <p>In practice, saturation begins to cause problems at K2P distances above ~25–30% for mitochondrial COI. Above this threshold the K2P estimate becomes unreliable (it may even <em>underestimate</em> true distance, because P and Q can't continue to grow freely — they're bounded by 1). For such comparisons you should use more complex models:</p>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-sm">
+            <div class="flex items-start gap-3">
+              <span class="bg-slate-700 text-white text-[10px] font-black px-2 py-0.5 rounded shrink-0 mt-0.5">HKY85</span>
+              <p class="text-slate-600">Hasegawa–Kishino–Yano: allows unequal base frequencies as well as separate Ts/Tv rates. A good step up from K2P.</p>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="bg-slate-700 text-white text-[10px] font-black px-2 py-0.5 rounded shrink-0 mt-0.5">GTR</span>
+              <p class="text-slate-600">General Time Reversible: six independent rate parameters for all substitution types, plus variable base frequencies. The most general common model; used for deep phylogenetics.</p>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="bg-slate-700 text-white text-[10px] font-black px-2 py-0.5 rounded shrink-0 mt-0.5">GTR+Γ</span>
+              <p class="text-slate-600">GTR with gamma-distributed rate variation across sites. The standard choice when sequences vary greatly in how fast individual sites evolve.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Practical intuition -->
+      <div>
+        <h3 class="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+          <span class="bg-green-700 text-white text-[10px] font-black px-2.5 py-1 rounded-md tracking-widest">INTUITION</span>
+          A practical feel for the correction magnitude
+        </h3>
+        <div class="overflow-x-auto rounded-xl border border-slate-200 mb-4">
+          <table class="mut-table">
+            <thead><tr><th>Raw p-distance</th><th>K2P distance</th><th>Correction factor</th><th class="text-left px-4">What it means</th></tr></thead>
+            <tbody>
+              <tr><td class="font-mono">1%</td><td class="font-mono text-green-600 font-bold">~1.01%</td><td class="font-mono text-slate-400">+1%</td><td class="text-slate-500 text-left px-4 font-sans text-xs">Almost no correction needed — sequences very similar</td></tr>
+              <tr><td class="font-mono">5%</td><td class="font-mono text-blue-600 font-bold">~5.2%</td><td class="font-mono text-slate-400">+4%</td><td class="text-slate-500 text-left px-4 font-sans text-xs">Small correction — typical intraspecific barcoding range</td></tr>
+              <tr><td class="font-mono">10%</td><td class="font-mono text-blue-600 font-bold">~10.7%</td><td class="font-mono text-slate-400">+7%</td><td class="text-slate-500 text-left px-4 font-sans text-xs">Moderate correction — interspecific divergence</td></tr>
+              <tr><td class="font-mono">20%</td><td class="font-mono text-amber-600 font-bold">~22.7%</td><td class="font-mono text-slate-400">+14%</td><td class="text-slate-500 text-left px-4 font-sans text-xs">Significant — deep divergence, correction matters a lot</td></tr>
+              <tr><td class="font-mono">30%</td><td class="font-mono text-red-600 font-bold">~38%</td><td class="font-mono text-slate-400">+27%</td><td class="text-slate-500 text-left px-4 font-sans text-xs">Large — model approaching saturation limits</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-[11px] text-slate-400">Values assume a typical invertebrate COI Ts/Tv ratio of ~10:1. The correction grows non-linearly: small at low divergence, dramatic at high divergence.</p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4"><i class="fa-solid fa-microscope mr-1.5"></i>K2P in Practice — COI Barcoding</p>
+      <div class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="mut-table">
+          <thead><tr><th>Context</th><th>Typical K2P</th><th class="text-left px-4">Interpretation</th></tr></thead>
+          <tbody>
+            <tr><td>Within-species</td><td class="text-green-600 font-bold">&lt; 2%</td><td class="text-slate-500 text-left px-4 font-sans">Same species</td></tr>
+            <tr><td>Between species</td><td class="text-blue-600 font-bold">2–10%</td><td class="text-slate-500 text-left px-4 font-sans">The barcoding gap</td></tr>
+            <tr><td>Between genera</td><td class="text-amber-600 font-bold">10–25%</td><td class="text-slate-500 text-left px-4 font-sans">Deep divergence</td></tr>
+            <tr><td>Between families</td><td class="text-red-600 font-bold">&gt; 25%</td><td class="text-slate-500 text-left px-4 font-sans">Saturation — K2P may underestimate</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[11px] text-slate-400 mt-3">Thresholds vary by gene and taxon — always interpret in biological context.</p>
+    </div>
+
+  </div><!-- /learn -->
+
+</main>
+
+<footer class="border-t border-slate-200 bg-white">
+  <div class="max-w-5xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-flask-vial text-slate-300"></i>
+      <span class="text-sm font-semibold text-slate-400">Science Resources</span>
+    </div>
+    <p class="text-xs font-semibold text-slate-400">
+      Created by - Frank Hogland &nbsp;·&nbsp; © 2026-present. All Rights Reserved.
+    </p>
+  </div>
+</footer>
+
+<script>
+// ── TAB SWITCHER ──────────────────────────────────────────────────────────────
+const TABS = ['align','calc','learn'];
+function showTab(id) {
+  TABS.forEach(t => {
+    document.getElementById('panel-'+t).classList.toggle('hidden', t !== id);
+    const btn = document.getElementById('tab-'+t);
+    btn.className = (t === id ? 'tab-active' : 'tab-inactive') + ' text-slate-500 px-5 py-3 text-sm font-semibold rounded-t-lg transition-all';
+  });
+}
+
+// ── DP SEMI-GLOBAL OVERLAP ALIGNER ──────────────────────────────────────────
+function alignOverlap(s1, s2) {
+  const MATCH=2, MISMATCH=-1, GAP=-2;
+  const m=s1.length, n=s2.length;
+  if (m>1400||n>1400) return alignOverlapFast(s1,s2);
+  const H   = Array.from({length:m+1},()=>new Int32Array(n+1));
+  const ptr = Array.from({length:m+1},()=>new Uint8Array(n+1));
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      const diag=H[i-1][j-1]+(s1[i-1]===s2[j-1]?MATCH:MISMATCH);
+      const up=H[i-1][j]+GAP, left=H[i][j-1]+GAP;
+      if(diag>=up&&diag>=left){H[i][j]=diag;ptr[i][j]=1;}
+      else if(up>=left){H[i][j]=up;ptr[i][j]=2;}
+      else{H[i][j]=left;ptr[i][j]=3;}
+    }
+  }
+  let best=-Infinity,ei=m,ej=n;
+  for(let j=0;j<=n;j++) if(H[m][j]>best){best=H[m][j];ei=m;ej=j;}
+  for(let i=0;i<=m;i++) if(H[i][n]>best){best=H[i][n];ei=i;ej=n;}
+  let al1='',al2='',mLine='';
+  let i=ei,j=ej;
+  while(i>0&&j>0){
+    const p=ptr[i][j];
+    if(p===1){al1=s1[i-1]+al1;al2=s2[j-1]+al2;mLine=(s1[i-1]===s2[j-1]?'|':'·')+mLine;i--;j--;}
+    else if(p===2){al1=s1[i-1]+al1;al2='-'+al2;mLine=' '+mLine;i--;}
+    else{al1='-'+al1;al2=s2[j-1]+al2;mLine=' '+mLine;j--;}
+  }
+  const lead1=s1.slice(0,i),lead2=s2.slice(0,j);
+  const ll=Math.max(lead1.length,lead2.length);
+  const trail1=s1.slice(ei),trail2=s2.slice(ej);
+  const tl=Math.max(trail1.length,trail2.length);
+  const full1=lead1.padStart(ll)+al1+trail1.padEnd(tl);
+  const full2=lead2.padStart(ll)+al2+trail2.padEnd(tl);
+  const fullM=' '.repeat(ll)+mLine+' '.repeat(tl);
+  const matches=(mLine.match(/\|/g)||[]).length;
+  const compared=mLine.replace(/ /g,'').length;
+  return{
+    a1:full1,a2:full2,matchLine:fullM,
+    ov1:al1.replace(/^-+|-+$/g,''),ov2:al2.replace(/^-+|-+$/g,''),
+    alSeq1:al1,alSeq2:al2,
+    identity:compared>0?((matches/compared)*100).toFixed(1):'0.0',
+    frac:matches+'/'+compared,ovLen:al1.length,direction:'Forward'
+  };
+}
+
+function alignOverlapFast(s1,s2){
+  let bestShift=0,maxMatches=-1;
+  for(let shift=-(s2.length-10);shift<s1.length-10;shift++){
+    let matches=0,ov=0;
+    const st=Math.max(0,shift),en=Math.min(s1.length,s2.length+shift);
+    for(let i=st;i<en;i++){ov++;if(s1[i]===s2[i-shift])matches++;}
+    if(ov>=20&&matches>maxMatches){maxMatches=matches;bestShift=shift;}
+  }
+  const shift=bestShift,pad1=Math.max(0,-shift),pad2=Math.max(0,shift);
+  const a1=' '.repeat(pad1)+s1,a2=' '.repeat(pad2)+s2;
+  const maxL=Math.max(a1.length,a2.length);
+  let matchLine='',perfect=0,totalOv=0;
+  for(let j=0;j<maxL;j++){
+    const c1=j<a1.length?a1[j]:' ',c2=j<a2.length?a2[j]:' ';
+    if(c1!==' '&&c2!==' '){totalOv++;if(c1===c2){matchLine+='|';perfect++;}else matchLine+='·';}else matchLine+=' ';
+  }
+  const ovStart=Math.max(pad1,pad2),ovEnd=Math.min(s1.length+pad1,s2.length+pad2);
+  return{
+    a1,a2,matchLine,
+    ov1:a1.slice(ovStart,ovEnd).trim(),ov2:a2.slice(ovStart,ovEnd).trim(),
+    alSeq1:a1.slice(ovStart,ovEnd).trim(),alSeq2:a2.slice(ovStart,ovEnd).trim(),
+    identity:totalOv>0?((perfect/totalOv)*100).toFixed(1):'0.0',
+    frac:perfect+'/'+totalOv,ovLen:ovEnd-ovStart,direction:'Forward'
+  };
+}
+
+function reverseComplement(seq){
+  const m={A:'T',T:'A',C:'G',G:'C',N:'N'};
+  return seq.split('').reverse().map(b=>m[b]||b).join('');
+}
+
+// ── Ts/Tv classification ──────────────────────────────────────────────────────
+const PURINES=new Set(['A','G']);
+function classifyAlignment(al1,al2){
+  let nTs=0,nTv=0,N=0;
+  const mismatches=[];
+  const len=Math.min(al1.length,al2.length);
+  for(let i=0;i<len;i++){
+    const a=al1[i].toUpperCase(),b=al2[i].toUpperCase();
+    if(a==='-'||b==='-'||a===' '||b===' '||a==='N'||b==='N') continue;
+    N++;
+    if(a===b) continue;
+    const ts = PURINES.has(a)===PURINES.has(b);
+    if(ts){nTs++;mismatches.push({pos:i,a,b,type:'ts'});}
+    else  {nTv++;mismatches.push({pos:i,a,b,type:'tv'});}
+  }
+  return{nTs,nTv,N,P:N>0?nTs/N:0,Q:N>0?nTv/N:0,mismatches};
+}
+
+// ── Build coloured HTML for the alignment display ─────────────────────────────
+function buildAlignmentHTML(a1, a2, matchLine, mismatches) {
+  // Build a set of mismatch positions by index
+  const tsPos = new Set(), tvPos = new Set();
+  mismatches.forEach(m => {
+    if(m.type === 'ts') tsPos.add(m.pos);
+    else tvPos.add(m.pos);
+  });
+
+  // We need to map from alignment string positions to mismatch positions
+  // The mismatch positions are in the aligned overlap; a1/a2 are the full padded strings
+  // Find where the overlap starts (first non-space char in both)
+  const ov1start = a1.search(/[^ ]/);
+  const ov2start = a2.search(/[^ ]/);
+  const ovStart = Math.max(ov1start < 0 ? 0 : ov1start, ov2start < 0 ? 0 : ov2start);
+
+  let html1 = '', html2 = '', htmlMatch = '';
+  let mismatchIdx = 0; // walk through mismatches array in order
+
+  // Build a lookup: alignment position -> type
+  const posType = {};
+  mismatches.forEach(m => { posType[ovStart + m.pos] = m.type; });
+
+  for(let i = 0; i < Math.max(a1.length, a2.length); i++) {
+    const c1 = i < a1.length ? a1[i] : ' ';
+    const c2 = i < a2.length ? a2[i] : ' ';
+    const cm = i < matchLine.length ? matchLine[i] : ' ';
+
+    const type = posType[i];
+
+    if(type === 'ts') {
+      html1 += `<span class="mm-ts">${c1}</span>`;
+      html2 += `<span class="mm-ts">${c2}</span>`;
+      htmlMatch += `<span style="color:#3b82f6;font-weight:900">·</span>`;
+    } else if(type === 'tv') {
+      html1 += `<span class="mm-tv">${c1}</span>`;
+      html2 += `<span class="mm-tv">${c2}</span>`;
+      htmlMatch += `<span style="color:#ef4444;font-weight:900">·</span>`;
+    } else if(c1 === '-' || c2 === '-') {
+      html1 += `<span class="mm-gap">${c1 === '-' ? '-' : c1}</span>`;
+      html2 += `<span class="mm-gap">${c2 === '-' ? '-' : c2}</span>`;
+      htmlMatch += `<span style="color:#64748b">-</span>`;
+    } else if(cm === '|') {
+      html1 += `<span style="color:#6ee7b7">${c1}</span>`;
+      html2 += `<span style="color:#6ee7b7">${c2}</span>`;
+      htmlMatch += `<span style="color:#4ade80;font-weight:700">|</span>`;
+    } else {
+      html1 += c1 === ' ' ? ' ' : `<span style="color:#94a3b8">${c1}</span>`;
+      html2 += c2 === ' ' ? ' ' : `<span style="color:#94a3b8">${c2}</span>`;
+      htmlMatch += ' ';
+    }
+  }
+  return { html1, html2, htmlMatch };
+}
+
+// ── Alpine app ─────────────────────────────────────────────────────────────────
+document.addEventListener('alpine:init',()=>{
+  Alpine.data('app',()=>({
+    seq1raw:'',seq2raw:'',
+    aligning:false,alignResult:null,alignError:'',
+    calcTs:0, calcTv:0, calcN:0,
+
+    get calcP(){ return this.calcN > 0 ? this.calcTs / this.calcN : 0; },
+    get calcQ(){ return this.calcN > 0 ? this.calcTv / this.calcN : 0; },
+
+    clean(s){ return s.replace(/[\s\n\r>]/g,'').toUpperCase().replace(/U/g,'T').replace(/[^ATCGN-]/g,''); },
+
+    loadExample(){
+      this.seq1raw='ATGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG';
+      this.seq2raw='ATGCAATCGATCAATCGATCGATCGAACGATCGATCGATCGATCGATCGATCGATCGATCG';
+      this.runAlignment();
+    },
+
+    clearAll(){ this.seq1raw='';this.seq2raw='';this.alignResult=null;this.alignError=''; },
+
+    async runAlignment(){
+      const s1=this.clean(this.seq1raw),s2=this.clean(this.seq2raw);
+      if(s1.length<10||s2.length<10){this.alignError='Both sequences must be at least 10 bp.';return;}
+      this.alignError='';this.aligning=true;this.alignResult=null;
+      await new Promise(r=>setTimeout(r,30));
+      const fwd=alignOverlap(s1,s2);
+      const rc=reverseComplement(s2);
+      const rev=alignOverlap(s1,rc);
+      const best=parseFloat(fwd.identity)>=parseFloat(rev.identity)?fwd:{...rev,direction:'Reverse Complement'};
+      const{nTs,nTv,N,P,Q,mismatches}=classifyAlignment(best.alSeq1,best.alSeq2);
+
+      // Build coloured HTML
+      // Rebuild mismatches with alignment-offset positions
+      const {html1, html2, htmlMatch} = buildAlignmentHTML(best.a1, best.a2, best.matchLine, mismatches);
+
+      this.alignResult={...best,nTs,nTv,N,P,Q,mismatches,html1,html2,htmlMatch};
+      this.useAlignmentValues();
+      this.aligning=false;
+    },
+
+    useAlignmentValues(){
+      if(!this.alignResult)return;
+      this.calcTs = this.alignResult.nTs;
+      this.calcTv = this.alignResult.nTv;
+      this.calcN  = this.alignResult.N;
+    },
+
+    goToCalc(){ this.useAlignmentValues(); showTab('calc'); },
+
+    k2pFromAlignment(){
+      if(!this.alignResult) return NaN;
+      const P=this.alignResult.P, Q=this.alignResult.Q;
+      const a=1-2*P-Q, b=1-2*Q;
+      if(a<=0||b<=0) return NaN;
+      return -0.5*Math.log(a)-0.25*Math.log(b);
+    },
+
+    step1(){ return 1 - 2*this.calcP - this.calcQ; },
+    step2(){ return Math.log(this.step1()); },
+    step3(){ return 1 - 2*this.calcQ; },
+    step4(){ return Math.log(this.step3()); },
+
+    finalK2P(){
+      const a=this.step1(), b=this.step3();
+      if(a<=0||b<=0) return NaN;
+      return -0.5*Math.log(a) - 0.25*Math.log(b);
+    },
+
+    interpK2P(d){
+      if(isNaN(d))return '';
+      const p=d*100;
+      if(p<2)  return '↳ Intraspecific — same species likely';
+      if(p<10) return '↳ Interspecific — barcoding gap';
+      if(p<25) return '↳ Deep divergence — different genera';
+      return '↳ Saturated — consider using a more complex model';
+    },
+  }));
+});
+</script>
+</body>
+</html>

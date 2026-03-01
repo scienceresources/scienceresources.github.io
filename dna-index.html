@@ -22,8 +22,9 @@
     transform: translateY(-4px);
     box-shadow: 0 20px 40px -10px rgba(0,0,0,0.12);
   }
-  .tool-card-blue:hover   { border-color: #93c5fd; }
-  .tool-card-purple:hover { border-color: #c4b5fd; }
+  .tool-card-blue:hover  { border-color: #93c5fd; }
+  .tool-card-indigo:hover { border-color: #a5b4fc; }
+  .tool-card-teal:hover  { border-color: #5eead4; }
 
   .feature-pill {
     display: inline-flex;
@@ -138,13 +139,13 @@
 
     <!-- ── Bear DNA Sequencer ──────────────────────────────────────────── -->
     <a href="bear-dna-sequencer.html"
-      class="tool-card tool-card-purple bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
+      class="tool-card tool-card-blue bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
       <div class="flex items-start justify-between mb-5">
-        <div class="bg-purple-100 p-3.5 rounded-xl">
-          <i class="fa-solid fa-dna text-purple-600 text-2xl"></i>
+        <div class="bg-blue-100 p-3.5 rounded-xl">
+          <i class="fa-solid fa-dna text-blue-600 text-2xl"></i>
         </div>
-        <div class="bg-purple-50 border border-purple-100 px-2.5 py-1 rounded-lg">
-          <i class="fa-solid fa-arrow-right text-purple-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        <div class="bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-blue-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
         </div>
       </div>
       <h2 class="text-xl font-black text-slate-900 mb-1">Bear DNA Sequencer</h2>
@@ -152,14 +153,45 @@
       <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
         Align overlapping DNA fragments, translate sequences using the
         Vertebrate Mitochondrial Code (transl_table=2), and compare amino acid
-        sequences with mismatch highlighting.
+        sequences with mismatch highlighting. Includes BOLD-based Ursidae
+        species identification with K2P distances.
       </p>
       <div class="flex flex-wrap gap-2">
-        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-purple-400 text-[9px]"></i>Fragment Aligner</span>
-        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-purple-400 text-[9px]"></i>DNA → Amino Acid</span>
-        <span class="feature-pill"><i class="fa-solid fa-code-compare text-purple-400 text-[9px]"></i>Protein Comparator</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-blue-400 text-[9px]"></i>Fragment Aligner</span>
+        <span class="feature-pill"><i class="fa-solid fa-arrow-right-to-bracket text-blue-400 text-[9px]"></i>DNA → Amino Acid</span>
+        <span class="feature-pill"><i class="fa-solid fa-code-compare text-blue-400 text-[9px]"></i>Protein Comparator</span>
+        <span class="feature-pill"><i class="fa-solid fa-magnifying-glass-chart text-blue-400 text-[9px]"></i>Species ID</span>
       </div>
     </a>
+
+    <!-- ── K2P Distance Calculator ────────────────────────────────────── -->
+    <a href="K2P-distance-calculator.html"
+      class="tool-card tool-card-blue bg-white rounded-2xl shadow-sm border-2 border-slate-200 p-7 no-underline group flex flex-col">
+      <div class="flex items-start justify-between mb-5">
+        <div class="bg-blue-100 p-3.5 rounded-xl">
+          <i class="fa-solid fa-square-root-variable text-blue-600 text-2xl"></i>
+        </div>
+        <div class="bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
+          <i class="fa-solid fa-arrow-right text-blue-300 text-xs group-hover:translate-x-0.5 transition-transform"></i>
+        </div>
+      </div>
+      <h2 class="text-xl font-black text-slate-900 mb-1">K2P Distance Calculator</h2>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Kimura 2-Parameter · Auto-Align · Guided Walkthrough</p>
+      <p class="text-sm text-slate-500 leading-relaxed mb-5 flex-1">
+        Calculate Kimura 2-Parameter genetic distances with a step-by-step
+        guided walkthrough. Paste two sequences for automatic alignment,
+        or enter transition and transversion counts manually. Includes a
+        deep-dive Learn tab covering the mathematics behind the natural log
+        correction and multiple-hits problem.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <span class="feature-pill"><i class="fa-solid fa-arrows-left-right text-blue-400 text-[9px]"></i>Auto-Alignment</span>
+        <span class="feature-pill"><i class="fa-solid fa-calculator text-blue-400 text-[9px]"></i>Step-by-Step Formula</span>
+        <span class="feature-pill"><i class="fa-solid fa-sliders text-blue-400 text-[9px]"></i>Manual Ts/Tv Input</span>
+        <span class="feature-pill"><i class="fa-solid fa-book-open text-blue-400 text-[9px]"></i>Learn K2P</span>
+      </div>
+    </a>
+
 
   </div>
 </main>
@@ -171,10 +203,9 @@
       <span class="text-sm font-semibold text-slate-400">Science Resources</span>
     </div>
     <p class="text-xs font-semibold text-slate-400">
-      Created by — Frank Hogland &nbsp;·&nbsp; © 2026-present. All Rights Reserved.
+      Created by - Frank Hogland &nbsp;·&nbsp; © 2026-present. All Rights Reserved.
     </p>
   </div>
 </footer>
-
 </body>
 </html>
