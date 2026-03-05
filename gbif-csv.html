@@ -361,10 +361,19 @@
           </div>
         </div>
 
-        <div class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-lg p-3">
-          <i class="fa-solid fa-ban text-red-400 mt-0.5 shrink-0 text-sm"></i>
-          <p class="text-xs text-red-700">
-            <strong>Always excluded:</strong> iNaturalist Research-Grade and BugGuide datasets are filtered out automatically to ensure specimen-based data quality.
+        <!-- CHANGED: was a hardcoded red "always excluded" warning; now shows the current opt state dynamically -->
+        <div class="flex items-start gap-3 rounded-lg p-3 transition-colors"
+          :class="opts.excludeINat ? 'bg-red-50 border border-red-200' : 'bg-slate-50 border border-slate-200'">
+          <i class="fa-solid mt-0.5 shrink-0 text-sm"
+            :class="opts.excludeINat ? 'fa-ban text-red-400' : 'fa-circle-check text-slate-400'"></i>
+          <p class="text-xs leading-relaxed"
+            :class="opts.excludeINat ? 'text-red-700' : 'text-slate-600'">
+            <template x-if="opts.excludeINat">
+              <span><strong>iNaturalist &amp; BugGuide excluded</strong> — these datasets are being filtered out. Uncheck <em>Exclude iNat / BugGuide</em> in Processing Options below to include them.</span>
+            </template>
+            <template x-if="!opts.excludeINat">
+              <span><strong>iNaturalist &amp; BugGuide included</strong> — all record sources will be fetched. Check <em>Exclude iNat / BugGuide</em> in Processing Options below to filter them out.</span>
+            </template>
           </p>
         </div>
       </div>
@@ -474,11 +483,12 @@
             <p class="text-xs text-slate-400 mt-0.5">Combines year + month + day → <code class="bg-slate-100 px-1 rounded font-mono text-[10px]">YYYY-MM-DD</code></p>
           </div>
         </label>
+        <!-- CHANGED: removed "(ZIP/file mode)" qualifier — now applies to both API and file modes -->
         <label class="check-option">
           <input type="checkbox" x-model="opts.excludeINat">
           <div>
-            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-ban mr-1 text-red-400"></i>Exclude iNat / BugGuide (ZIP/file mode)</p>
-            <p class="text-xs text-slate-400 mt-0.5">Filters out iNaturalist and BugGuide records from uploads</p>
+            <p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-ban mr-1 text-red-400"></i>Exclude iNat / BugGuide</p>
+            <p class="text-xs text-slate-400 mt-0.5">Filters out iNaturalist and BugGuide records — applies to both API and file upload modes</p>
           </div>
         </label>
       </div>
@@ -747,7 +757,7 @@
     <template x-if="outRows.length">
       <div class="space-y-5">
 
-        <!-- Map controls card (matches downloader layout exactly) -->
+        <!-- Map controls card -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-map mr-1 text-amber-400"></i>Distribution Map</p>
           <div class="flex flex-wrap gap-3 items-center">
@@ -761,7 +771,7 @@
           </div>
         </div>
 
-        <!-- Map card (clean standalone — matching downloader layout) -->
+        <!-- Map card -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" style="position:relative;z-index:0;">
           <div id="map-container"><div id="map"></div></div>
           <!-- Floating point count badge -->
@@ -960,7 +970,7 @@
   <!-- ══ MULTI-SPECIES CITATIONS PANEL ═══════════════════════════════════ -->
   <div id="panel-multispecies" class="hidden fade-in space-y-5">
 
-    <!-- Species count chart — visible whenever we have processed data -->
+    <!-- Species count chart -->
     <template x-if="Object.keys(_speciesCountData).length > 0">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
@@ -992,7 +1002,7 @@
       </div>
     </template>
 
-    <!-- Citation section — only when we have dataset citation metadata -->
+    <!-- Citation section -->
     <template x-if="multiSpeciesEntries.length > 0">
       <div class="space-y-5">
 
@@ -1094,9 +1104,9 @@
         </template>
 
       </div>
-    </template><!-- /citation section -->
+    </template>
 
-    <!-- Empty state — shown only when no data at all has been processed -->
+    <!-- Empty state -->
     <template x-if="outRows.length === 0">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-16 text-center">
         <i class="fa-solid fa-layer-group text-5xl text-slate-200 mb-4"></i>
@@ -1296,22 +1306,26 @@
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">3</div>
-          <div><p class="font-bold text-slate-700 mb-1">Multi-Species Citations Tab</p><p>When a ZIP/TXT/CSV/TSV containing <strong>multiple species</strong> is uploaded and converted, the <strong>Multi-Species Refs</strong> tab is automatically populated. Each species gets its own in-text citation string plus a full bibliography.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">iNat / BugGuide Filtering</p><p>The <strong>Exclude iNat / BugGuide</strong> checkbox in Processing Options applies to <em>both</em> API and file upload modes. Uncheck it if you want to include citizen-science records from those sources.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">4</div>
-          <div><p class="font-bold text-slate-700 mb-1">Species Filter Tab</p><p>Upload any CSV with a <code class="bg-slate-100 px-1 rounded font-mono text-xs">speciesname</code> column. All unique species are shown as clickable pills — click one to instantly filter, or type a partial name.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Multi-Species Citations Tab</p><p>When a ZIP/TXT/CSV/TSV containing <strong>multiple species</strong> is uploaded and converted, the <strong>Multi-Species Refs</strong> tab is automatically populated. Each species gets its own in-text citation string plus a full bibliography.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">5</div>
-          <div><p class="font-bold text-slate-700 mb-1">Data &amp; Export Tab</p><p>Interactive table — click rows to select, click column headers to select entire columns. Choose export scope and format (CSV, TSV, TXT), then download or copy.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Species Filter Tab</p><p>Upload any CSV with a <code class="bg-slate-100 px-1 rounded font-mono text-xs">speciesname</code> column. All unique species are shown as clickable pills — click one to instantly filter, or type a partial name.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">6</div>
-          <div><p class="font-bold text-slate-700 mb-1">Citations Tab</p><p>All contributing datasets listed with citation text, DOI, and license. Use <strong>Copy In-text</strong> for a parenthetical citation string.</p></div>
+          <div><p class="font-bold text-slate-700 mb-1">Data &amp; Export Tab</p><p>Interactive table — click rows to select, click column headers to select entire columns. Choose export scope and format (CSV, TSV, TXT), then download or copy.</p></div>
         </div>
         <div class="flex gap-4">
           <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">7</div>
+          <div><p class="font-bold text-slate-700 mb-1">Citations Tab</p><p>All contributing datasets listed with citation text, DOI, and license. Use <strong>Copy In-text</strong> for a parenthetical citation string.</p></div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">8</div>
           <div><p class="font-bold text-slate-700 mb-1">Map &amp; Phenology Tab</p><p>All records with lat/lon are plotted on a Leaflet map with clustering. Below the map, a phenology chart shows the flight period by month.</p></div>
         </div>
       </div>
@@ -1477,7 +1491,6 @@ document.addEventListener('alpine:init', () => {
           throw new Error('Invalid or corrupted session file. Expected a GBIF session JSON.');
         }
 
-        // ── Restore all state ──────────────────────────────────────────────
         this.speciesName          = session.speciesName || '';
         this.selectedColumns      = session.selectedColumns || this.allColumns.map(c => c.key);
         this.opts                 = Object.assign({}, this.opts, session.opts || {});
@@ -1492,7 +1505,6 @@ document.addEventListener('alpine:init', () => {
         this.phenologyTotal       = session.phenologyTotal || 0;
         this.datasetInfoCache     = session.datasetInfoCache || {};
 
-        // ── Reset UI state ─────────────────────────────────────────────────
         this.selectedRows = new Set();
         this.selectedCols = new Set();
         this.tableOffset  = 0;
@@ -1501,7 +1513,6 @@ document.addEventListener('alpine:init', () => {
         this.log          = [];
         this.progress     = 100;
 
-        // ── Log summary ────────────────────────────────────────────────────
         const savedDate = session.savedAt ? new Date(session.savedAt).toLocaleString() : 'unknown';
         this.addLog('✅ Session restored: ' + this.outRows.length.toLocaleString() + ' records · ' + this.citationsData.length + ' datasets · originally saved ' + savedDate, 'ok');
         if (this._multiSpeciesEntries.length > 1) {
@@ -1519,7 +1530,6 @@ document.addEventListener('alpine:init', () => {
         document.body.appendChild(flash);
         setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 400); }, 3000);
 
-        // Navigate to the data tab and rebuild all visuals
         showTab('data');
         setTimeout(() => {
           if (this._map) { this._map.remove(); this._map = null; this._clusterGroup = null; this._plainLayer = null; this._baseLayers = {}; }
@@ -1539,10 +1549,6 @@ document.addEventListener('alpine:init', () => {
         setTimeout(() => { flash.style.opacity = '0'; setTimeout(() => flash.remove(), 400); }, 3500);
       }
     },
-
-    // ══════════════════════════════════════════════════════════════════════
-    // ── END SESSION ───────────────────────────────────────────────────────
-    // ══════════════════════════════════════════════════════════════════════
 
     // ── helpers ────────────────────────────────────────────────────────────
     selectAllCols(v) { this.selectedColumns = v ? this.allColumns.map(c=>c.key) : []; },
@@ -1567,7 +1573,6 @@ document.addEventListener('alpine:init', () => {
     formatBytes(b) { if (b<1024) return b+' B'; if (b<1048576) return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(1)+' MB'; },
     addLog(msg, type='info') { this.log.push({msg,type}); if (this.log.length>300) this.log.shift(); },
 
-    // ── License normalizer ─────────────────────────────────────────────────
     getLicense(url) {
       if (!url) return 'CC BY 4.0';
       if (url.startsWith('CC')) {
@@ -1584,7 +1589,6 @@ document.addEventListener('alpine:init', () => {
       return parts.length ? `CC ${parts.join('-')}${ver}` : 'Copyrighted';
     },
 
-    // ── License summary computed ───────────────────────────────────────────
     get licenseSummary() {
       const counts = {};
       for (const ds of this.citationsData) {
@@ -1593,7 +1597,6 @@ document.addEventListener('alpine:init', () => {
       return counts;
     },
 
-    // ── Dataset metadata fetch ─────────────────────────────────────────────
     async fetchDatasetInfo(datasetKey) {
       if (!datasetKey) return null;
       if (this.datasetInfoCache[datasetKey] !== undefined) return this.datasetInfoCache[datasetKey];
@@ -1631,7 +1634,6 @@ document.addEventListener('alpine:init', () => {
       this.addLog(`✅ Dataset metadata resolved (${resolved}/${keys.length} found)`, 'ok');
     },
 
-    // ── Build citationsData from cache ─────────────────────────────────────
     buildCitationsData(rawCiteLines, rightsMap) {
       const seen = new Set();
       const out = [];
@@ -1661,7 +1663,6 @@ document.addEventListener('alpine:init', () => {
       this.inTextPreview = this.buildInTextCitation(out);
     },
 
-    // ── Multi-species: build per-species citation entries ─────────────────
     buildMultiSpeciesEntries() {
       const entries = [];
       const speciesNames = Object.keys(this.multiSpeciesMap).sort();
@@ -1704,7 +1705,6 @@ document.addEventListener('alpine:init', () => {
       setTimeout(() => this.renderSpeciesChart(), 120);
     },
 
-    // ── In-text citation builder ────────────────────────────────────────────
     parseInTextRef(citationText) {
       if (!citationText) return { intext: '', year: 9999, sortKey: '' };
       const yearMatch = citationText.match(/\((\d{4})\)/);
@@ -1743,7 +1743,6 @@ document.addEventListener('alpine:init', () => {
       return `Data derived from (${refs}). Data licensed under ${licStr}.`;
     },
 
-    // ── Citation copy / download actions ──────────────────────────────────
     async copyCitations() {
       if (!this.citationsData.length) return;
       const text = this.citationsData.map((d, i) => `${i+1}. ${d.citation}`).join('\n\n');
@@ -1811,7 +1810,6 @@ document.addEventListener('alpine:init', () => {
       URL.revokeObjectURL(a.href);
     },
 
-    // ── Multi-Species citation actions ─────────────────────────────────────
     async copyMsInText(entry) {
       try { await navigator.clipboard.writeText(entry.intext); } catch(e) {}
       const flash = document.createElement('div');
@@ -1867,7 +1865,6 @@ document.addEventListener('alpine:init', () => {
       this._downloadText(rows.join('\n'), 'multi_species_citations.csv', 'text/csv');
     },
 
-    // ── Taxon search ───────────────────────────────────────────────────────
     async searchTaxon() {
       const q = this.taxonSearch.trim();
       if (!q || q.length < 2) { this.taxonSuggestions = []; return; }
@@ -1888,7 +1885,7 @@ document.addEventListener('alpine:init', () => {
       this.addLog(`✅ Selected: ${s.canonicalName} (key: ${s.key})`, 'ok');
     },
 
-    // ── GBIF fetch ──────────────────────────────────────────────────────────
+    // ── GBIF fetch — CHANGED: exclusion is now conditional on opts.excludeINat ──
     async fetchFromGBIF() {
       const key = this.selectedTaxon.key;
       const rawMax = parseInt(this.apiMaxRecords);
@@ -1909,13 +1906,20 @@ document.addEventListener('alpine:init', () => {
           this.addLog(`📊 GBIF reports ${totalCount.toLocaleString()} matching records`, 'ok');
           if (totalCount === 0) throw new Error('No occurrences found for this taxon with the current filters.');
         }
-        const filtered = data.results.filter(r => {
-          if (EXCLUDED_DATASET_KEYS.has(r.datasetKey)) return false;
-          const pub = (r.publishingOrgKey||r.publisher||r.datasetName||'').toLowerCase();
-          return !EXCLUDED_PUBLISHERS.some(ex => pub.includes(ex));
-        });
+        // CHANGED: filter is now conditional — only applied when opts.excludeINat is true
+        let filtered;
+        if (this.opts.excludeINat) {
+          filtered = data.results.filter(r => {
+            if (EXCLUDED_DATASET_KEYS.has(r.datasetKey)) return false;
+            const pub = (r.publishingOrgKey||r.publisher||r.datasetName||'').toLowerCase();
+            return !EXCLUDED_PUBLISHERS.some(ex => pub.includes(ex));
+          });
+        } else {
+          filtered = data.results;
+        }
         all.push(...filtered);
-        this.addLog(`  Page ${Math.floor(offset/limit)+1}: +${filtered.length} (${data.results.length-filtered.length} excluded)`);
+        const excludedCount = data.results.length - filtered.length;
+        this.addLog(`  Page ${Math.floor(offset/limit)+1}: +${filtered.length}${excludedCount > 0 ? ' (' + excludedCount + ' iNat/BugGuide excluded)' : ''}`);
         if (data.endOfRecords||data.results.length===0||all.length>=maxRecs) break;
         offset += limit;
         await new Promise(r => setTimeout(r, 80));
@@ -2145,6 +2149,8 @@ document.addEventListener('alpine:init', () => {
               return !EXCLUDED_PUBLISHERS.some(ex => pub.includes(ex));
             });
             this.addLog(`🚫 Excluded ${(before - rawRows.length).toLocaleString()} iNat/BugGuide`, 'warn');
+          } else {
+            this.addLog(`ℹ iNat/BugGuide records included (exclusion is off)`, 'info');
           }
 
           const idCol = this.detectIdColumn(rawRows._headers || Object.keys(rawRows[0] || {}));
@@ -2271,7 +2277,6 @@ document.addEventListener('alpine:init', () => {
     selectAllRows() { this.selectedRows = new Set(this.outRows.map(r => this.getRowId(r))); },
     clearSelection() { this.selectedRows = new Set(); this.selectedCols = new Set(); },
 
-    // ── Serialise ──────────────────────────────────────────────────────────
     serializeRows(rows, cols, fmt) {
       const sep = fmt === 'tsv' ? '\t' : ',';
       const esc = (v, tsv) => { if (v==null) return ''; const s = String(v); if (tsv) return s.replace(/\t/g,' '); if (s.includes(',')||s.includes('"')||s.includes('\n')) return `"${s.replace(/"/g,'""')}"`; return s; };
@@ -2311,7 +2316,6 @@ document.addEventListener('alpine:init', () => {
 
     // ── Map ────────────────────────────────────────────────────────────────
     buildMap() {
-      // Convenience: init if needed, then render points
       if (!this._map) this.initMap();
       else this._map.invalidateSize();
       this.renderMapPoints();
@@ -2342,7 +2346,6 @@ document.addEventListener('alpine:init', () => {
     renderMapPoints() {
       if (!this._map) this.initMap();
       if (!this._map) return;
-      // Clear existing layers
       if (this._clusterGroup) this._clusterGroup.clearLayers();
       if (this._plainLayer)   { this._map.removeLayer(this._plainLayer); this._plainLayer = null; }
 
@@ -2389,7 +2392,6 @@ document.addEventListener('alpine:init', () => {
       } catch(e) {}
     },
 
-    // ── Phenology chart ────────────────────────────────────────────────────
     renderPhenologyChart() {
       const canvas = document.getElementById('phenologyChart');
       if (!canvas || !this.phenologyTotal) return;
@@ -2447,7 +2449,6 @@ document.addEventListener('alpine:init', () => {
       });
     },
 
-    // ── Species count bar chart ────────────────────────────────────────────
     get speciesChartRows() {
       return Object.entries(this._speciesCountData).sort((a, b) => b[1] - a[1]);
     },
@@ -2475,10 +2476,7 @@ document.addEventListener('alpine:init', () => {
       a.click(); URL.revokeObjectURL(a.href);
     },
 
-    // ══════════════════════════════════════════════════════════════════════
     // ── SPECIES FILTER TAB ───────────────────────────────────────────────
-    // ══════════════════════════════════════════════════════════════════════
-
     handleFilterFileSelect(e) {
       const f = e.target.files[0];
       if (f) { this.filterFile = f; this.loadFilterCSV(f); }

@@ -97,13 +97,15 @@
   .cell-header { background: #1e293b; border-bottom: 1px solid #334155; }
   .cell-label { background: #f59e0b; color: #1e293b; font-size: 9px; font-weight: 900; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 4px; }
   .notebook-cell { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-  canvas { max-height: 360px; }
+  canvas { max-height: 420px; }
   .back-arrow-desktop { display: none; }
   .back-arrow-mobile  { display: flex; }
   @media (min-width: 1122px) {
     .back-arrow-desktop { display: flex; }
     .back-arrow-mobile  { display: none; }
   }
+  /* Family chart palette dots */
+  .family-dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
 </style>
 </head>
 
@@ -797,7 +799,7 @@
           </div>
         </div>
 
-        <!-- ═══ NEW CELL 1B: Unique Floral Taxa with Formatted Citations ═══ -->
+        <!-- ═══ CELL 1B: Unique Floral Taxa with Formatted Citations ═══ -->
         <div class="notebook-cell">
           <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div class="flex items-center gap-3">
@@ -819,26 +821,28 @@
             <p class="text-[10px] text-slate-400 mb-4 leading-relaxed">
               One entry per unique taxon, alphabetically sorted. Uses the first GBIF occurrence for each taxon. Synonyms are flagged. Copy produces a formatted citation string ready for publication.
             </p>
-            <!-- Preview of formatted output -->
             <div class="bg-amber-50 border border-amber-100 rounded-lg p-4 mb-4 max-h-32 overflow-y-auto">
               <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2">Preview (formatted copy output):</p>
               <p class="text-[11px] text-slate-700 leading-relaxed font-mono" x-text="analyzeResults.taxaListPreview"></p>
             </div>
-            <!-- Individual taxa rows -->
             <div class="space-y-0 divide-y divide-slate-50 max-h-[600px] overflow-y-auto border border-slate-100 rounded-lg">
               <template x-for="(name, idx) in analyzeResults.sortedTaxaNames" :key="name">
                 <div class="px-4 py-3 hover:bg-amber-50 transition-colors">
                   <div class="flex items-start gap-3">
                     <span class="text-[10px] font-black font-mono text-slate-300 w-6 shrink-0 mt-0.5 text-right" x-text="(idx+1) + '.'"></span>
                     <div class="flex-1 min-w-0">
-                      <!-- Taxon name + synonym badge -->
                       <div class="flex items-center gap-2 flex-wrap">
                         <span class="italic text-sm font-semibold text-slate-800" x-text="name"></span>
                         <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].is_synonym">
                           <span class="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide shrink-0">old synonym</span>
                         </template>
+                        <!-- Family badge — shown once enrichFamilies has resolved it -->
+                        <template x-if="familyCache[name.split(' ')[0].toLowerCase()]">
+                          <span class="text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wide shrink-0 border"
+                            :style="'background:' + getFamilyColor(analyzeResults.familyData ? analyzeResults.familyData.findIndex(f => f.family === familyCache[name.split(\' \')[0].toLowerCase()]) : 0) + '22; color:' + getFamilyColor(analyzeResults.familyData ? analyzeResults.familyData.findIndex(f => f.family === familyCache[name.split(\' \')[0].toLowerCase()]) : 0) + '; border-color:' + getFamilyColor(analyzeResults.familyData ? analyzeResults.familyData.findIndex(f => f.family === familyCache[name.split(\' \')[0].toLowerCase()]) : 0) + '55'"
+                            x-text="familyCache[name.split(' ')[0].toLowerCase()]"></span>
+                        </template>
                       </div>
-                      <!-- Citation + GBIF link row -->
                       <div class="flex items-center gap-3 mt-0.5 flex-wrap" x-show="analyzeResults.taxaFirstOcc[name]">
                         <span class="text-[10px] text-slate-400" x-text="analyzeResults.taxaFirstOcc[name] ? analyzeResults.taxaFirstOcc[name].intextRef : ''"></span>
                         <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].gbifID">
@@ -848,7 +852,6 @@
                             x-text="'GBIF ' + analyzeResults.taxaFirstOcc[name].gbifID"></a>
                         </template>
                       </div>
-                      <!-- Verbatim extraction source string -->
                       <template x-if="analyzeResults.taxaFirstOcc[name] && analyzeResults.taxaFirstOcc[name].verbatimText">
                         <div class="mt-1.5 bg-slate-50 border border-slate-100 rounded-md px-2.5 py-1.5">
                           <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
@@ -870,6 +873,174 @@
           </div>
         </div>
         <!-- ═══ END CELL 1B ═══ -->
+
+        <!-- ═══ CELL 1C: Floral Plant Family Distribution ═══ -->
+        <div class="notebook-cell">
+          <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3">
+              <span class="cell-label">CELL 1C</span>
+              <span class="text-sm font-bold text-slate-200">Floral Plant Family Distribution</span>
+            </div>
+            <div class="flex gap-2">
+              <button @click="copyFamilyCSV()" id="btn-copy-family"
+                class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-copy text-[10px]"></i>Copy CSV
+              </button>
+              <button @click="downloadFamilyCSV()"
+                class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                <i class="fa-solid fa-download text-[10px]"></i>Download CSV
+              </button>
+            </div>
+          </div>
+          <div class="bg-white p-5">
+
+            <!-- Loading state -->
+            <template x-if="analyzeResults.familyLoading">
+              <div class="flex flex-col items-center gap-3 py-10">
+                <i class="fa-solid fa-circle-notch animate-spin text-amber-400 text-2xl"></i>
+                <p class="text-sm text-slate-400" x-text="analyzeResults.familyLoadMsg || 'Looking up plant families via GBIF…'"></p>
+                <p class="text-[10px] text-slate-300">Each genus is matched to its family using the GBIF Species Match API</p>
+              </div>
+            </template>
+
+            <!-- Results -->
+            <template x-if="!analyzeResults.familyLoading && analyzeResults.familyData && analyzeResults.familyData.length">
+              <div>
+                <p class="text-[10px] text-slate-400 mb-1 leading-relaxed">
+                  Genera resolved to botanical families via GBIF. Bar width = share of all floral records.
+                  <strong class="text-slate-500">Click any row to expand and see the exact taxa that contributed.</strong>
+                </p>
+                <!-- Scale legend -->
+                <div class="flex items-center gap-2 mb-5 mt-2">
+                  <span class="text-[9px] font-bold text-slate-300 uppercase tracking-widest">0</span>
+                  <div class="flex-1 h-px bg-slate-100 relative">
+                    <template x-for="pct in [25, 50, 75, 100]" :key="pct">
+                      <span class="absolute top-0 -translate-y-2 text-[9px] text-slate-300 font-mono"
+                        :style="'left:' + pct + '%'"
+                        x-text="pct + '%'"></span>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Alpine accordion bar chart -->
+                <div class="space-y-1.5">
+                  <template x-for="(row, idx) in analyzeResults.familyData" :key="row.family">
+                    <div class="rounded-xl overflow-hidden border transition-all"
+                      :class="expandedFamilies[row.family] ? 'border-slate-200 shadow-sm' : 'border-transparent hover:border-slate-100'">
+
+                      <!-- Bar row — clickable header -->
+                      <button class="w-full text-left px-0 py-0 group"
+                        @click="expandedFamilies[row.family] = !expandedFamilies[row.family]">
+                        <div class="flex items-center gap-0 min-h-[48px]">
+
+                          <!-- Color swatch -->
+                          <div class="w-1.5 self-stretch shrink-0 rounded-l-xl"
+                            :style="'background:' + getFamilyColor(idx)"></div>
+
+                          <!-- Rank -->
+                          <span class="text-[10px] font-black font-mono text-slate-300 w-6 text-center shrink-0 ml-2"
+                            x-text="idx+1"></span>
+
+                          <!-- Family name + meta -->
+                          <div class="w-36 sm:w-48 shrink-0 pl-2 pr-3">
+                            <p class="text-sm font-bold italic text-slate-800 leading-tight truncate"
+                              x-text="row.family"></p>
+                            <p class="text-[9px] font-mono text-slate-400 mt-0.5">
+                              <span x-text="row.taxa + ' taxon' + (row.taxa !== 1 ? 'a' : '')"></span>
+                            </p>
+                          </div>
+
+                          <!-- Bar track -->
+                          <div class="flex-1 h-8 bg-slate-50 rounded-lg overflow-hidden relative mr-3">
+                            <div class="h-full rounded-lg flex items-center transition-all duration-500"
+                              :style="'width:' + row.pct + '%; background:' + getFamilyColor(idx) + '44; border-right: 2px solid ' + getFamilyColor(idx)">
+                            </div>
+                            <!-- Taxa chips inside the bar (visible when bar is wide enough) -->
+                            <div class="absolute inset-0 flex items-center gap-1 px-2 overflow-hidden pointer-events-none"
+                              x-show="row.pct > 18">
+                              <template x-for="t in row.taxaList.slice(0, 3)" :key="t.name">
+                                <span class="text-[9px] font-semibold italic truncate max-w-[80px] shrink-0"
+                                  :style="'color:' + getFamilyColor(idx)"
+                                  x-text="t.name.split(' ')[0]"></span>
+                              </template>
+                              <span x-show="row.taxaList.length > 3"
+                                class="text-[9px] font-mono shrink-0"
+                                :style="'color:' + getFamilyColor(idx)"
+                                x-text="'+' + (row.taxaList.length - 3)"></span>
+                            </div>
+                          </div>
+
+                          <!-- Count + pct -->
+                          <div class="text-right shrink-0 w-20 pr-3">
+                            <p class="text-sm font-black font-mono"
+                              :style="'color:' + getFamilyColor(idx)"
+                              x-text="row.count.toLocaleString()"></p>
+                            <p class="text-[9px] font-mono text-slate-400" x-text="row.pct + '%'"></p>
+                          </div>
+
+                          <!-- Expand chevron -->
+                          <div class="w-7 shrink-0 flex items-center justify-center text-slate-300 group-hover:text-slate-500 transition-colors">
+                            <i class="fa-solid text-[10px] transition-transform duration-200"
+                              :class="expandedFamilies[row.family] ? 'fa-chevron-up rotate-0' : 'fa-chevron-down'"></i>
+                          </div>
+
+                        </div>
+                      </button>
+
+                      <!-- Expanded taxa list -->
+                      <div x-show="expandedFamilies[row.family]"
+                        x-transition:enter="transition-all ease-out duration-200"
+                        x-transition:enter-start="opacity-0 max-h-0"
+                        x-transition:enter-end="opacity-100 max-h-screen"
+                        class="px-4 pb-4 pt-1"
+                        :style="'border-top: 1px solid ' + getFamilyColor(idx) + '33'">
+
+                        <p class="text-[9px] font-bold uppercase tracking-widest mb-3 mt-1"
+                          :style="'color:' + getFamilyColor(idx)"
+                          x-text="row.family + ' — ' + row.taxaList.length + ' taxon/taxa'"></p>
+
+                        <!-- Per-taxon bar rows -->
+                        <div class="space-y-1.5">
+                          <template x-for="t in row.taxaList" :key="t.name">
+                            <div class="flex items-center gap-3">
+                              <!-- Taxon name -->
+                              <span class="italic text-xs font-semibold text-slate-700 w-44 shrink-0 truncate"
+                                x-text="t.name"></span>
+                              <!-- Mini bar -->
+                              <div class="flex-1 h-4 bg-slate-50 rounded overflow-hidden">
+                                <div class="h-full rounded flex items-center pl-1.5 transition-all duration-300"
+                                  :style="'width:' + Math.max(2, Math.round((t.count / row.taxaList[0].count) * 100)) + '%; background:' + getFamilyColor(idx) + '55'">
+                                </div>
+                              </div>
+                              <!-- Count -->
+                              <span class="text-[10px] font-bold font-mono text-slate-600 w-8 text-right shrink-0"
+                                x-text="t.count"></span>
+                              <!-- Record label -->
+                              <span class="text-[9px] text-slate-300 shrink-0">rec</span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+
+                    </div>
+                  </template>
+                </div>
+
+                <p class="text-[10px] text-slate-400 mt-4 text-right"
+                  x-text="analyzeResults.familyData.length + ' families · ' + analyzeResults.sortedTaxaNames.length + ' taxa · ' + (analyzeResults.familyUnresolved||0) + ' unresolved'"></p>
+              </div>
+            </template>
+
+            <!-- Empty state -->
+            <template x-if="!analyzeResults.familyLoading && (!analyzeResults.familyData || !analyzeResults.familyData.length)">
+              <div class="text-center py-10">
+                <i class="fa-solid fa-leaf text-4xl text-slate-200 mb-3"></i>
+                <p class="text-sm text-slate-400">No floral taxa found — run the builder with floral host extraction enabled.</p>
+              </div>
+            </template>
+          </div>
+        </div>
+        <!-- ═══ END CELL 1C ═══ -->
 
         <!-- Cell 2: Dual Bar Charts -->
         <div class="notebook-cell">
@@ -1082,8 +1253,14 @@
           <div>
             <p class="font-bold text-slate-700 mb-1">Analyze — Cell 1B: Unique Taxa List</p>
             <p>The <strong>Analyze</strong> tab → <strong>Cell 1B</strong> shows every unique floral taxon alphabetically, each with its in-text dataset citation and GBIF record number. Click <strong>Copy Formatted List</strong> to get a publication-ready string like:<br><br>
-            <code class="bg-slate-100 px-2 py-1 rounded text-xs leading-loose block mt-2">Encelia farinosa (Illinois NHS, 2025; GBIF record 3801377092), Helianthus annuus (Carril et al., 2023; GBIF record 3421528374), …</code><br>
-            Synonyms are flagged with <em>old synonym</em> in both the display and the copied text.</p>
+            <code class="bg-slate-100 px-2 py-1 rounded text-xs leading-loose block mt-2">Encelia farinosa (Illinois NHS, 2025; GBIF record 3801377092), Helianthus annuus (Carril et al., 2023; GBIF record 3421528374), …</code></p>
+          </div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-7 h-7 bg-amber-100 text-amber-600 font-black text-sm rounded-full flex items-center justify-center shrink-0">5</div>
+          <div>
+            <p class="font-bold text-slate-700 mb-1">Analyze — Cell 1C: Plant Family Distribution</p>
+            <p>The new <strong>Cell 1C</strong> automatically resolves every floral genus to its plant family using the GBIF API, then shows a ranked bar chart and table of which botanical families are most represented in the occurrence records. Download as CSV or copy for reports.</p>
           </div>
         </div>
       </div>
@@ -1126,6 +1303,14 @@ const PLANT_BLACKLIST = new Set([
 ]);
 const GEO_BLACKLIST = new Set(['usa','united states','mexico','canada','unknown','none','nan']);
 
+// Color palette for plant families
+const FAMILY_COLORS = [
+  '#f59e0b','#10b981','#3b82f6','#8b5cf6','#ef4444','#f97316',
+  '#06b6d4','#84cc16','#ec4899','#14b8a6','#a855f7','#f43f5e',
+  '#0ea5e9','#22c55e','#eab308','#6366f1','#d946ef','#64748b',
+  '#78716c','#71717a'
+];
+
 document.addEventListener('alpine:init', () => {
   Alpine.data('app', () => ({
     loading: false, statusMsg: '', progress: 0, error: null,
@@ -1150,6 +1335,8 @@ document.addEventListener('alpine:init', () => {
 
     geoCache: {}, plantCache: {}, aiCache: {},
     datasetInfoCache: {},
+    familyCache: {},
+    expandedFamilies: {},
 
     canRun() {
       if (!this.genus.trim() || !this.speciesEpithet.trim()) return false;
@@ -1230,6 +1417,88 @@ document.addEventListener('alpine:init', () => {
       const resolved = Object.values(this.datasetInfoCache).filter(Boolean).length;
       this.addLog(`✅ Dataset metadata resolved (${resolved}/${keys.length} found)`, 'ok');
     },
+
+    // ── FAMILY LOOKUP ────────────────────────────────────────────────────────
+    getFamilyColor(idx) {
+      return FAMILY_COLORS[idx % FAMILY_COLORS.length];
+    },
+
+    async fetchGenusFamily(genus) {
+      if (!genus) return null;
+      const key = genus.toLowerCase();
+      if (this.familyCache[key] !== undefined) return this.familyCache[key];
+      try {
+        const url = `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(genus)}&kingdom=Plantae&rank=GENUS`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        const data = await res.json();
+        const family = (data.kingdom === 'Plantae' && data.family) ? data.family : null;
+        this.familyCache[key] = family;
+        return family;
+      } catch {
+        this.familyCache[key] = null;
+        return null;
+      }
+    },
+
+    async enrichFamilies(results) {
+      if (!results.sortedTaxaNames || !results.sortedTaxaNames.length) {
+        results.familyLoading = false;
+        results.familyData = [];
+        return;
+      }
+
+      results.familyLoading = true;
+      results.familyLoadMsg = 'Resolving plant families via GBIF…';
+
+      // Get unique genera from the taxon list
+      const genusList = [...new Set(
+        results.sortedTaxaNames.map(name => name.split(' ')[0]).filter(Boolean)
+      )];
+
+      const PARALLEL = 8;
+      let resolved = 0;
+      for (let i = 0; i < genusList.length; i += PARALLEL) {
+        const batch = genusList.slice(i, i + PARALLEL);
+        await Promise.all(batch.map(g => this.fetchGenusFamily(g)));
+        resolved += batch.length;
+        results.familyLoadMsg = `Resolving families… ${resolved} / ${genusList.length} genera`;
+        await new Promise(r => setTimeout(r, 0));
+      }
+
+      // Aggregate: family → { count (raw records), taxaMap: {name → count} }
+      const familyMap = {};
+      let unresolved = 0;
+      for (const taxonName of results.sortedTaxaNames) {
+        const genus = taxonName.split(' ')[0];
+        const family = this.familyCache[genus.toLowerCase()] || null;
+        const rawCount = results.rawCounts[taxonName] || 0;
+        const bucket = family || 'Unknown / Unresolved';
+        if (!familyMap[bucket]) familyMap[bucket] = { count: 0, taxaMap: {} };
+        familyMap[bucket].count += rawCount;
+        familyMap[bucket].taxaMap[taxonName] = (familyMap[bucket].taxaMap[taxonName] || 0) + rawCount;
+        if (!family) unresolved++;
+      }
+
+      const totalCount = Object.values(familyMap).reduce((a, b) => a + b.count, 0);
+      const familyData = Object.entries(familyMap)
+        .map(([family, d]) => ({
+          family,
+          count: d.count,
+          taxa: Object.keys(d.taxaMap).length,
+          pct: totalCount > 0 ? parseFloat(((d.count / totalCount) * 100).toFixed(1)) : 0,
+          // sorted list of contributing taxa with individual counts
+          taxaList: Object.entries(d.taxaMap)
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => ({ name, count }))
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      results.familyData = familyData;
+      results.familyUnresolved = unresolved;
+      results.familyLoading = false;
+      results.familyLoadMsg = '';
+    },
+    // ── END FAMILY LOOKUP ────────────────────────────────────────────────────
 
     async fetchFromGBIF() {
       const key = this.selectedTaxon.key;
@@ -1943,6 +2212,8 @@ document.addEventListener('alpine:init', () => {
         }
         this.analyzeResults = this.computeAnalysis(data);
         setTimeout(() => this.renderAnalyzeCharts(), 120);
+        // Kick off family enrichment asynchronously (reactive UI updates as it loads)
+        this.enrichFamilies(this.analyzeResults);
       } catch(e) {
         this.analyzeError = e.message;
       } finally {
@@ -2143,7 +2414,12 @@ document.addEventListener('alpine:init', () => {
         taxaListPreview,
         detailedHosts,
         floralCitations,
-        floralCitationData
+        floralCitationData,
+        // Family fields — populated async by enrichFamilies()
+        familyLoading: true,
+        familyLoadMsg: 'Preparing…',
+        familyData: null,
+        familyUnresolved: 0
       };
     },
 
@@ -2175,6 +2451,27 @@ document.addEventListener('alpine:init', () => {
       this._downloadText(text, `${name}_floral_taxa_list.txt`);
     },
 
+    // ── FAMILY CSV / COPY ────────────────────────────────────────────────────
+    async copyFamilyCSV() {
+      if (!this.analyzeResults?.familyData?.length) return;
+      const header = 'PLANT_FAMILY\tRAW_RECORDS\tTAXA_COUNT\tPCT_OF_TOTAL';
+      const rows = this.analyzeResults.familyData.map(r =>
+        `${r.family}\t${r.count}\t${r.taxa}\t${r.pct}%`);
+      await navigator.clipboard.writeText([header, ...rows].join('\n'));
+      this._flashBtn('btn-copy-family');
+    },
+
+    downloadFamilyCSV() {
+      if (!this.analyzeResults?.familyData?.length) return;
+      const lines = ['Plant Family,Raw Records,Taxa Count,% of Total',
+        ...this.analyzeResults.familyData.map(r =>
+          `"${r.family}",${r.count},${r.taxa},${r.pct}%`)];
+      const name = (this.analyzeResults?.binomial_name || 'species').replace(/\s+/g, '_');
+      this._downloadText(lines.join('\n'), `${name}_plant_families.csv`, 'text/csv');
+    },
+    // ── END FAMILY CSV ───────────────────────────────────────────────────────
+
+    // ── CHART RENDERS ────────────────────────────────────────────────────────
     renderAnalyzeCharts() {
       if (!this.analyzeResults) return;
       const top = this.analyzeResults.rawFlowers.slice(0, 15);
@@ -2244,7 +2541,10 @@ document.addEventListener('alpine:init', () => {
           hoverBackgroundColor: 'rgba(71,85,105,0.7)'
         }]));
       }
+
+      // Family chart is now pure Alpine — no Chart.js needed
     },
+    // ── END CHART RENDERS ────────────────────────────────────────────────────
 
     async copyAnalysisChart() {
       if (!this.analyzeResults) return;
@@ -2320,7 +2620,9 @@ function showTab(name) {
   if (name === 'analyze') {
     setTimeout(() => {
       const app = Alpine.$data(document.querySelector('[x-data="app"]'));
-      if (app && app.analyzeResults) app.renderAnalyzeCharts();
+      if (app && app.analyzeResults) {
+        app.renderAnalyzeCharts();
+      }
     }, 50);
   }
 }

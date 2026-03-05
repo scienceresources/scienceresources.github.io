@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Occurrence Merger · GBIF + iNaturalist</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+<style>
+[x-cloak]{display:none!important}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:#f1f5f9}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+.tab-active{border-bottom:2px solid #d97706;color:#b45309!important;background:#fffbeb}
+.tab-inactive{border-bottom:2px solid transparent}
+.tab-inactive:hover{color:#334155;background:#f8fafc}
+.drop-zone{transition:all .2s}
+.drop-zone.dz-over{border-color:#d97706!important;background:#fffbeb!important}
+.drop-inat.dz-over{border-color:#16a34a!important;background:#f0fdf4!important}
+.check-opt{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:all .15s;background:white}
+.check-opt:has(input:checked){border-color:#d97706;background:#fffbeb}
+.check-opt input{accent-color:#d97706;margin-top:2px}
+.fade-in{animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+#dt-wrap{overflow:auto;max-height:520px}
+#dt{border-collapse:collapse;font-size:11px;min-width:100%}
+#dt th{background:#1e293b;color:#94a3b8;padding:7px 10px;text-align:left;font-family:'Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.05em;white-space:nowrap;position:sticky;top:0;z-index:10}
+#dt td{padding:5px 10px;border-bottom:1px solid #f1f5f9;color:#475569;font-family:'Courier New',monospace;white-space:nowrap;max-width:210px;overflow:hidden;text-overflow:ellipsis}
+#dt tr:hover td{background:#f8fafc}
+.bg-gbif{background:#eff6ff;color:#2563eb}
+.bg-inat{background:#f0fdf4;color:#16a34a}
+#map-container{position:relative;z-index:0;border-radius:12px;overflow:hidden;height:560px}
+#map{width:100%;height:100%;z-index:0}
+.leaflet-top,.leaflet-bottom{z-index:400!important}
+.leaflet-popup-content-wrapper{background:white!important;border:1px solid #e2e8f0!important;border-radius:12px!important;box-shadow:0 4px 20px rgba(0,0,0,.12)!important;color:#334155!important}
+.leaflet-popup-tip{background:white!important}
+canvas{max-height:300px}
+.stat-card{background:white;border:1px solid #e2e8f0;border-radius:12px;padding:20px}
+.bar-r{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:11px;font-family:'Courier New',monospace}
+.bar-t{flex:1;background:#f1f5f9;border-radius:4px;height:11px;overflow:hidden}
+.b-am{background:#d97706;height:100%;border-radius:4px;transition:width .4s}
+.b-bl{background:#2563eb;height:100%;border-radius:4px;transition:width .4s}
+.b-gr{background:#16a34a;height:100%;border-radius:4px;transition:width .4s}
+.b-sl{background:#64748b;height:100%;border-radius:4px;transition:width .4s}
+.b-in{background:#4f46e5;height:100%;border-radius:4px;transition:width .4s}
+.b-ro{background:#e11d48;height:100%;border-radius:4px;transition:width .4s}
+/* Taxon tree */
+.g-row{display:flex;align-items:center;padding:6px 8px;cursor:pointer;border-radius:8px;border:1px solid transparent;transition:background .12s}
+.g-row:hover{background:#f8fafc;border-color:#e2e8f0}
+.g-row.open{background:#fffbeb;border-color:#fde68a}
+.sp-row{display:flex;align-items:center;gap:6px;padding:3px 8px 3px 28px;border-radius:6px;font-size:11px;font-family:'Courier New',monospace}
+.sp-row:hover{background:#f8fafc}
+.sp-row.go{opacity:.55}
+/* subgenus header inside expanded genus */
+.sg-row{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 24px;border-radius:6px;font-size:11px;font-family:'Courier New',monospace;cursor:pointer}
+.sg-row:hover{background:#fef9c3}
+/* rank badges */
+.rank-genus{background:#eff6ff;color:#2563eb;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:.04em}
+.rank-subgenus{background:#fef3c7;color:#b45309;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:.04em}
+.rank-tribe{background:#fee2e2;color:#b91c1c;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:.04em}
+.rank-higher{background:#f5f3ff;color:#6d28d9;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:.04em}
+.rank-unresolved{background:#f1f5f9;color:#64748b;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:.04em}
+.stab{display:inline-flex;align-items:center;gap:6px;padding:12px 14px;font-size:14px;font-weight:600;color:#64748b;border-bottom:2px solid transparent;background:transparent;cursor:pointer;transition:all .15s;white-space:nowrap}
+.stab:hover{color:#334155;background:#f8fafc}
+.pbar{transition:width .3s}
+.back-arrow-desktop{display:none}
+.back-arrow-mobile {display:flex}
+@media(min-width:1122px){.back-arrow-desktop{display:flex}.back-arrow-mobile{display:none}}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <!-- Mobile back arrow -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="gbif-index.html" class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+  <div class="relative">
+    <!-- Desktop back arrow -->
+    <a href="gbif-index.html" class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-amber-100 p-2 rounded-lg"><i class="fa-solid fa-code-merge text-amber-600 text-xl"></i></div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Occurrence Merger</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">GBIF Darwin Core · iNaturalist · Map · Taxonomy Statistics</p>
+        </div>
+      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">DwC-A · Leaflet · Chart.js · In-browser only</p>
+    </div>
+  </div>
+  </div><!-- /relative -->
+  <div class="max-w-6xl mx-auto px-4 flex items-stretch flex-wrap" x-data>
+    <button onclick="showTab('upload')" id="tab-upload" class="tab-active   text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-upload mr-1.5 opacity-70"></i>Upload &amp; Merge</button>
+    <button onclick="showTab('data')"   id="tab-data"   class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-table mr-1.5 opacity-70"></i>Data Table</button>
+    <button onclick="showTab('map')"    id="tab-map"    class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-map mr-1.5 opacity-70"></i>Map &amp; Phenology</button>
+    <button onclick="showTab('stats')"  id="tab-stats"  class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-chart-bar mr-1.5 opacity-70"></i>Statistics</button>
+    <button onclick="showTab('export')" id="tab-export" class="tab-inactive text-slate-500 px-4 py-3 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-file-export mr-1.5 opacity-70"></i>Export</button>
+    <div class="flex-1"></div>
+    <div class="w-px bg-slate-100 my-2 mx-1 self-stretch hidden sm:block"></div>
+    <button class="stab text-slate-400 hover:text-green-600" title="Save session"
+      onclick="(()=>{var a=Alpine.$data(document.querySelector('[x-data=\'app\']'));if(a)a.saveSession()})()">
+      <i class="fa-solid fa-floppy-disk opacity-60 text-sm"></i><span class="hidden sm:inline">Save</span>
+    </button>
+    <label class="stab text-slate-400 hover:text-blue-600 cursor-pointer" title="Load session">
+      <i class="fa-solid fa-folder-open opacity-60 text-sm"></i><span class="hidden sm:inline">Load</span>
+      <input type="file" accept=".json" class="hidden"
+        onchange="(e=>{var a=Alpine.$data(document.querySelector('[x-data=\'app\']'));if(a)a.loadSessionFile(e)})(event)">
+    </label>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-8 space-y-5 flex-1 w-full" x-data="app">
+
+  <!-- ══ UPLOAD ════════════════════════════════════════════════════════════ -->
+  <div id="panel-upload" class="space-y-5">
+    <div class="grid md:grid-cols-2 gap-5">
+
+      <!-- GBIF -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0"><i class="fa-solid fa-database text-blue-500"></i></div>
+          <div>
+            <p class="font-bold text-slate-800 text-sm">GBIF Occurrence Data</p>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">DwC-A .zip · occurrence.txt · CSV · TSV</p>
+          </div>
+        </div>
+        <div class="drop-zone border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-blue-300 hover:bg-blue-50"
+          @dragover.prevent="$el.classList.add('dz-over')"
+          @dragleave="$el.classList.remove('dz-over')"
+          @drop.prevent="$el.classList.remove('dz-over');handleGBIFDrop($event)"
+          @click="$refs.gbifIn.click()">
+          <input x-ref="gbifIn" type="file" accept=".zip,.txt,.csv,.tsv" class="hidden" @change="handleGBIFSel($event)">
+          <template x-if="!gbifFile">
+            <div>
+              <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-300 mb-3"></i>
+              <p class="text-sm font-bold text-slate-500">Drop GBIF file here</p>
+              <p class="text-xs text-slate-400 mt-1">DwC-A .zip · occurrence.txt · .csv · .tsv</p>
+              <div class="flex justify-center gap-2 mt-3 flex-wrap">
+                <span class="text-[10px] font-bold bg-blue-50 text-blue-500 px-2.5 py-1 rounded-full">.zip</span>
+                <span class="text-[10px] font-bold bg-blue-50 text-blue-500 px-2.5 py-1 rounded-full">.txt</span>
+                <span class="text-[10px] font-bold bg-blue-50 text-blue-500 px-2.5 py-1 rounded-full">.csv</span>
+                <span class="text-[10px] font-bold bg-blue-50 text-blue-500 px-2.5 py-1 rounded-full">.tsv</span>
+              </div>
+            </div>
+          </template>
+          <template x-if="gbifFile">
+            <div>
+              <i class="fa-solid fa-file-lines text-3xl text-blue-400 mb-2"></i>
+              <p class="text-sm font-bold text-slate-700" x-text="gbifFile.name"></p>
+              <p class="text-xs text-slate-400 mt-1" x-text="fmtB(gbifFile.size)"></p>
+              <p class="text-xs text-blue-600 font-semibold mt-1.5"><i class="fa-solid fa-check mr-1"></i><span x-text="gbifRows.length.toLocaleString()"></span> records parsed</p>
+              <button class="mt-2 text-[10px] text-slate-400 hover:text-red-500" @click.stop="gbifFile=null;gbifRows=[]"><i class="fa-solid fa-xmark mr-1"></i>Remove</button>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- iNat -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0"><i class="fa-solid fa-leaf text-green-500"></i></div>
+          <div>
+            <p class="font-bold text-slate-800 text-sm">iNaturalist Observations</p>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">observations-*.csv · any matching CSV / TSV / TXT</p>
+          </div>
+        </div>
+        <div class="drop-zone drop-inat border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-green-300 hover:bg-green-50"
+          @dragover.prevent="$el.classList.add('dz-over')"
+          @dragleave="$el.classList.remove('dz-over')"
+          @drop.prevent="$el.classList.remove('dz-over');handleINatDrop($event)"
+          @click="$refs.inatIn.click()">
+          <input x-ref="inatIn" type="file" accept=".csv,.txt,.tsv" class="hidden" @change="handleINatSel($event)">
+          <template x-if="!inatFile">
+            <div>
+              <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-300 mb-3"></i>
+              <p class="text-sm font-bold text-slate-500">Drop iNaturalist file here</p>
+              <p class="text-xs text-slate-400 mt-1">observations-*.csv · .txt · .tsv</p>
+              <div class="flex justify-center gap-2 mt-3 flex-wrap">
+                <span class="text-[10px] font-bold bg-green-50 text-green-600 px-2.5 py-1 rounded-full">.csv</span>
+                <span class="text-[10px] font-bold bg-green-50 text-green-600 px-2.5 py-1 rounded-full">.txt</span>
+                <span class="text-[10px] font-bold bg-green-50 text-green-600 px-2.5 py-1 rounded-full">.tsv</span>
+              </div>
+            </div>
+          </template>
+          <template x-if="inatFile">
+            <div>
+              <i class="fa-solid fa-file-csv text-3xl text-green-500 mb-2"></i>
+              <p class="text-sm font-bold text-slate-700" x-text="inatFile.name"></p>
+              <p class="text-xs text-slate-400 mt-1" x-text="fmtB(inatFile.size)"></p>
+              <p class="text-xs text-green-600 font-semibold mt-1.5"><i class="fa-solid fa-check mr-1"></i><span x-text="inatRows.length.toLocaleString()"></span> observations parsed</p>
+              <button class="mt-2 text-[10px] text-slate-400 hover:text-red-500" @click.stop="inatFile=null;inatRows=[]"><i class="fa-solid fa-xmark mr-1"></i>Remove</button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-sliders mr-1 text-amber-400"></i>Processing Options</p>
+      <p class="text-sm text-slate-500 mb-5 leading-relaxed">Configure cleaning and filtering applied before the datasets are combined.</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <label class="check-opt"><input type="checkbox" x-model="opts.dropNullCoords"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-crosshairs mr-1 text-blue-400"></i>Drop missing coordinates</p><p class="text-xs text-slate-400 mt-0.5">Remove rows with no lat/lon</p></div></label>
+        <label class="check-opt"><input type="checkbox" x-model="opts.dropNullDate"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-calendar-xmark mr-1 text-amber-400"></i>Drop missing date</p><p class="text-xs text-slate-400 mt-0.5">Remove rows with no observation date</p></div></label>
+        <label class="check-opt"><input type="checkbox" x-model="opts.dedup"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-copy mr-1 text-green-400"></i>Deduplicate by source ID</p><p class="text-xs text-slate-400 mt-0.5">Skip duplicate IDs within same source</p></div></label>
+        <label class="check-opt"><input type="checkbox" x-model="opts.researchOnly"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-star mr-1 text-yellow-400"></i>iNat: research grade only</p><p class="text-xs text-slate-400 mt-0.5">Filter to <code class="font-mono bg-slate-100 px-0.5 rounded text-[10px]">quality_grade = research</code></p></div></label>
+        <label class="check-opt"><input type="checkbox" x-model="opts.hasCoordOnly"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-location-dot mr-1 text-red-400"></i>GBIF: hasCoordinate = true only</p><p class="text-xs text-slate-400 mt-0.5">Verified coordinate records only</p></div></label>
+        <label class="check-opt"><input type="checkbox" x-model="opts.normalizeDate"><div><p class="text-sm font-semibold text-slate-700"><i class="fa-solid fa-calendar mr-1 text-purple-400"></i>Normalize eventDate to ISO</p><p class="text-xs text-slate-400 mt-0.5">Build YYYY-MM-DD from year/month/day</p></div></label>
+      </div>
+    </div>
+
+    <!-- Merge button + results -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div class="flex flex-wrap gap-3 items-center mb-4">
+        <button @click="doMerge()"
+          :disabled="loading||(!gbifRows.length&&!inatRows.length)"
+          :class="loading||(!gbifRows.length&&!inatRows.length)?'opacity-40 cursor-not-allowed':'hover:bg-amber-700 active:scale-95'"
+          class="bg-amber-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid text-xs" :class="loading?'fa-circle-notch animate-spin':'fa-code-merge'"></i>
+          <span x-text="loading?'Merging…':'Merge Datasets'"></span>
+        </button>
+        <template x-if="merged.length&&!loading">
+          <button onclick="showTab('data')" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm">View Data <i class="fa-solid fa-arrow-right text-xs"></i></button>
+        </template>
+        <template x-if="merged.length&&!loading">
+          <button onclick="showTab('map')" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm"><i class="fa-solid fa-map text-xs"></i>Map</button>
+        </template>
+        <template x-if="merged.length&&!loading">
+          <button onclick="showTab('stats')" class="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-sm"><i class="fa-solid fa-chart-bar text-xs"></i>Statistics</button>
+        </template>
+      </div>
+
+      <div x-show="loading" class="mb-4">
+        <div class="flex justify-between text-xs text-slate-500 mb-1"><span x-text="pMsg"></span><span x-text="pct+'%'"></span></div>
+        <div class="w-full bg-slate-100 rounded-full h-2"><div class="pbar bg-amber-500 h-2 rounded-full" :style="`width:${pct}%`"></div></div>
+      </div>
+
+      <template x-if="merged.length&&!loading">
+        <div class="fade-in">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-amber-50 border border-amber-100 rounded-lg p-3 text-center">
+              <p class="text-2xl font-bold text-amber-700 font-mono" x-text="merged.length.toLocaleString()"></p>
+              <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest mt-0.5">Total Records</p>
+            </div>
+            <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
+              <p class="text-2xl font-bold text-blue-700 font-mono" x-text="gbifCnt.toLocaleString()"></p>
+              <p class="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">GBIF</p>
+            </div>
+            <div class="bg-green-50 border border-green-100 rounded-lg p-3 text-center">
+              <p class="text-2xl font-bold text-green-700 font-mono" x-text="inatCnt.toLocaleString()"></p>
+              <p class="text-[10px] font-bold text-green-600 uppercase tracking-widest mt-0.5">iNaturalist</p>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+              <p class="text-2xl font-bold text-slate-700 font-mono" x-text="spLevelCnt.toLocaleString()"></p>
+              <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Species-level</p>
+            </div>
+          </div>
+          <template x-if="inatGenusOnly>0">
+            <p class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <i class="fa-solid fa-triangle-exclamation mr-1.5"></i>
+              <strong x-text="inatGenusOnly.toLocaleString()"></strong> iNaturalist records have single-word names (<em>Melissodes</em>, <em>Eucera</em>, etc.) — stored in <code class="font-mono bg-amber-100 px-0.5 rounded text-[10px]">genus</code>, excluded from species statistics, shown in grey in the taxon tree.
+            </p>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="errMsg">
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 mt-3"><i class="fa-solid fa-triangle-exclamation mr-2"></i><span x-text="errMsg"></span></div>
+      </template>
+    </div>
+  </div><!-- /upload -->
+
+
+  <!-- ══ DATA TABLE ═════════════════════════════════════════════════════════ -->
+  <div id="panel-data" class="hidden space-y-5 fade-in">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <input x-model="tQ" type="text" placeholder="Search species, genus, locality, country…"
+          class="flex-1 min-w-48 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none">
+        <select x-model="tSrc" class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-amber-400 outline-none">
+          <option value="">All sources</option>
+          <option value="GBIF">GBIF only</option>
+          <option value="iNaturalist">iNaturalist only</option>
+        </select>
+        <span class="text-xs text-slate-400 font-mono whitespace-nowrap" x-text="tRows.length.toLocaleString()+' rows'"></span>
+      </div>
+      <div id="dt-wrap">
+        <table id="dt">
+          <thead><tr>
+            <th>dataSource</th><th>species</th><th>genus</th><th>vernacularName</th>
+            <th>eventDate</th><th>decimalLatitude</th><th>decimalLongitude</th>
+            <th>locality</th><th>stateProvince</th><th>countryCode</th>
+            <th>family</th><th>order</th><th>class</th><th>kingdom</th>
+            <th>basisOfRecord</th><th>license</th><th>recordedBy</th><th>datasetName</th>
+          </tr></thead>
+          <tbody>
+            <template x-for="(r,i) in pageRows" :key="i">
+              <tr>
+                <td><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold" :class="r.dataSource==='GBIF'?'bg-gbif':'bg-inat'" x-text="r.dataSource"></span></td>
+                <td class="italic" x-text="r.species"></td>
+                <td x-text="r.genus"></td>
+                <td x-text="r.vernacularName"></td>
+                <td x-text="r.eventDate"></td>
+                <td x-text="r.decimalLatitude"></td>
+                <td x-text="r.decimalLongitude"></td>
+                <td x-text="r.locality"></td>
+                <td x-text="r.stateProvince"></td>
+                <td x-text="r.countryCode"></td>
+                <td x-text="r.family"></td>
+                <td x-text="r.order"></td>
+                <td x-text="r.class"></td>
+                <td x-text="r.kingdom"></td>
+                <td x-text="r.basisOfRecord"></td>
+                <td x-text="sLic(r.license)"></td>
+                <td x-text="r.recordedBy"></td>
+                <td x-text="r.datasetName"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+      <div class="flex items-center justify-between mt-4 flex-wrap gap-2">
+        <button @click="tPg=Math.max(0,tPg-1)" :disabled="tPg===0"
+          class="text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg disabled:opacity-30 transition-all"><i class="fa-solid fa-chevron-left mr-1"></i>Prev</button>
+        <span class="text-xs text-slate-400 font-mono">Page <span x-text="tPg+1"></span> of <span x-text="Math.max(1,Math.ceil(tRows.length/tSz))"></span> · <span x-text="tRows.length.toLocaleString()"></span> rows</span>
+        <button @click="tPg=Math.min(Math.ceil(tRows.length/tSz)-1,tPg+1)" :disabled="tPg>=Math.ceil(tRows.length/tSz)-1"
+          class="text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg disabled:opacity-30 transition-all">Next<i class="fa-solid fa-chevron-right ml-1"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MAP ════════════════════════════════════════════════════════════════ -->
+  <div id="panel-map" class="hidden space-y-5 fade-in">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <div class="flex flex-wrap items-center gap-4 mb-4">
+        <div class="flex items-center gap-1.5 text-xs font-semibold text-slate-600"><span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span>GBIF</div>
+        <div class="flex items-center gap-1.5 text-xs font-semibold text-slate-600"><span class="w-3 h-3 rounded-full bg-green-600 inline-block"></span>iNaturalist</div>
+        <div class="flex-1"></div>
+        <select x-model="mapSrc" @change="renderMap()"
+          class="p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-amber-400 outline-none">
+          <option value="">All sources</option><option value="GBIF">GBIF only</option><option value="iNaturalist">iNaturalist only</option>
+        </select>
+        <span class="text-xs text-slate-400 font-mono" x-text="mapPts.toLocaleString()+' points'"></span>
+      </div>
+      <div id="map-container"><div id="map"></div></div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6" x-show="merged.length">
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-calendar mr-1 text-amber-400"></i>Flight Period / Phenology by Month</p>
+        <button @click="dlChart('pheno-chart','phenology')" class="text-[11px] font-bold text-slate-400 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-2.5 py-1 rounded-lg bg-white transition-all flex items-center gap-1.5"><i class="fa-solid fa-download text-[10px]"></i>PNG</button>
+      </div>
+      <canvas id="pheno-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- ══ STATISTICS ═════════════════════════════════════════════════════════ -->
+  <div id="panel-stats" class="hidden space-y-5 fade-in">
+
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-4" x-show="merged.length">
+      <div class="stat-card text-center"><p class="text-3xl font-bold text-amber-600 font-mono" x-text="merged.length.toLocaleString()"></p><p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total Records</p></div>
+      <div class="stat-card text-center"><p class="text-3xl font-bold text-blue-600 font-mono" x-text="uSpecies.toLocaleString()"></p><p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Species (binomial)</p></div>
+      <div class="stat-card text-center"><p class="text-3xl font-bold text-indigo-600 font-mono" x-text="uGenera.toLocaleString()"></p><p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Genera</p></div>
+      <div class="stat-card text-center"><p class="text-3xl font-bold text-green-600 font-mono" x-text="uCountries.toLocaleString()"></p><p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Countries</p></div>
+      <div class="stat-card text-center"><p class="text-3xl font-bold text-slate-600 font-mono" x-text="wCoords.toLocaleString()"></p><p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">With Coords</p></div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-5">
+      <div class="stat-card">
+        <div class="flex items-center justify-between mb-4">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-chart-pie mr-1 text-amber-400"></i>Records by Source</p>
+          <button @click="dlChart('src-chart','records-by-source')" class="text-[11px] font-bold text-slate-400 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-2.5 py-1 rounded-lg bg-white transition-all flex items-center gap-1.5"><i class="fa-solid fa-download text-[10px]"></i>PNG</button>
+        </div>
+        <canvas id="src-chart" style="max-height:220px"></canvas>
+      </div>
+      <div class="stat-card">
+        <div class="flex items-center justify-between mb-4">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-calendar mr-1 text-amber-400"></i>Observations by Year</p>
+          <button @click="dlChart('year-chart','observations-by-year')" class="text-[11px] font-bold text-slate-400 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-2.5 py-1 rounded-lg bg-white transition-all flex items-center gap-1.5"><i class="fa-solid fa-download text-[10px]"></i>PNG</button>
+        </div>
+        <canvas id="year-chart" style="max-height:220px"></canvas>
+      </div>
+    </div>
+
+    <!-- ── Resolve Ranks + Taxon Tree ───────────────────────────────────── -->
+    <div class="stat-card" x-show="merged.length">
+
+      <!-- Auto rank resolution — runs automatically after merge, progress shown here -->
+      <div x-show="resolving||resolveMsg" class="mb-5 pb-5 border-b border-slate-100">
+        <!-- Progress bar while resolving -->
+        <div x-show="resolving" class="mb-3">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fa-solid fa-circle-notch animate-spin text-violet-500 text-xs"></i>
+            <span class="text-xs font-semibold text-violet-600">Resolving taxonomic ranks via iNaturalist…</span>
+            <span class="text-xs text-slate-400 font-mono ml-auto" x-text="resolvePct+'%'"></span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-1.5"><div class="pbar bg-violet-500 h-1.5 rounded-full" :style="`width:${resolvePct}%`"></div></div>
+          <p class="text-[10px] text-slate-400 font-mono mt-1" x-text="resolveMsg"></p>
+        </div>
+        <!-- Status after done -->
+        <template x-if="!resolving&&resolveMsg">
+          <div class="text-xs font-semibold rounded-lg px-3 py-2 flex items-center gap-2"
+            :class="resolveMsg.startsWith('✓')?'bg-green-50 text-green-700 border border-green-200':'bg-amber-50 text-amber-700 border border-amber-200'">
+            <i class="fa-solid" :class="resolveMsg.startsWith('✓')?'fa-circle-check':'fa-triangle-exclamation'"></i>
+            <span x-text="resolveMsg"></span>
+          </div>
+        </template>
+      </div>
+
+      <!-- Tree header controls -->
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <p class="text-xs text-slate-400">
+          <span x-text="uGenera"></span> genera ·
+          <span x-text="uSpecies"></span> species ·
+          <span x-text="inatGenusOnly.toLocaleString()"></span> genus-level records
+          <template x-if="resolvedSubgeneraCount>0">
+            <span>· <strong class="text-violet-600" x-text="resolvedSubgeneraCount"></strong> subgenera resolved</span>
+          </template>
+        </p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <input x-model="txQ" type="text" placeholder="Filter genus…"
+            class="p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono w-36 focus:ring-2 focus:ring-amber-400 outline-none">
+          <div class="flex gap-1">
+            <button @click="txSort='cnt'" :class="txSort==='cnt'?'bg-amber-100 border-amber-300 text-amber-700':'bg-white border-slate-200 text-slate-500'"
+              class="text-[11px] font-bold border px-2.5 py-1.5 rounded-lg transition-all">By count</button>
+            <button @click="txSort='az'" :class="txSort==='az'?'bg-amber-100 border-amber-300 text-amber-700':'bg-white border-slate-200 text-slate-500'"
+              class="text-[11px] font-bold border px-2.5 py-1.5 rounded-lg transition-all">A–Z</button>
+          </div>
+          <button @click="openG={};openSG={}" class="text-[11px] font-bold text-slate-400 hover:text-slate-600 border border-slate-200 px-2.5 py-1.5 rounded-lg bg-white transition-all">Collapse all</button>
+        </div>
+      </div>
+
+      <!-- Tree -->
+      <div class="space-y-0.5">
+        <template x-for="g in txFiltered" :key="g.genus">
+          <div>
+            <!-- Genus / higher-rank header row -->
+            <div class="g-row" :class="[openG[g.genus]?'open':'', g.isHigher?'opacity-75':'']" @click="toggleG(g.genus)">
+              <i class="fa-solid text-[10px] text-slate-400 w-4 mr-1" :class="openG[g.genus]?'fa-chevron-down':'fa-chevron-right'"></i>
+              <span class="font-bold italic text-slate-800 text-sm mr-2"
+                style="min-width:10rem;max-width:10rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="g.genus"></span>
+              <!-- Rank badge shown after resolution -->
+              <template x-if="rankRes[g.genus]">
+                <span class="mr-2 shrink-0 uppercase" :class="rankBadgeClass(g.rank)" x-text="g.rank"></span>
+              </template>
+              <span class="text-[11px] text-slate-500 font-mono mr-1" x-text="g.total.toLocaleString()+' rec'"></span>
+              <span class="text-[11px] text-blue-600 font-mono" x-text="'· '+g.spCnt+' sp.'"></span>
+              <template x-if="g.subgenera&&g.subgenera.length">
+                <span class="ml-1 text-[11px] text-violet-500 font-mono" x-text="'· '+g.subgenera.length+' subgen.'"></span>
+              </template>
+              <template x-if="g.go>0">
+                <span class="ml-1 text-[10px] text-amber-500 font-mono">(<span x-text="g.go"></span> gen-lvl)</span>
+              </template>
+              <div class="flex-1 mx-3 hidden sm:block">
+                <div class="bar-t" style="height:7px">
+                  <div :class="g.isHigher?'b-ro':'b-am'" :style="`width:${(g.total/txMax*100).toFixed(1)}%;height:100%`"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Expanded content -->
+            <div x-show="openG[g.genus]" x-transition>
+
+              <!-- Species directly under this genus (no subgenus context) -->
+              <template x-for="(sp,si) in g.species" :key="sp.name">
+                <div class="sp-row">
+                  <i class="fa-solid fa-minus text-[9px] text-slate-300 w-3 shrink-0"></i>
+                  <span class="italic text-slate-700" style="min-width:13rem;max-width:13rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="sp.name"></span>
+                  <div class="bar-t flex-1"><div :style="`width:${(sp.total/Math.max(g.species[0].total,1)*100).toFixed(1)}%;height:100%;border-radius:4px;background:${spBarColor(sp)};transition:width .4s`"></div></div>
+                  <span class="w-10 text-right text-slate-400 shrink-0" x-text="sp.total.toLocaleString()"></span>
+                </div>
+              </template>
+
+              <!-- Subgenus groups (genus-only records rolled in from resolution) -->
+              <template x-for="sg in (g.subgenera||[])" :key="sg.name">
+                <div>
+                  <div class="sg-row" @click.stop="toggleSG(g.genus+':::'+sg.name,$event)">
+                    <i class="fa-solid text-[9px] text-violet-400 w-4 mr-0.5" :class="openSG[g.genus+':::'+sg.name]?'fa-chevron-down':'fa-chevron-right'"></i>
+                    <span class="rank-subgenus mr-2 uppercase">SUBGENUS</span>
+                    <span class="italic text-violet-700 font-semibold text-xs" x-text="sg.name"></span>
+                    <span class="ml-2 text-[10px] text-slate-400 font-mono" x-text="sg.go+' genus-lvl'"></span>
+                    <div class="bar-t flex-1 ml-3" style="height:6px">
+                      <div class="b-in" :style="`width:${(sg.go/Math.max(g.total,1)*100).toFixed(1)}%`"></div>
+                    </div>
+                    <span class="w-8 text-right text-violet-400 font-mono text-[10px] shrink-0" x-text="sg.go.toLocaleString()"></span>
+                  </div>
+                  <div x-show="openSG[g.genus+':::'+sg.name]">
+                    <template x-for="([sp,cnt],si) in sg.species" :key="si">
+                      <div class="sp-row" style="padding-left:3rem">
+                        <i class="fa-solid fa-minus text-[9px] text-violet-200 w-3 shrink-0"></i>
+                        <span class="italic text-slate-600" style="min-width:12rem;max-width:12rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="sp"></span>
+                        <div class="bar-t flex-1"><div class="b-in" :style="`width:${(cnt/Math.max(sg.species[0]?sg.species[0].total:1,1)*100).toFixed(1)}%`"></div></div>
+                        <span class="w-10 text-right text-slate-400 shrink-0" x-text="cnt.toLocaleString()"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Genus-level records with no subgenus context -->
+              <template x-if="g.go>0">
+                <div class="sp-row go">
+                  <i class="fa-solid fa-circle-question text-[9px] text-amber-400 w-3 shrink-0"></i>
+                  <span class="text-amber-500 italic" style="min-width:13rem">(genus-level only)</span>
+                  <div class="bar-t flex-1"><div class="b-am" :style="`width:${(g.go/Math.max(g.species[0]?g.species[0].total:1,g.go)*100).toFixed(1)}%`"></div></div>
+                  <span class="w-10 text-right text-amber-400 shrink-0" x-text="g.go.toLocaleString()"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- Divider before higher-rank entries -->
+        <template x-if="txFiltered.some(g=>g.isHigher)&&!txQ">
+          <div class="flex items-center gap-3 mt-5 mb-2">
+            <div class="flex-1 h-px bg-red-100"></div>
+            <span class="text-[10px] font-bold text-red-400 uppercase tracking-widest whitespace-nowrap">Higher-rank names — not genus level</span>
+            <div class="flex-1 h-px bg-red-100"></div>
+          </div>
+        </template>
+
+        <div x-show="!txFiltered.length" class="text-xs text-slate-400 text-center py-6">No names match the filter.</div>
+      </div>
+
+
+    </div>
+
+    <!-- ── Per-genus species breakdown (auto-shown for genera with >2 species) ── -->
+    <template x-if="richGenera.length">
+      <div class="stat-card">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+          <i class="fa-solid fa-bars-staggered mr-1 text-amber-400"></i>Species Breakdown by Genus
+        </p>
+        <p class="text-xs text-slate-400 mb-5">All genera with at least one identified species. Subgenera are consolidated into their parent genus. Sorted by total records.</p>
+
+        <template x-for="g in richGenera" :key="g.genus">
+          <div class="mb-6" :id="'genus-block-'+g.genus.replace(/ /g,'-')">
+            <!-- Genus header -->
+            <div class="flex items-center gap-2 mb-2 pb-1 border-b border-slate-100">
+              <span class="font-bold italic text-slate-800 text-sm" x-text="g.genus"></span>
+              <template x-if="rankRes[g.genus]">
+                <span class="uppercase text-[9px] font-bold px-1.5 py-0.5 rounded" :class="rankBadgeClass(rankOf(g.genus))" x-text="rankOf(g.genus)"></span>
+              </template>
+              <span class="text-[11px] text-slate-400 font-mono">
+                <span x-text="g.total.toLocaleString()"></span> records ·
+                <span x-text="g.species.length"></span> species
+              </span>
+              <div class="ml-auto">
+                <button @click="dlGenusChart(g.genus)"
+                  class="text-[11px] font-bold text-slate-400 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-2.5 py-1 rounded-lg bg-white transition-all flex items-center gap-1.5">
+                  <i class="fa-solid fa-download text-[10px]"></i>PNG
+                </button>
+              </div>
+            </div>
+            <!-- Source legend (shown when dataset has both sources) -->
+            <template x-if="gbifCnt>0&&inatCnt>0">
+              <div class="flex gap-3 mb-2">
+                <span class="flex items-center gap-1 text-[10px] text-blue-600 font-semibold"><span class="inline-block w-2.5 h-2.5 rounded-sm bg-blue-600"></span>GBIF only</span>
+                <span class="flex items-center gap-1 text-[10px] text-green-600 font-semibold"><span class="inline-block w-2.5 h-2.5 rounded-sm bg-green-600"></span>iNat only</span>
+                <span class="flex items-center gap-1 text-[10px] text-teal-600 font-semibold"><span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#0d9488"></span>Both</span>
+              </div>
+            </template>
+            <!-- Species bars -->
+            <template x-for="(sp,si) in g.species" :key="sp.name">
+              <div class="bar-r">
+                <span class="italic text-slate-600 truncate" style="min-width:14rem;max-width:14rem" x-text="sp.name"></span>
+                <div class="bar-t flex-1"><div :style="`width:${(sp.total/Math.max(g.species[0].total,1)*100).toFixed(1)}%;height:100%;border-radius:4px;background:${spBarColor(sp)};transition:width .4s`"></div></div>
+                <span class="w-10 text-right text-slate-400 shrink-0" x-text="sp.total.toLocaleString()"></span>
+                <span class="w-10 text-right text-slate-300 font-mono text-[10px] shrink-0" x-text="'('+((sp.total/g.total)*100).toFixed(0)+'%)'"></span>
+              </div>
+            </template>
+            <!-- Genus-level only row -->
+            <template x-if="g.go>0">
+              <div class="bar-r" style="opacity:.5">
+                <span class="italic text-amber-500 truncate" style="min-width:14rem;max-width:14rem">(genus-level only)</span>
+                <div class="bar-t flex-1"><div class="b-am" :style="`width:${(g.go/g.species[0].total*100).toFixed(1)}%`"></div></div>
+                <span class="w-10 text-right text-amber-400 shrink-0" x-text="g.go.toLocaleString()"></span>
+                <span class="w-10 text-right text-slate-300 font-mono text-[10px] shrink-0" x-text="'('+((g.go/g.total)*100).toFixed(0)+'%)'"></span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Country + quality/license -->
+    <div class="grid md:grid-cols-2 gap-5">
+      <div class="stat-card">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4"><i class="fa-solid fa-flag mr-1 text-amber-400"></i>Top 15 Countries</p>
+        <template x-for="([c,n],i) in topC" :key="i">
+          <div class="bar-r"><span class="w-14 truncate text-slate-600" x-text="c||'(unknown)'"></span><div class="bar-t"><div class="b-sl" :style="`width:${(n/topC[0][1]*100).toFixed(1)}%`"></div></div><span class="w-10 text-right text-slate-400" x-text="n.toLocaleString()"></span></div>
+        </template>
+      </div>
+      <div class="stat-card">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-microscope mr-1 text-amber-400"></i>Basis of Record / Quality</p>
+        <template x-for="([q,n],i) in topQ" :key="i">
+          <div class="bar-r"><span class="truncate text-slate-600" style="min-width:11rem;max-width:11rem" x-text="q||'(unknown)'"></span><div class="bar-t"><div class="b-in" :style="`width:${(n/(topQ[0]?topQ[0][1]:1)*100).toFixed(1)}%`"></div></div><span class="w-10 text-right text-slate-400" x-text="n.toLocaleString()"></span></div>
+        </template>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-5"><i class="fa-solid fa-scale-balanced mr-1 text-amber-400"></i>Licenses</p>
+        <template x-for="([l,n],i) in topL" :key="i">
+          <div class="bar-r"><span class="truncate text-slate-600" style="min-width:11rem;max-width:11rem" x-text="sLic(l)||'(unknown)'"></span><div class="bar-t"><div class="b-gr" :style="`width:${(n/(topL[0]?topL[0][1]:1)*100).toFixed(1)}%`"></div></div><span class="w-10 text-right text-slate-400" x-text="n.toLocaleString()"></span></div>
+        </template>
+      </div>
+    </div>
+
+    <div x-show="!merged.length" class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+      <i class="fa-solid fa-chart-bar text-4xl text-slate-200 mb-4"></i>
+      <p class="text-slate-400 text-sm">Merge datasets first to view statistics.</p>
+    </div>
+  </div><!-- /stats -->
+
+
+  <!-- ══ EXPORT ═════════════════════════════════════════════════════════════ -->
+  <div id="panel-export" class="hidden space-y-5 fade-in">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-file-export mr-1 text-amber-400"></i>Export — Darwin Core Archive Format</p>
+      <p class="text-sm text-slate-500 mb-6 leading-relaxed">
+        Output column names follow the <strong>GBIF Darwin Core Archive</strong> structure (<code class="font-mono bg-slate-100 px-1 rounded text-xs">occurrence.txt</code> field order). iNaturalist records are mapped to equivalent DwC fields. A <code class="font-mono bg-slate-100 px-1 rounded text-xs">dataSource</code> column identifies GBIF vs iNaturalist origin. <strong x-text="merged.length.toLocaleString()"></strong> total records.
+      </p>
+      <div class="grid sm:grid-cols-3 gap-4 mb-6">
+        <button @click="dlCSV()" :disabled="!merged.length" :class="!merged.length?'opacity-40 cursor-not-allowed':'hover:bg-amber-700 active:scale-95'" class="bg-amber-600 text-white rounded-xl p-5 text-center shadow-sm transition-all">
+          <i class="fa-solid fa-file-csv text-3xl mb-2"></i><p class="font-bold text-sm">Download CSV</p><p class="text-xs text-amber-200 mt-0.5 font-mono" x-text="merged.length.toLocaleString()+' rows'"></p>
+        </button>
+        <button @click="dlTSV()" :disabled="!merged.length" :class="!merged.length?'opacity-40 cursor-not-allowed':'hover:bg-slate-700 active:scale-95'" class="bg-slate-800 text-white rounded-xl p-5 text-center shadow-sm transition-all">
+          <i class="fa-solid fa-table text-3xl mb-2"></i><p class="font-bold text-sm">Download TSV</p><p class="text-xs text-slate-400 mt-0.5">Tab-separated (DwC-style)</p>
+        </button>
+        <button @click="dlJSON()" :disabled="!merged.length" :class="!merged.length?'opacity-40 cursor-not-allowed':'hover:bg-blue-700 active:scale-95'" class="bg-blue-600 text-white rounded-xl p-5 text-center shadow-sm transition-all">
+          <i class="fa-solid fa-code text-3xl mb-2"></i><p class="font-bold text-sm">Download JSON</p><p class="text-xs text-blue-200 mt-0.5">Full record array</p>
+        </button>
+      </div>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Darwin Core Export Columns (in field order)</p>
+      <div class="flex flex-wrap gap-1.5">
+        <template x-for="col in DWC" :key="col">
+          <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded" :class="col==='dataSource'?'bg-amber-100 text-amber-700':'bg-slate-100 text-slate-500'" x-text="col"></span>
+        </template>
+      </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-floppy-disk mr-1 text-amber-400"></i>Session — Save &amp; Load</p>
+      <p class="text-sm text-slate-500 mb-5 leading-relaxed">Save everything to a <code class="font-mono bg-slate-100 px-1 rounded text-xs">.json</code> file and reload it later without re-uploading.</p>
+      <div class="flex flex-wrap gap-3">
+        <button @click="saveSession()" :disabled="!merged.length" :class="!merged.length?'opacity-40 cursor-not-allowed':'hover:bg-green-700 active:scale-95'" class="bg-green-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2"><i class="fa-solid fa-floppy-disk text-xs"></i>Save Session (.json)</button>
+        <label class="bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2 cursor-pointer hover:bg-blue-700 active:scale-95"><i class="fa-solid fa-folder-open text-xs"></i>Load Session (.json)<input type="file" accept=".json" class="hidden" @change="loadSessionFile($event)"></label>
+      </div>
+    </div>
+  </div><!-- /export -->
+
+</main>
+<footer class="border-t border-slate-200 bg-white py-4"><p class="text-center text-[10px] text-slate-400 font-mono tracking-wider">Occurrence Merger · GBIF Darwin Core + iNaturalist · All processing in-browser · No data leaves your device</p></footer>
+
+<script>
+// Darwin Core export columns — mirrors GBIF occurrence.txt field order
+const DWC_COLS = [
+  'gbifID','occurrenceID','datasetName','institutionCode','collectionCode','catalogNumber',
+  'basisOfRecord','occurrenceStatus','sex','lifeStage',
+  'eventDate','year','month','day',
+  'decimalLatitude','decimalLongitude','coordinateUncertaintyInMeters',
+  'continent','countryCode','stateProvince','county','municipality','locality',
+  'kingdom','phylum','class','order','superfamily','family','subfamily','tribe','subtribe',
+  'genus','subgenus','specificEpithet','infraspecificEpithet','taxonRank',
+  'scientificName','acceptedScientificName','species','vernacularName',
+  'identifiedBy','recordedBy','recordedByID',
+  'license','rightsHolder','references',
+  'taxonKey','speciesKey','taxonID',
+  'hasCoordinate','issue',
+  'dataSource'
+];
+
+document.addEventListener('alpine:init',()=>{
+Alpine.data('app',()=>({
+
+  DWC: DWC_COLS,
+
+  // state
+  gbifFile:null,inatFile:null,gbifRows:[],inatRows:[],merged:[],
+  loading:false,pct:0,pMsg:'',errMsg:'',
+  opts:{dropNullCoords:false,dropNullDate:false,dedup:true,researchOnly:false,hasCoordOnly:false,normalizeDate:true},
+
+  // table
+  tQ:'',tSrc:'',tPg:0,tSz:100,
+
+  // map
+  _map:null,_cl:null,mapSrc:'',mapPts:0,
+
+  // charts
+  _sC:null,_yC:null,_pC:null,
+
+  // taxa tree
+  openG:{},openSG:{},txSort:'cnt',txQ:'',
+
+  // rank resolution via iNaturalist Taxa API (has full subgenus support)
+  rankRes:{},resolving:false,resolvePct:0,resolveMsg:'',resolveErr:'',
+
+  // ── Computed ─────────────────────────────────────────────────────────────
+  get gbifCnt()  { return this.merged.filter(r=>r.dataSource==='GBIF').length; },
+  get inatCnt()  { return this.merged.filter(r=>r.dataSource==='iNaturalist').length; },
+  get wCoords()  { return this.merged.filter(r=>r.decimalLatitude&&r.decimalLongitude).length; },
+  get spLevelCnt(){ return this.merged.filter(r=>r.species&&r.species.trim()).length; },
+  get inatGenusOnly(){ return this.merged.filter(r=>r.dataSource==='iNaturalist'&&!(r.species&&r.species.trim())&&r.genus).length; },
+  get uSpecies(){ return new Set(this.merged.map(r=>r.species).filter(Boolean)).size; },
+  get uGenera(){
+    // Only count names that are confirmed GENUS or not yet resolved (unresolved = assume genus)
+    const names=new Set(this.merged.map(r=>r.genus).filter(Boolean));
+    let count=0;
+    for(const n of names){
+      const rank=this.rankOf(n);
+      if(rank==='GENUS'||rank==='UNRESOLVED') count++;
+    }
+    return count;
+  },
+  get uCountries(){ return new Set(this.merged.map(r=>r.countryCode).filter(Boolean)).size; },
+
+  get tRows(){
+    let r=this.merged;
+    if(this.tSrc) r=r.filter(x=>x.dataSource===this.tSrc);
+    if(this.tQ){const q=this.tQ.toLowerCase();r=r.filter(x=>(x.species||'').toLowerCase().includes(q)||(x.genus||'').toLowerCase().includes(q)||(x.locality||'').toLowerCase().includes(q)||(x.dataSource||'').toLowerCase().includes(q)||(x.countryCode||'').toLowerCase().includes(q)||(x.vernacularName||'').toLowerCase().includes(q));}
+    return r;
+  },
+  get pageRows(){ return this.tRows.slice(this.tPg*this.tSz,(this.tPg+1)*this.tSz); },
+
+  get topC(){const c={};for(const r of this.merged){const k=r.countryCode||'';c[k]=(c[k]||0)+1;}return Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,15);},
+  get topQ(){const c={};for(const r of this.merged){const k=r.basisOfRecord||'';c[k]=(c[k]||0)+1;}return Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,10);},
+  get topL(){const c={};for(const r of this.merged){const k=r.license||'';c[k]=(c[k]||0)+1;}return Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,8);},
+
+  // ── Per-genus species breakdown (genera with >2 species, true genera only) ──
+  get richGenera(){
+    // Use the already-computed txTree which has rank resolution baked in
+    return this.txTree
+      .filter(g=>!g.isHigher && g.species.length>=1)
+      .sort((a,b)=>b.total-a.total);
+  },
+
+  // ── Rank helpers ─────────────────────────────────────────────────────────
+  HIGHER_RANKS:new Set(['TRIBE','SUBTRIBE','SUBFAMILY','SUPERFAMILY','FAMILY','ORDER','CLASS','PHYLUM','KINGDOM']),
+
+  rankOf(name){
+    const r=this.rankRes[name];
+    if(!r||r.matchType==='NONE') return 'UNRESOLVED';
+    return r.rank||'UNRESOLVED';
+  },
+  // Species bar color as inline CSS — avoids Alpine :class string binding issues
+  spBarColor(sp){
+    if(!sp) return '#64748b';
+    const g=sp.gbif||0, n=sp.inat||0;
+    if(g>0&&n===0) return '#2563eb';   // GBIF only  → blue
+    if(n>0&&g===0) return '#16a34a';   // iNat only  → green
+    return '#0d9488';                   // both       → teal
+  },
+  rankLabel(rank){
+    if(!rank||rank==='UNRESOLVED') return 'unresolved';
+    return rank.toLowerCase();
+  },
+  rankBadgeClass(rank){
+    if(rank==='GENUS') return 'rank-genus';
+    if(rank==='SUBGENUS') return 'rank-subgenus';
+    if(['TRIBE','SUBTRIBE'].includes(rank)) return 'rank-tribe';
+    if(this.HIGHER_RANKS.has(rank)) return 'rank-higher';
+    return 'rank-unresolved';
+  },
+
+  // ── Taxon tree ────────────────────────────────────────────────────────────
+  // After rank resolution: subgenera are nested under their true parent genus.
+  // Tribes/subtribes/etc. appear in a separate "higher rank" section at the bottom.
+  get txTree(){
+    const genera={};   // parentGenus → {total,go,spMap,subgenera:{sgName→{go,spMap}}}
+    const higher={};   // name → {rank,total,go,spMap}
+
+    for(const r of this.merged){
+      const raw=r.genus||''; const sp=r.species||'';
+      if(!raw) continue;
+      const rank=this.rankOf(raw);
+      const res=this.rankRes[raw];
+      const src=r.dataSource==='GBIF'?'gbif':'inat';
+
+      // Helper to increment spMap entry tracking source
+      const addSp=(map,name)=>{
+        if(!map[name]) map[name]={total:0,gbif:0,inat:0};
+        map[name].total++; map[name][src]++;
+      };
+
+      if(rank==='SUBGENUS'){
+        const pg=res?.parentGenus||raw;
+        if(!genera[pg]) genera[pg]={total:0,go:0,spMap:{},subgenera:{}};
+        genera[pg].total++;
+        if(sp){ addSp(genera[pg].spMap,sp); }
+        else  { if(!genera[pg].subgenera[raw]) genera[pg].subgenera[raw]={go:0,spMap:{}}; genera[pg].subgenera[raw].go++; }
+      } else if(this.HIGHER_RANKS.has(rank)){
+        if(!higher[raw]) higher[raw]={rank,total:0,go:0,spMap:{}};
+        higher[raw].total++;
+        if(sp) addSp(higher[raw].spMap,sp);
+        else   higher[raw].go++;
+      } else {
+        if(!genera[raw]) genera[raw]={total:0,go:0,spMap:{},subgenera:{}};
+        genera[raw].total++;
+        if(sp) addSp(genera[raw].spMap,sp);
+        else   genera[raw].go++;
+      }
+    }
+
+    const sf=this.txSort==='az'?(a,b)=>a[0].localeCompare(b[0]):(a,b)=>b[1].total-a[1].total;
+    // Convert spMap {name:{total,gbif,inat}} → sorted array of objects
+    const spArr=(map)=>Object.entries(map)
+      .map(([name,d])=>({name,total:d.total,gbif:d.gbif,inat:d.inat}))
+      .sort((a,b)=>b.total-a.total);
+
+    const mk=(genus,d,isHigher,rank)=>({
+      genus,total:d.total,go:d.go,isHigher,
+      rank:rank||this.rankOf(genus),
+      spCnt:Object.keys(d.spMap).length,
+      species:spArr(d.spMap),
+      subgenera:isHigher?[]:Object.entries(d.subgenera||{})
+        .sort((a,b)=>b[1].go-a[1].go)
+        .map(([sg,sd])=>({name:sg,go:sd.go,species:spArr(sd.spMap||{})})),
+    });
+
+    const gList=Object.entries(genera).sort(sf).map(([g,d])=>mk(g,d,false,null));
+    const hList=Object.entries(higher).sort(sf).map(([n,d])=>mk(n,d,true,d.rank));
+    return [...gList,...hList];
+  },
+
+  get txFiltered(){
+    const q=this.txQ.toLowerCase();
+    const tree=this.txTree;
+    if(!q) return tree;
+    return tree.filter(g=>g.genus.toLowerCase().includes(q));
+  },
+  get txMax(){ const t=this.txTree; return t.length?Math.max(...t.map(g=>g.total)):1; },
+  get resolvedSubgeneraCount(){
+    return Object.values(this.rankRes).filter(r=>r.rank==='SUBGENUS').length;
+  },
+  get unresolvedCount(){
+    const names=new Set(this.merged.map(r=>r.genus).filter(Boolean));
+    return [...names].filter(n=>!this.rankRes[n]).length;
+  },
+
+  toggleG(genus){ this.openG={...this.openG,[genus]:!this.openG[genus]}; },
+  toggleSG(key,e){ if(e)e.stopPropagation(); this.openSG={...this.openSG,[key]:!this.openSG[key]}; },
+
+  // ── Resolve ranks via iNaturalist Taxa API ────────────────────────────────
+  // Uses api.inaturalist.org/v1/taxa which has full subgenus-level taxonomy.
+  // For subgenera: makes a second call to get the parent genus name.
+  async resolveRanks(){
+    const allNames=[...new Set(this.merged.map(r=>r.genus).filter(Boolean))];
+    const todo=allNames.filter(n=>!this.rankRes[n]);
+    if(!todo.length){ this.resolveMsg='✓ All names already resolved'; return; }
+
+    this.resolving=true; this.resolvePct=0; this.resolveErr='';
+    this.resolveMsg=`Querying iNaturalist for ${todo.length} name${todo.length>1?'s':''}…`;
+
+    // Process 4 at a time to avoid rate limiting
+    const BATCH=4;
+    let done=0;
+
+    for(let i=0;i<todo.length;i+=BATCH){
+      const batch=todo.slice(i,i+BATCH);
+      await Promise.all(batch.map(async name=>{
+        try{
+          const res=await this._inatResolve(name);
+          const nr={...this.rankRes};
+          nr[name]=res;
+          this.rankRes=nr;
+        }catch(e){
+          const nr={...this.rankRes};
+          nr[name]={rank:'ERROR',parentGenus:'',matchType:'ERROR',key:null};
+          this.rankRes=nr;
+        }
+        done++;
+        this.resolvePct=Math.round(done/todo.length*100);
+        this.resolveMsg=`${done}/${todo.length} — ${name}`;
+      }));
+      // Respect iNat rate limits (~60 req/min)
+      if(i+BATCH<todo.length) await new Promise(r=>setTimeout(r,250));
+    }
+
+    this.resolving=false;
+    const sg=this.resolvedSubgeneraCount;
+    const hi=Object.values(this.rankRes).filter(r=>this.HIGHER_RANKS.has(r.rank)).length;
+    this.resolveMsg=`✓ Done · ${sg} subgener${sg!==1?'a':'on'} · ${hi} higher-rank name${hi!==1?'s':''} found`;
+    this.openG={};
+    this.openSG={};
+  },
+
+  // Single-name resolution via iNaturalist. Returns {rank, parentGenus, matchType, key}.
+  // iNat has genus, subgenus, tribe, subtribe, subfamily, etc. — full rank support.
+  async _inatResolve(name){
+    // Step 1: search by name (autocomplete is fast and name-exact)
+    const url='https://api.inaturalist.org/v1/taxa/autocomplete?q='+encodeURIComponent(name)+'&per_page=10';
+    const r1=await fetch(url);
+    if(!r1.ok) throw new Error('iNat HTTP '+r1.status);
+    const d1=await r1.json();
+
+    // Find the exact match (case-insensitive)
+    const match=d1.results.find(t=>t.name.toLowerCase()===name.toLowerCase());
+    if(!match) return {rank:'UNKNOWN',parentGenus:'',matchType:'NONE',key:null};
+
+    const rank=(match.rank||'unknown').toUpperCase();
+    const inatKey=match.id;
+
+    // If it's a subgenus, fetch the parent taxon to get the true genus name
+    if(rank==='SUBGENUS'&&match.parent_id){
+      try{
+        const r2=await fetch('https://api.inaturalist.org/v1/taxa/'+match.parent_id);
+        if(r2.ok){
+          const d2=await r2.json();
+          const parent=d2.results?.[0];
+          // Walk up if parent is still a subgenus/complex (rare)
+          const parentGenus=(parent&&parent.rank==='genus')?parent.name:'';
+          return {rank,parentGenus,matchType:'EXACT',key:inatKey};
+        }
+      }catch(e){}
+      return {rank,parentGenus:'',matchType:'EXACT',key:inatKey};
+    }
+
+    return {rank,parentGenus:'',matchType:'EXACT',key:inatKey};
+  },
+
+  // ── File handlers ─────────────────────────────────────────────────────────
+  // Clear merged state whenever either source file changes so stale map/stats don't persist
+  _clearMerged(){
+    this.merged=[];this.rankRes={};this.resolveMsg='';this.resolvePct=0;
+    this.openG={};this.openSG={};this.errMsg='';
+    // Clear map layers
+    if(this._cl){try{this._map.removeLayer(this._cl);}catch(e){}this._cl=null;}
+    this.mapPts=0;
+  },
+  handleGBIFSel(e){const f=e.target.files[0];if(f){this.gbifFile=f;this._clearMerged();this.loadGBIF(f);}},
+  handleGBIFDrop(e){const f=e.dataTransfer.files[0];if(f){this.gbifFile=f;this._clearMerged();this.loadGBIF(f);}},
+  handleINatSel(e){const f=e.target.files[0];if(f){this.inatFile=f;this._clearMerged();this.loadINat(f);}},
+  handleINatDrop(e){const f=e.dataTransfer.files[0];if(f){this.inatFile=f;this._clearMerged();this.loadINat(f);}},
+
+  async loadGBIF(file){
+    this.gbifRows=[];
+    try{
+      let text;
+      if(file.name.endsWith('.zip')){
+        const zip=await JSZip.loadAsync(file);
+        const entry=zip.file('occurrence.txt')||Object.values(zip.files).find(f=>!f.dir&&(f.name.endsWith('.txt')||f.name.endsWith('.csv')||f.name.endsWith('.tsv')));
+        if(!entry) throw new Error('No occurrence file found inside ZIP');
+        text=await entry.async('text');
+      }else{
+        text=await file.text();
+      }
+      this.gbifRows=this.parseGBIF(text);
+    }catch(e){this.errMsg='GBIF parse error: '+e.message;}
+  },
+
+  async loadINat(file){
+    this.inatRows=[];
+    try{const text=await file.text();this.inatRows=this.parseINat(text);}
+    catch(e){this.errMsg='iNat parse error: '+e.message;}
+  },
+
+  // ── GBIF parser ───────────────────────────────────────────────────────────
+  // Species name: ONLY the DwC "species" column. No fallbacks to scientificName/acceptedScientificName.
+  parseGBIF(text){
+    const lines=text.split('\n'); if(lines.length<2) return [];
+    const sep=lines[0].includes('\t')?'\t':',';
+    const hdrs=sep==='\t'?lines[0].split('\t').map(h=>h.trim()):this.csvLine(lines[0]);
+    const H=h=>hdrs.indexOf(h);
+    const C={
+      gbifID:H('gbifID'), occID:H('occurrenceID'), dsName:H('datasetName'),
+      inst:H('institutionCode'), coll:H('collectionCode'), cat:H('catalogNumber'),
+      basis:H('basisOfRecord'), occSt:H('occurrenceStatus'), sex:H('sex'), ls:H('lifeStage'),
+      evDate:H('eventDate'), yr:H('year'), mo:H('month'), dy:H('day'),
+      lat:H('decimalLatitude'), lon:H('decimalLongitude'), coordUnc:H('coordinateUncertaintyInMeters'),
+      cont:H('continent'), cc:H('countryCode'), state:H('stateProvince'),
+      county:H('county'), munic:H('municipality'), loc:H('locality'),
+      kin:H('kingdom'), phy:H('phylum'), cls:H('class'), ord:H('order'),
+      sfam:H('superfamily'), fam:H('family'), subfam:H('subfamily'),
+      tri:H('tribe'), stri:H('subtribe'),
+      gen:H('genus'), subgen:H('subgenus'), spEp:H('specificEpithet'),
+      infra:H('infraspecificEpithet'), txRk:H('taxonRank'),
+      sciN:H('scientificName'), accSci:H('acceptedScientificName'),
+      // *** ONLY this column for the species name ***
+      spp:H('species'),
+      vern:H('vernacularName'), idBy:H('identifiedBy'), recBy:H('recordedBy'), recByID:H('recordedByID'),
+      lic:H('license'), rh:H('rightsHolder'), refs:H('references'),
+      txKey:H('taxonKey'), spKey:H('speciesKey'), txID:H('taxonID'),
+      hasCo:H('hasCoordinate'), issue:H('issue'),
+    };
+    const rows=[];
+    for(let i=1;i<lines.length;i++){
+      const line=lines[i].trim(); if(!line) continue;
+      const vals=sep==='\t'?line.split('\t'):this.csvLine(line);
+      const g=k=>(C[k]>=0&&vals[C[k]]!==undefined)?vals[C[k]].trim():'';
+      if(this.opts.hasCoordOnly&&g('hasCo').toLowerCase()!=='true') continue;
+      const lat=parseFloat(g('lat')),lon=parseFloat(g('lon'));
+      const hc=!isNaN(lat)&&!isNaN(lon);
+      let evDate=g('evDate');
+      if(this.opts.normalizeDate||!evDate){const yr=g('yr'),mo=g('mo'),dy=g('dy');if(yr) evDate=yr+(mo?'-'+mo.padStart(2,'0'):'')+(dy?'-'+dy.padStart(2,'0'):'');}
+      rows.push({
+        dataSource:'GBIF',
+        gbifID:g('gbifID'),occurrenceID:g('occID'),datasetName:g('dsName'),
+        institutionCode:g('inst'),collectionCode:g('coll'),catalogNumber:g('cat'),
+        basisOfRecord:g('basis'),occurrenceStatus:g('occSt'),sex:g('sex'),lifeStage:g('ls'),
+        eventDate:evDate,year:g('yr'),month:g('mo'),day:g('dy'),
+        decimalLatitude:hc?String(lat):'',decimalLongitude:hc?String(lon):'',
+        coordinateUncertaintyInMeters:g('coordUnc'),
+        continent:g('cont'),countryCode:g('cc'),stateProvince:g('state'),
+        county:g('county'),municipality:g('munic'),locality:g('loc'),
+        kingdom:g('kin'),phylum:g('phy'),class:g('cls'),order:g('ord'),
+        superfamily:g('sfam'),family:g('fam'),subfamily:g('subfam'),tribe:g('tri'),subtribe:g('stri'),
+        genus:g('gen'),subgenus:g('subgen'),specificEpithet:g('spEp'),
+        infraspecificEpithet:g('infra'),taxonRank:g('txRk'),
+        scientificName:g('sciN'),acceptedScientificName:g('accSci'),
+        species:g('spp'),  // *** ONLY the 'species' column ***
+        vernacularName:g('vern'),identifiedBy:g('idBy'),recordedBy:g('recBy'),recordedByID:g('recByID'),
+        license:g('lic'),rightsHolder:g('rh'),references:g('refs'),
+        taxonKey:g('txKey'),speciesKey:g('spKey'),taxonID:g('txID'),
+        hasCoordinate:g('hasCo'),issue:g('issue'),
+      });
+    }
+    return rows;
+  },
+
+  // ── iNat parser ───────────────────────────────────────────────────────────
+  // Strips subgenus parentheticals, sets species='' for genus-only names.
+  parseINat(text){
+    const lines=text.split('\n'); if(lines.length<2) return [];
+    const sep=lines[0].includes('\t')?'\t':',';
+    const hdrs=sep==='\t'?lines[0].split('\t').map(h=>h.trim()):this.csvLine(lines[0]);
+    const H=h=>hdrs.indexOf(h);
+    const C={
+      id:H('id'),sciN:H('scientific_name'),common:H('common_name'),
+      lat:H('latitude'),lon:H('longitude'),date:H('observed_on'),
+      qual:H('quality_grade'),lic:H('license'),url:H('url'),
+      user:H('user_login'),uname:H('user_name'),place:H('place_guess'),
+      iconic:H('iconic_taxon_name'),txId:H('taxon_id'),posAcc:H('positional_accuracy'),
+      spGuess:H('species_guess'),
+    };
+    const rows=[];
+    for(let i=1;i<lines.length;i++){
+      const line=lines[i].trim(); if(!line) continue;
+      const vals=sep==='\t'?line.split('\t'):this.csvLine(line);
+      const g=k=>(C[k]>=0&&vals[C[k]]!==undefined)?vals[C[k]].trim():'';
+      if(this.opts.researchOnly&&g('qual')!=='research') continue;
+      const lat=parseFloat(g('lat')),lon=parseFloat(g('lon'));
+      const hc=!isNaN(lat)&&!isNaN(lon);
+      const dateStr=g('date');
+      let yr='',mo='',dy='';
+      if(dateStr){const p=dateStr.split('-');yr=p[0]||'';mo=p[1]||'';dy=p[2]||'';}
+      const rawName=g('sciN')||g('spGuess')||'';
+      const {genus,binomial,subgenus,spEpithet}=this.xBinomial(rawName);
+      rows.push({
+        dataSource:'iNaturalist',
+        gbifID:'',occurrenceID:g('id'),datasetName:'iNaturalist',
+        institutionCode:'iNaturalist',collectionCode:'',catalogNumber:g('id'),
+        basisOfRecord:'HUMAN_OBSERVATION',occurrenceStatus:'PRESENT',sex:'',lifeStage:'',
+        eventDate:dateStr,year:yr,month:mo,day:dy,
+        decimalLatitude:hc?String(lat):'',decimalLongitude:hc?String(lon):'',
+        coordinateUncertaintyInMeters:g('posAcc'),
+        continent:'',countryCode:'',stateProvince:'',county:'',municipality:'',locality:g('place'),
+        kingdom:'',phylum:'',class:g('iconic'),order:'',superfamily:'',family:'',subfamily:'',tribe:'',subtribe:'',
+        genus,subgenus,specificEpithet:spEpithet,infraspecificEpithet:'',
+        taxonRank:binomial?'SPECIES':(genus?'GENUS':''),
+        scientificName:rawName,acceptedScientificName:binomial||genus,
+        species:binomial,  // empty string if genus-only
+        vernacularName:g('common'),identifiedBy:'',recordedBy:g('uname')||g('user'),recordedByID:'',
+        license:g('lic'),rightsHolder:g('uname')||g('user'),references:g('url'),
+        taxonKey:'',speciesKey:'',taxonID:g('txId'),
+        hasCoordinate:hc?'true':'false',issue:'',
+      });
+    }
+    return rows;
+  },
+
+  // ── Extract genus + binomial from raw iNat scientific_name ───────────────
+  // Handles: "Melissodes" → genus-only
+  //          "Melissodes apicatus" → binomial
+  //          "Melissodes (Eumelissodes) apicatus" → binomial="Melissodes apicatus", subgenus="Eumelissodes"
+  //          "Apis mellifera ligustica" → trinomial truncated to binomial
+  xBinomial(name){
+    if(!name||!name.trim()) return {genus:'',binomial:'',subgenus:'',spEpithet:''};
+    let subgenus='';
+    const pm=name.match(/\(([A-Z][a-z]+)\)/);
+    if(pm) subgenus=pm[1];
+    const cleaned=name.replace(/\([^)]*\)\s*/g,'').replace(/\s+/g,' ').trim();
+    const parts=cleaned.split(' ').filter(Boolean);
+    const genus=parts[0]||'';
+    if(parts.length>=2){
+      const ep=parts[1];
+      // Must start lowercase — real epithet, not an author name "L." or "Say"
+      if(/^[a-z]/.test(ep)){
+        return {genus,binomial:genus+' '+ep,subgenus,spEpithet:ep};
+      }
+    }
+    return {genus,binomial:'',subgenus,spEpithet:''};
+  },
+
+  // ── CSV line parser ───────────────────────────────────────────────────────
+  csvLine(line){
+    const out=[];let cur='',inQ=false;
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
+      else if(c===','&&!inQ){out.push(cur.trim());cur='';}
+      else cur+=c;
+    }
+    out.push(cur.trim()); return out;
+  },
+
+  // ── Merge ─────────────────────────────────────────────────────────────────
+  async doMerge(){
+    this.loading=true;this.pct=0;this.pMsg='Combining records…';this.errMsg='';this.merged=[];
+    await tk();
+    let rows=[...this.gbifRows,...this.inatRows];
+    this.pct=30;
+    if(this.opts.dedup){
+      this.pMsg='Deduplicating…';
+      const seen=new Set();
+      rows=rows.filter(r=>{
+        if(!r.occurrenceID&&!r.gbifID) return true;
+        const k=r.dataSource+':'+(r.gbifID||r.occurrenceID);
+        if(seen.has(k)) return false; seen.add(k); return true;
+      });
+    }
+    this.pct=55;
+    if(this.opts.dropNullCoords) rows=rows.filter(r=>r.decimalLatitude&&r.decimalLongitude);
+    if(this.opts.dropNullDate)   rows=rows.filter(r=>r.eventDate&&r.eventDate.trim());
+    this.pct=80;this.pMsg='Finalizing…';await tk();
+    this.merged=rows;this.tPg=0;this.openG={};this.openSG={};
+    this.pct=100;this.loading=false;this.pMsg='';
+    // Auto-resolve ranks immediately after merge — no button needed
+    this.resolveRanks();
+  },
+
+  // ── Map ───────────────────────────────────────────────────────────────────
+  initMap(){
+    if(this._map) return;
+    this._map=L.map('map').setView([30,0],2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:18}).addTo(this._map);
+  },
+  renderMap(){
+    if(!this._map) this.initMap();
+    if(this._cl){this._map.removeLayer(this._cl);this._cl=null;}
+    let rows=this.merged;
+    if(this.mapSrc) rows=rows.filter(r=>r.dataSource===this.mapSrc);
+    rows=rows.filter(r=>r.decimalLatitude&&r.decimalLongitude);
+    this.mapPts=rows.length; if(!rows.length) return;
+    this._cl=L.markerClusterGroup({maxClusterRadius:40,disableClusteringAtZoom:11});
+    for(const r of rows){
+      const lat=parseFloat(r.decimalLatitude),lon=parseFloat(r.decimalLongitude);
+      if(isNaN(lat)||isNaN(lon)) continue;
+      const col=r.dataSource==='GBIF'?'#2563eb':'#16a34a';
+      const m=L.circleMarker([lat,lon],{radius:5,fillColor:col,color:'#fff',weight:1,opacity:.9,fillOpacity:.8});
+      // Build the correct record link: GBIF uses gbifID, iNat provides references URL
+      const recLink = r.dataSource==='GBIF' && r.gbifID
+        ? `https://www.gbif.org/occurrence/${r.gbifID}`
+        : (r.references||'');
+      m.bindPopup(`<div style="font-family:system-ui;font-size:12px;min-width:220px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;font-style:italic">${r.species||r.genus||'Unknown'}</div>
+        ${r.vernacularName?`<div style="color:#64748b;margin-bottom:6px">${r.vernacularName}</div>`:''}
+        <table style="border-collapse:collapse;width:100%">
+          <tr><td style="color:#94a3b8;padding:1px 6px 1px 0;font-size:11px">Source</td><td style="font-weight:600;color:${col}">${r.dataSource}</td></tr>
+          <tr><td style="color:#94a3b8;padding:1px 6px 1px 0;font-size:11px">Date</td><td>${r.eventDate||''}</td></tr>
+          <tr><td style="color:#94a3b8;padding:1px 6px 1px 0;font-size:11px">Locality</td><td>${r.locality||r.municipality||''}</td></tr>
+          <tr><td style="color:#94a3b8;padding:1px 6px 1px 0;font-size:11px">Country</td><td>${r.countryCode||''}</td></tr>
+          ${r.stateProvince?`<tr><td style="color:#94a3b8;padding:1px 6px 1px 0;font-size:11px">State</td><td>${r.stateProvince}</td></tr>`:''}
+          ${r.family?`<tr><td style="color:#94a3b8;padding:1px 6px 1px 0;font-size:11px">Family</td><td>${r.family}</td></tr>`:''}
+          ${r.basisOfRecord?`<tr><td style="color:#94a3b8;padding:1px 6px 1px 0;font-size:11px">Basis</td><td>${r.basisOfRecord}</td></tr>`:''}
+          ${r.recordedBy?`<tr><td style="color:#94a3b8;padding:1px 6px 1px 0;font-size:11px">Observer</td><td>${r.recordedBy}</td></tr>`:''}
+          ${recLink?`<tr><td colspan="2" style="padding-top:6px"><a href="${recLink}" target="_blank" style="color:#2563eb;font-size:11px;font-weight:600">View occurrence record ↗</a></td></tr>`:''}
+        </table></div>`);
+      this._cl.addLayer(m);
+    }
+    this._map.addLayer(this._cl);
+    try{const pts=rows.map(r=>[parseFloat(r.decimalLatitude),parseFloat(r.decimalLongitude)]).filter(p=>!isNaN(p[0]));if(pts.length) this._map.fitBounds(L.latLngBounds(pts),{padding:[30,30]});}catch(e){}
+  },
+
+  // ── Charts ────────────────────────────────────────────────────────────────
+  renderAllCharts(){ this.renderSrc(); this.renderYear(); },
+
+  renderSrc(){
+    const ctx=document.getElementById('src-chart'); if(!ctx) return;
+    if(this._sC){this._sC.destroy();this._sC=null;}
+    this._sC=new Chart(ctx,{
+      type:'doughnut',
+      data:{labels:['GBIF','iNaturalist'],datasets:[{data:[this.gbifCnt,this.inatCnt],backgroundColor:['#2563eb','#16a34a'],borderWidth:0}]},
+      options:{plugins:{legend:{position:'bottom',labels:{font:{size:11},color:'#475569'}},tooltip:{callbacks:{label:c=>`  ${c.label}: ${c.parsed.toLocaleString()} (${(c.parsed/this.merged.length*100).toFixed(1)}%)`}}}}
+    });
+  },
+
+  renderYear(){
+    const ctx=document.getElementById('year-chart'); if(!ctx) return;
+    if(this._yC){this._yC.destroy();this._yC=null;}
+    const gb={},in_={};
+    for(const r of this.merged){if(!r.year)continue;if(r.dataSource==='GBIF')gb[r.year]=(gb[r.year]||0)+1;else in_[r.year]=(in_[r.year]||0)+1;}
+    const yrs=[...new Set([...Object.keys(gb),...Object.keys(in_)])].sort();
+    this._yC=new Chart(ctx,{
+      type:'bar',
+      data:{labels:yrs,datasets:[
+        {label:'GBIF',data:yrs.map(y=>gb[y]||0),backgroundColor:'#2563eb',borderRadius:2,borderSkipped:false},
+        {label:'iNaturalist',data:yrs.map(y=>in_[y]||0),backgroundColor:'#16a34a',borderRadius:2,borderSkipped:false},
+      ]},
+      options:{plugins:{legend:{labels:{font:{size:11},color:'#475569'}}},scales:{
+        x:{stacked:true,ticks:{font:{size:9},color:'#94a3b8',maxRotation:45},grid:{display:false}},
+        y:{stacked:true,beginAtZero:true,ticks:{precision:0,font:{size:10},color:'#94a3b8'},grid:{color:'#f1f5f9'},border:{display:false}}
+      }}
+    });
+  },
+
+  renderPheno(){
+    const ctx=document.getElementById('pheno-chart'); if(!ctx) return;
+    if(this._pC){this._pC.destroy();this._pC=null;}
+    const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const gb=new Array(12).fill(0),in_=new Array(12).fill(0);
+    for(const r of this.merged){const m=parseInt(r.month);if(!m||m<1||m>12)continue;if(r.dataSource==='GBIF')gb[m-1]++;else in_[m-1]++;}
+    this._pC=new Chart(ctx,{
+      type:'bar',
+      data:{labels:MN,datasets:[
+        {label:'GBIF',data:gb,backgroundColor:'#2563eb',borderRadius:4,borderSkipped:false},
+        {label:'iNaturalist',data:in_,backgroundColor:'#16a34a',borderRadius:4,borderSkipped:false},
+      ]},
+      options:{plugins:{legend:{labels:{font:{size:11},color:'#475569'}}},scales:{
+        x:{stacked:true,ticks:{font:{size:11,style:'italic',family:'Georgia,serif'},color:'#334155'},grid:{display:false},border:{display:false}},
+        y:{stacked:true,beginAtZero:true,ticks:{precision:0,font:{size:10,family:"'Courier New',monospace"},color:'#94a3b8'},grid:{color:'#f1f5f9'},border:{display:false}}
+      }}
+    });
+  },
+
+  // ── Export ────────────────────────────────────────────────────────────────
+  buildTab(sep){
+    const cols=DWC_COLS;
+    const esc=(v,t)=>{const s=String(v||'');if(t)return s.replace(/\t/g,' ').replace(/\n/g,' ');return s.includes(sep)||s.includes('"')||s.includes('\n')?`"${s.replace(/"/g,'""')}"`  :s;};
+    const t=sep==='\t';
+    const lines=[cols.join(sep)];
+    for(const r of this.merged) lines.push(cols.map(c=>esc(r[c]||'',t)).join(sep));
+    return lines.join('\n');
+  },
+  dlCSV(){ this._dl(this.buildTab(','),'merged_occurrences.csv','text/csv'); },
+  dlTSV(){ this._dl(this.buildTab('\t'),'merged_occurrences.txt','text/tab-separated-values'); },
+  dlJSON(){ this._dl(JSON.stringify(this.merged,null,2),'merged_occurrences.json','application/json'); },
+  _dl(txt,fn,mime){const b=new Blob([txt],{type:mime+';charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fn;a.click();URL.revokeObjectURL(a.href);},
+
+  // Download a per-genus species breakdown div as PNG using html2canvas
+  async dlGenusChart(genus){
+    const id='genus-block-'+genus.replace(/ /g,'-');
+    const el=document.getElementById(id);
+    if(!el){console.warn('genus block not found:',id);return;}
+    try{
+      const canvas=await html2canvas(el,{
+        backgroundColor:'#ffffff',
+        scale:2,                    // 2x for crisp text
+        useCORS:true,
+        logging:false,
+      });
+      const a=document.createElement('a');
+      a.href=canvas.toDataURL('image/png');
+      a.download=genus.replace(/ /g,'_')+'_species.png';
+      a.click();
+    }catch(e){alert('PNG export failed: '+e.message);}
+  },
+
+  // Download any Chart.js canvas as PNG with white background
+  dlChart(canvasId,filename){
+    const canvas=document.getElementById(canvasId);
+    if(!canvas) return;
+    // Composite onto white background (Chart.js canvases are transparent by default)
+    const tmp=document.createElement('canvas');
+    tmp.width=canvas.width; tmp.height=canvas.height;
+    const ctx2=tmp.getContext('2d');
+    ctx2.fillStyle='#ffffff';
+    ctx2.fillRect(0,0,tmp.width,tmp.height);
+    ctx2.drawImage(canvas,0,0);
+    const a=document.createElement('a');
+    a.href=tmp.toDataURL('image/png');
+    a.download=(filename||canvasId)+'.png';
+    a.click();
+  },
+
+  // ── Session ───────────────────────────────────────────────────────────────
+  saveSession(){
+    if(!this.merged.length) return;
+    this._dl(JSON.stringify({version:3,savedAt:new Date().toISOString(),opts:{...this.opts},mergedRows:this.merged,rankRes:this.rankRes},null,2),'occurrence_session.json','application/json');
+  },
+  loadSessionFile(e){
+    const file=e.target.files[0]; if(!file) return;
+    const rdr=new FileReader();
+    rdr.onload=ev=>{
+      try{
+        const s=JSON.parse(ev.target.result);
+        if(!s.mergedRows) throw new Error('No mergedRows in session');
+        this.merged=s.mergedRows;
+        if(s.opts) Object.assign(this.opts,s.opts);
+        if(s.rankRes) this.rankRes=s.rankRes;
+        this.gbifRows=s.mergedRows.filter(r=>r.dataSource==='GBIF');
+        this.inatRows=s.mergedRows.filter(r=>r.dataSource==='iNaturalist');
+        this.tPg=0;this.openG={};this.openSG={};this.errMsg='';
+        showTab('data');
+      }catch(err){this.errMsg='Session load error: '+err.message;}
+    };
+    rdr.readAsText(file);
+  },
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  fmtB(b){if(b<1024) return b+' B';if(b<1048576) return (b/1024).toFixed(1)+' KB';return (b/1048576).toFixed(1)+' MB';},
+  sLic(l){if(!l) return '';return l.replace('http://creativecommons.org/licenses/','CC ').replace('/4.0/legalcode','').replace('/2.0/','').replace('/legalcode','');},
+
+}))});
+
+function tk(){ return new Promise(r=>setTimeout(r,16)); }
+
+const TABS=['upload','data','map','stats','export'];
+function showTab(name){
+  TABS.forEach(id=>{
+    const p=document.getElementById('panel-'+id),t=document.getElementById('tab-'+id);
+    if(!p||!t) return;
+    if(id===name){p.classList.remove('hidden');t.classList.add('tab-active');t.classList.remove('tab-inactive');}
+    else{p.classList.add('hidden');t.classList.remove('tab-active');t.classList.add('tab-inactive');}
+  });
+  if(name==='map') setTimeout(()=>{
+    const a=Alpine.$data(document.querySelector('[x-data="app"]'));
+    if(!a||!a.merged.length) return;
+    if(!a._map) a.initMap(); else a._map.invalidateSize();
+    a.renderMap(); a.renderPheno();
+  },80);
+  if(name==='stats') setTimeout(()=>{
+    const a=Alpine.$data(document.querySelector('[x-data="app"]'));
+    if(a&&a.merged.length) a.renderAllCharts();
+  },80);
+}
+</script>
+</body>
+</html>
