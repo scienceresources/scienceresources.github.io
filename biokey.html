@@ -300,7 +300,38 @@
                         return this.generateLetteredOutput();
                     } else if (this.outputStyle === 'botanical') {
                         return this.generateBotanicalOutput();
+                    } else if (this.outputStyle === 'html') {
+                        return this.generateHTMLOutput();
                     }
+                },
+
+                generateHTMLOutput() {
+                    let out = '';
+                    this.couplets.forEach((c, index) => {
+                        const num = index + 1;
+                        const parentRef = this.getParentRef(c.id, 'bracket');
+                        const parentString = parentRef ? `${parentRef}` : '';
+
+                        let destA = c.leadA.targetId === 'result'
+                            ? (c.leadA.resultText || '[RESULT]')
+                            : `Go to ${this.getDisplayIndex(c.leadA.targetId)}`;
+                        let destB = c.leadB.targetId === 'result'
+                            ? (c.leadB.resultText || '[RESULT]')
+                            : `Go to ${this.getDisplayIndex(c.leadB.targetId)}`;
+
+                        const textA = `${num}. ${parentString}${c.leadA.text || '[Description]'} ${destA}`;
+                        const textB = `${c.leadB.text || '[Description]'} ${destB}`;
+
+                        out += `<div class="key-statement">\n`;
+                        out += `  <div class="key-statement-text">${textA}</div>\n`;
+                        out += `  <div class="key-statement-img"><img src="" alt="Key illustration" loading="lazy"></div>\n`;
+                        out += `</div>\n`;
+                        out += `<div class="key-statement">\n`;
+                        out += `  <div class="key-statement-text">${textB}</div>\n`;
+                        out += `  <div class="key-statement-img"><img src="" alt="Key illustration" loading="lazy"></div>\n`;
+                        out += `</div>\n`;
+                    });
+                    return out;
                 },
 
                generateNumberedOutput() {
@@ -561,6 +592,7 @@
                             <option value="standard">Standard (with parentheses)</option>
                             <option value="lettered">Lettered (1a/1b)</option>
                             <option value="botanical">Botanical (dots)</option>
+                            <option value="html">HTML (Field Guide)</option>
                         </select>
                         
                         <button 
@@ -569,7 +601,7 @@
                             class="px-4 py-2 text-white rounded-lg shadow-sm transition-all flex items-center gap-2 text-sm font-bold"
                         >
                             <i :class="copyButtonState === 'copied' ? 'fa-solid fa-circle-check' : 'fa-solid fa-copy'"></i>
-                            <span x-text="copyButtonState === 'copied' ? 'Copied!' : 'Copy Text'"></span>
+                            <span x-text="copyButtonState === 'copied' ? 'Copied!' : (outputStyle === 'html' ? 'Copy HTML' : 'Copy Text')"></span>
                         </button>
                     </div>
                 </div>

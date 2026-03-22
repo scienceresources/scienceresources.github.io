@@ -873,6 +873,10 @@
                 class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 px-3 py-2 rounded-lg bg-white transition-all">
                 <i class="fa-solid fa-copy text-[10px]"></i>Copy All Citations
               </button>
+              <button @click="copyCitationsAsHTML()" id="btn-copy-html-cite"
+                class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-violet-600 border border-slate-200 hover:border-violet-300 px-3 py-2 rounded-lg bg-white transition-all">
+                <i class="fa-brands fa-html5 text-[10px]"></i>Copy as HTML
+              </button>
               <button @click="copyInTextCitation()" id="btn-intext-cite"
                 class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-2 rounded-lg bg-white transition-all">
                 <i class="fa-solid fa-quote-left text-[10px]"></i>Copy In-text
@@ -1747,6 +1751,12 @@ document.addEventListener('alpine:init', () => {
       if (!this.citationsData.length) return;
       const text = this.citationsData.map((d, i) => `${i+1}. ${d.citation}`).join('\n\n');
       try { await navigator.clipboard.writeText(text); this._flashBtn('btn-copy-all-cite'); } catch(e) { console.error(e); }
+    },
+
+    async copyCitationsAsHTML() {
+      if (!this.citationsData.length) return;
+      const html = this.citationsData.map(d => `${d.citation}<br><br>`).join('\n');
+      try { await navigator.clipboard.writeText(html); this._flashBtn('btn-copy-html-cite'); } catch(e) { console.error(e); }
     },
 
     async copyInTextCitation() {

@@ -97,7 +97,7 @@
   .cell-header { background: #1e293b; border-bottom: 1px solid #334155; }
   .cell-label { background: #f59e0b; color: #1e293b; font-size: 9px; font-weight: 900; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 4px; }
   .notebook-cell { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-  canvas { max-height: 420px; }
+  /* canvas max-height removed — chart containers are sized dynamically */
   .back-arrow-desktop { display: none; }
   .back-arrow-mobile  { display: flex; }
   @media (min-width: 1122px) {
@@ -608,6 +608,10 @@
                   class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg bg-white transition-all">
                   <i class="fa-solid fa-download text-[10px]"></i>Download CSV
                 </button>
+                <button @click="downloadFlowerRecordsCSV()" :disabled="!jsonOutput"
+                  class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 px-3 py-1.5 rounded-lg bg-white transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                  <i class="fa-solid fa-table text-[10px]"></i>Download Records CSV
+                </button>
               </div>
             </div>
             <div class="p-5 space-y-2">
@@ -874,6 +878,131 @@
         </div>
         <!-- ═══ END CELL 1B ═══ -->
 
+        <!-- ═══ CELL 1D: Flower Records Table (Taxon · Citation · GBIF ID) ═══ -->
+        <div class="notebook-cell">
+          <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3">
+              <span class="cell-label">CELL 1D</span>
+              <span class="text-sm font-bold text-slate-200">Flower Records — Taxon · Citation · GBIF ID</span>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+              <!-- Copy dropdown trigger -->
+              <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" id="btn-copy-flower-records"
+                  class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                  <i class="fa-solid fa-copy text-[10px]"></i>Copy
+                  <i class="fa-solid fa-chevron-down text-[9px] ml-0.5"></i>
+                </button>
+                <div x-show="open" @click.outside="open = false" x-cloak
+                  class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[140px]">
+                  <button @click="copyFlowerRecordsTable('tsv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-table mr-2 opacity-60"></i>Tab-separated (TSV)
+                  </button>
+                  <button @click="copyFlowerRecordsTable('csv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-file-csv mr-2 opacity-60"></i>Comma-separated (CSV)
+                  </button>
+                  <button @click="copyFlowerRecordsTable('txt'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-align-left mr-2 opacity-60"></i>Plain text
+                  </button>
+                </div>
+              </div>
+              <!-- Download dropdown trigger -->
+              <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open"
+                  class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                  <i class="fa-solid fa-download text-[10px]"></i>Download
+                  <i class="fa-solid fa-chevron-down text-[9px] ml-0.5"></i>
+                </button>
+                <div x-show="open" @click.outside="open = false" x-cloak
+                  class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[140px]">
+                  <button @click="downloadFlowerRecords('csv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-file-csv mr-2 opacity-60"></i>Download .csv
+                  </button>
+                  <button @click="downloadFlowerRecords('tsv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-table mr-2 opacity-60"></i>Download .tsv
+                  </button>
+                  <button @click="downloadFlowerRecords('txt'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-file-lines mr-2 opacity-60"></i>Download .txt
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white p-5">
+            <p class="text-[10px] text-slate-400 mb-4 leading-relaxed">
+              One row per unique floral taxon — deduplicated across all datasets. Uses a single representative citation and GBIF occurrence ID per taxon (the first record encountered). Copy or download in CSV, TSV, or plain-text format.
+            </p>
+
+            <!-- Paste/copy text area preview -->
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                  <i class="fa-solid fa-eye mr-1 opacity-60"></i>Preview — editable / paste-ready
+                </span>
+                <span class="text-[9px] text-slate-300 font-mono" x-text="analyzeResults.sortedTaxaNames.length + ' rows'"></span>
+              </div>
+              <textarea
+                class="w-full h-40 font-mono text-[10px] text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 resize-y focus:ring-2 focus:ring-amber-400 outline-none leading-relaxed"
+                spellcheck="false"
+                readonly
+                :value="buildFlowerRecordsText('tsv')"
+                placeholder="Run analysis to populate…"
+              ></textarea>
+            </div>
+
+            <!-- Table view -->
+            <div class="border border-slate-100 rounded-lg overflow-hidden">
+              <div class="overflow-x-auto max-h-[520px] overflow-y-auto">
+                <table class="w-full text-[11px]">
+                  <thead class="sticky top-0 bg-slate-800 text-slate-200 z-10">
+                    <tr>
+                      <th class="text-left px-4 py-2.5 font-black uppercase tracking-widest text-[9px] w-6">#</th>
+                      <th class="text-left px-4 py-2.5 font-black uppercase tracking-widest text-[9px] min-w-[160px]">Flower Taxon</th>
+                      <th class="text-left px-4 py-2.5 font-black uppercase tracking-widest text-[9px]">Citation</th>
+                      <th class="text-left px-4 py-2.5 font-black uppercase tracking-widest text-[9px] w-32 shrink-0">GBIF Record ID</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-50">
+                    <template x-for="(name, idx) in analyzeResults.sortedTaxaNames" :key="name">
+                      <tr class="hover:bg-amber-50 transition-colors">
+                        <td class="px-4 py-2.5 text-slate-300 font-mono text-[9px] font-black" x-text="idx+1"></td>
+                        <td class="px-4 py-2.5">
+                          <span class="italic font-semibold text-slate-800" x-text="name"></span>
+                          <template x-if="analyzeResults.taxaFirstOcc[name]?.is_synonym">
+                            <span class="ml-1.5 text-[8px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold uppercase tracking-wide">synonym</span>
+                          </template>
+                        </td>
+                        <td class="px-4 py-2.5 text-slate-500 leading-relaxed max-w-xs"
+                          x-text="analyzeResults.taxaFirstOcc[name]?.citationText || '—'"></td>
+                        <td class="px-4 py-2.5 font-mono">
+                          <template x-if="analyzeResults.taxaFirstOcc[name]?.gbifID">
+                            <a :href="'https://www.gbif.org/occurrence/' + analyzeResults.taxaFirstOcc[name].gbifID"
+                              target="_blank"
+                              class="text-amber-500 hover:text-amber-700 hover:underline text-[10px]"
+                              x-text="analyzeResults.taxaFirstOcc[name].gbifID"></a>
+                          </template>
+                          <template x-if="!analyzeResults.taxaFirstOcc[name]?.gbifID">
+                            <span class="text-slate-300">—</span>
+                          </template>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-2 text-right"
+              x-text="analyzeResults.sortedTaxaNames.length + ' unique taxa · 1 record per taxon'"></p>
+          </div>
+        </div>
+        <!-- ═══ END CELL 1D ═══ -->
+
         <!-- ═══ CELL 1C: Floral Plant Family Distribution ═══ -->
         <div class="notebook-cell">
           <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
@@ -882,14 +1011,52 @@
               <span class="text-sm font-bold text-slate-200">Floral Plant Family Distribution</span>
             </div>
             <div class="flex gap-2">
-              <button @click="copyFamilyCSV()" id="btn-copy-family"
-                class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-                <i class="fa-solid fa-copy text-[10px]"></i>Copy CSV
-              </button>
-              <button @click="downloadFamilyCSV()"
-                class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
-                <i class="fa-solid fa-download text-[10px]"></i>Download CSV
-              </button>
+              <!-- Copy dropdown -->
+              <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" id="btn-copy-family"
+                  class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-amber-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                  <i class="fa-solid fa-copy text-[10px]"></i>Copy
+                  <i class="fa-solid fa-chevron-down text-[9px] ml-0.5"></i>
+                </button>
+                <div x-show="open" @click.outside="open = false" x-cloak
+                  class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[170px]">
+                  <button @click="copyFamilyData('tsv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-table mr-2 opacity-60"></i>Tab-separated (TSV)
+                  </button>
+                  <button @click="copyFamilyData('csv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-file-csv mr-2 opacity-60"></i>Comma-separated (CSV)
+                  </button>
+                  <button @click="copyFamilyData('txt'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-align-left mr-2 opacity-60"></i>Plain text
+                  </button>
+                </div>
+              </div>
+              <!-- Download dropdown -->
+              <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open"
+                  class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                  <i class="fa-solid fa-download text-[10px]"></i>Download
+                  <i class="fa-solid fa-chevron-down text-[9px] ml-0.5"></i>
+                </button>
+                <div x-show="open" @click.outside="open = false" x-cloak
+                  class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[150px]">
+                  <button @click="downloadFamilyCSV(); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-file-csv mr-2 opacity-60"></i>Download .csv
+                  </button>
+                  <button @click="downloadFamilyData('tsv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-table mr-2 opacity-60"></i>Download .tsv
+                  </button>
+                  <button @click="downloadFamilyData('txt'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-file-lines mr-2 opacity-60"></i>Download .txt
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="bg-white p-5">
@@ -1047,17 +1214,70 @@
           <div class="cell-header px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div class="flex items-center gap-3">
               <span class="cell-label">CELL 2</span>
-              <span class="text-sm font-bold text-slate-200">Floral Host Distribution — Raw vs. Deduplicated</span>
+              <span class="text-sm font-bold text-slate-200">Floral Host Distribution &mdash; Raw vs. Deduplicated</span>
             </div>
-            <div class="flex gap-2">
-              <button @click="copyAnalysisChart()" id="btn-copy-chart"
-                class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg transition-all">
-                <i class="fa-solid fa-copy mr-1 text-[10px]"></i>Copy Table
-              </button>
-              <button @click="downloadAnalysisCSV()"
-                class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all">
-                <i class="fa-solid fa-download mr-1 text-[10px]"></i>Download CSV
-              </button>
+            <div class="flex gap-2 flex-wrap items-center">
+              <!-- Species / Genus / Family toggle -->
+              <div class="flex items-center rounded-lg overflow-hidden border border-slate-600 text-[11px] font-bold">
+                <button
+                  @click="analyzeChartMode = 'species'; renderAnalyzeCharts()"
+                  :class="analyzeChartMode === 'species' ? 'bg-amber-500 text-slate-900' : 'bg-transparent text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 transition-all">Species</button>
+                <button
+                  @click="analyzeChartMode = 'genus'; renderAnalyzeCharts()"
+                  :class="analyzeChartMode === 'genus' ? 'bg-amber-500 text-slate-900' : 'bg-transparent text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 transition-all border-x border-slate-600">Genus</button>
+                <button
+                  @click="analyzeChartMode = 'family'; renderAnalyzeCharts()"
+                  :class="analyzeChartMode === 'family' ? 'bg-amber-500 text-slate-900' : 'bg-transparent text-slate-400 hover:text-slate-200'"
+                  class="px-3 py-1.5 transition-all">Family</button>
+              </div>
+              <!-- Copy dropdown -->
+              <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" id="btn-copy-chart"
+                  class="copy-btn text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                  <i class="fa-solid fa-copy text-[10px]"></i>Copy
+                  <i class="fa-solid fa-chevron-down text-[9px] ml-0.5"></i>
+                </button>
+                <div x-show="open" @click.outside="open = false" x-cloak
+                  class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[170px]">
+                  <button @click="copyAnalysisChart('tsv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-table mr-2 opacity-60"></i>Tab-separated (TSV)
+                  </button>
+                  <button @click="copyAnalysisChart('csv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-file-csv mr-2 opacity-60"></i>Comma-separated (CSV)
+                  </button>
+                  <button @click="copyAnalysisChart('txt'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition-colors">
+                    <i class="fa-solid fa-align-left mr-2 opacity-60"></i>Plain text
+                  </button>
+                </div>
+              </div>
+              <!-- Download dropdown -->
+              <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open"
+                  class="text-[11px] font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+                  <i class="fa-solid fa-download text-[10px]"></i>Download
+                  <i class="fa-solid fa-chevron-down text-[9px] ml-0.5"></i>
+                </button>
+                <div x-show="open" @click.outside="open = false" x-cloak
+                  class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 overflow-hidden min-w-[150px]">
+                  <button @click="downloadAnalysisChart('csv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-file-csv mr-2 opacity-60"></i>Download .csv
+                  </button>
+                  <button @click="downloadAnalysisChart('tsv'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-table mr-2 opacity-60"></i>Download .tsv
+                  </button>
+                  <button @click="downloadAnalysisChart('txt'); open=false"
+                    class="w-full text-left px-4 py-2.5 text-[11px] font-bold text-slate-600 hover:bg-green-50 hover:text-green-700 transition-colors">
+                    <i class="fa-solid fa-file-lines mr-2 opacity-60"></i>Download .txt
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="bg-white p-5">
@@ -1426,6 +1646,12 @@ document.addEventListener('alpine:init', () => {
     async fetchGenusFamily(genus) {
       if (!genus) return null;
       const key = genus.toLowerCase();
+      // Botanical family names end in -aceae — they ARE the family, no lookup needed
+      if (key.endsWith('aceae')) {
+        const canonical = genus.charAt(0).toUpperCase() + genus.slice(1).toLowerCase();
+        this.familyCache[key] = canonical;
+        return canonical;
+      }
       if (this.familyCache[key] !== undefined) return this.familyCache[key];
       try {
         const url = `https://api.gbif.org/v1/species/match?name=${encodeURIComponent(genus)}&kingdom=Plantae&rank=GENUS`;
@@ -1450,9 +1676,20 @@ document.addEventListener('alpine:init', () => {
       results.familyLoading = true;
       results.familyLoadMsg = 'Resolving plant families via GBIF…';
 
-      // Get unique genera from the taxon list
+      // Pre-seed cache: any token ending in -aceae is already a family name
+      for (const taxonName of results.sortedTaxaNames) {
+        const first = taxonName.split(' ')[0];
+        const key = first.toLowerCase();
+        if (key.endsWith('aceae') && this.familyCache[key] === undefined) {
+          this.familyCache[key] = first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+        }
+      }
+
+      // Only GBIF-lookup tokens that are genuine genus names (not families)
       const genusList = [...new Set(
-        results.sortedTaxaNames.map(name => name.split(' ')[0]).filter(Boolean)
+        results.sortedTaxaNames
+          .map(name => name.split(' ')[0])
+          .filter(g => g && !g.toLowerCase().endsWith('aceae'))
       )];
 
       const PARALLEL = 8;
@@ -1465,31 +1702,37 @@ document.addEventListener('alpine:init', () => {
         await new Promise(r => setTimeout(r, 0));
       }
 
-      // Aggregate: family → { count (raw records), taxaMap: {name → count} }
+      // Aggregate: family → { count (raw records), dedupCount, taxaMap: {name → {raw, dedup}} }
       const familyMap = {};
       let unresolved = 0;
       for (const taxonName of results.sortedTaxaNames) {
         const genus = taxonName.split(' ')[0];
         const family = this.familyCache[genus.toLowerCase()] || null;
-        const rawCount = results.rawCounts[taxonName] || 0;
+        const rawCount   = results.rawCounts[taxonName]   || 0;
+        const dedupCount = results.eventCounts[taxonName] || 0;
         const bucket = family || 'Unknown / Unresolved';
-        if (!familyMap[bucket]) familyMap[bucket] = { count: 0, taxaMap: {} };
-        familyMap[bucket].count += rawCount;
-        familyMap[bucket].taxaMap[taxonName] = (familyMap[bucket].taxaMap[taxonName] || 0) + rawCount;
-        if (!family) unresolved++;
+        if (!familyMap[bucket]) familyMap[bucket] = { count: 0, dedupCount: 0, taxaMap: {} };
+        familyMap[bucket].count      += rawCount;
+        familyMap[bucket].dedupCount += dedupCount;
+        if (!familyMap[bucket].taxaMap[taxonName]) familyMap[bucket].taxaMap[taxonName] = { raw: 0, dedup: 0 };
+        familyMap[bucket].taxaMap[taxonName].raw   += rawCount;
+        familyMap[bucket].taxaMap[taxonName].dedup += dedupCount;
+        // Only count as unresolved if it's truly unknown (not a self-resolved -aceae name)
+        if (!family && !genus.toLowerCase().endsWith('aceae')) unresolved++;
       }
 
       const totalCount = Object.values(familyMap).reduce((a, b) => a + b.count, 0);
       const familyData = Object.entries(familyMap)
         .map(([family, d]) => ({
           family,
-          count: d.count,
+          count:      d.count,
+          dedupCount: d.dedupCount,
           taxa: Object.keys(d.taxaMap).length,
           pct: totalCount > 0 ? parseFloat(((d.count / totalCount) * 100).toFixed(1)) : 0,
-          // sorted list of contributing taxa with individual counts
+          // sorted list of contributing taxa with individual raw+dedup counts
           taxaList: Object.entries(d.taxaMap)
-            .sort((a, b) => b[1] - a[1])
-            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b[1].raw - a[1].raw)
+            .map(([name, counts]) => ({ name, count: counts.raw, dedup: counts.dedup }))
         }))
         .sort((a, b) => b.count - a.count);
 
@@ -2165,6 +2408,70 @@ document.addEventListener('alpine:init', () => {
       this._downloadText(lines.join('\n'), `${this.speciesEpithet||'species'}_floral_hosts.csv`, 'text/csv');
     },
 
+    downloadFlowerRecordsCSV() {
+      if (!this.jsonOutput) return;
+      let data;
+      try { data = JSON.parse(this.jsonOutput); } catch { return; }
+      const lines = ['Flower Taxon,Citation,Record ID'];
+      for (const occ of data.occurrences || []) {
+        const hosts = occ?.ecology?.extracted_floral_hosts;
+        if (!hosts?.length) continue;
+        const citation = (occ?.citation?.text || '').replace(/"/g, '""');
+        const gbifID   = occ?.gbifID || '';
+        for (const h of hosts) {
+          const taxon = (h.canonical_name ||
+            (h.accepted_genus && h.accepted_species && h.accepted_species !== 'sp.'
+              ? `${h.accepted_genus} ${h.accepted_species}`
+              : h.accepted_genus || h.original_query) || '').replace(/"/g, '""');
+          if (!taxon) continue;
+          lines.push(`"${taxon}","${citation}","${gbifID}"`);
+        }
+      }
+      const name = `${this.genus.trim()||'species'}_${this.speciesEpithet.trim()||'sp'}`;
+      this._downloadText(lines.join('\n'), `${name}_flower_records.csv`, 'text/csv');
+    },
+
+    // ── FLOWER RECORDS TABLE (Cell 1D) ──────────────────────────────────────
+    buildFlowerRecordsText(format = 'tsv') {
+      if (!this.analyzeResults?.sortedTaxaNames?.length) return '';
+      const sep   = format === 'csv' ? ',' : format === 'txt' ? ' | ' : '\t';
+      const quote = (v) => {
+        if (format !== 'csv') return v;
+        // CSV: wrap in quotes if value contains comma, quote, or newline
+        if (/[,"\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+        return v;
+      };
+      const header = format === 'txt'
+        ? 'Flower Taxon | Citation | GBIF Record ID'
+        : [quote('Flower Taxon'), quote('Citation'), quote('GBIF Record ID')].join(sep);
+      const rows = this.analyzeResults.sortedTaxaNames.map(name => {
+        const info = this.analyzeResults.taxaFirstOcc[name] || {};
+        const taxon = name;
+        const cite  = info.citationText || '';
+        const id    = info.gbifID || '';
+        return format === 'txt'
+          ? `${taxon} | ${cite} | ${id}`
+          : [quote(taxon), quote(cite), quote(id)].join(sep);
+      });
+      return [header, ...rows].join('\n');
+    },
+
+    async copyFlowerRecordsTable(format = 'tsv') {
+      const text = this.buildFlowerRecordsText(format);
+      if (!text) return;
+      try { await navigator.clipboard.writeText(text); } catch(e) { console.error(e); }
+      this._flashBtn('btn-copy-flower-records');
+    },
+
+    downloadFlowerRecords(format = 'csv') {
+      const text = this.buildFlowerRecordsText(format);
+      if (!text) return;
+      const name = (this.analyzeResults?.binomial_name || 'species').replace(/\s+/g, '_');
+      const mimeMap = { csv: 'text/csv', tsv: 'text/tab-separated-values', txt: 'text/plain' };
+      this._downloadText(text, `${name}_flower_records.${format}`, mimeMap[format] || 'text/plain');
+    },
+    // ── END FLOWER RECORDS TABLE ────────────────────────────────────────────
+
     _flashBtn(id) {
       const btn = document.getElementById(id);
       if (!btn) return;
@@ -2189,6 +2496,7 @@ document.addEventListener('alpine:init', () => {
     analyzeLoading: false,
     analyzeError: null,
     analyzeResults: null,
+    analyzeChartMode: 'species', // 'species' | 'genus' | 'family'
 
     handleAnalyzeFile(e) { this.analyzeUploadedFile = e.target.files[0] || null; },
 
@@ -2452,35 +2760,142 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ── FAMILY CSV / COPY ────────────────────────────────────────────────────
-    async copyFamilyCSV() {
+    buildFamilyText(format = 'tsv') {
+      if (!this.analyzeResults?.familyData?.length) return '';
+      const sep = format === 'csv' ? ',' : '\t';
+      const q   = format === 'csv' ? v => (/[,"\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v)) : v => String(v);
+
+      if (format === 'txt') {
+        // ── Plain-text: two sections — family summary, then per-taxon detail ──
+        const fd = this.analyzeResults.familyData;
+        const fLen = Math.max(...fd.map(r => r.family.length), 12);
+        const lines = [
+          '='.repeat(fLen + 46),
+          'PLANT FAMILY SUMMARY',
+          '='.repeat(fLen + 46),
+          'PLANT_FAMILY'.padEnd(fLen + 2) +
+            'RAW_RECORDS'.padStart(12) + '  ' +
+            'DEDUP_RECORDS'.padStart(13) + '  ' +
+            'TAXA_COUNT'.padStart(10) + '  ' +
+            'PCT_TOTAL'.padStart(9),
+          '-'.repeat(fLen + 46),
+          ...fd.map(r =>
+            r.family.padEnd(fLen + 2) +
+            String(r.count).padStart(12) + '  ' +
+            String(r.dedupCount).padStart(13) + '  ' +
+            String(r.taxa).padStart(10) + '  ' +
+            (r.pct + '%').padStart(9)
+          ),
+          '',
+          '='.repeat(fLen + 46),
+          'PER-TAXON DETAIL',
+          '='.repeat(fLen + 46),
+        ];
+        for (const row of fd) {
+          lines.push('');
+          lines.push(`[${row.family}]`);
+          const tLen = Math.max(...row.taxaList.map(t => t.name.length), 8);
+          lines.push(
+            'TAXON'.padEnd(tLen + 2) +
+            'RAW_RECORDS'.padStart(12) + '  ' +
+            'DEDUP_RECORDS'.padStart(13)
+          );
+          lines.push('-'.repeat(tLen + 27));
+          for (const t of row.taxaList)
+            lines.push(t.name.padEnd(tLen + 2) + String(t.count).padStart(12) + '  ' + String(t.dedup).padStart(13));
+        }
+        return lines.join('\n');
+      }
+
+      // ── CSV / TSV: flat rows, one per taxon, family repeated ──
+      const header = [
+        q('Plant Family'), q('Raw Records (Family)'), q('Dedup Records (Family)'),
+        q('Taxa Count (Family)'), q('% of Total (Family)'),
+        q('Flower Taxon'), q('Raw Records (Taxon)'), q('Dedup Records (Taxon)')
+      ].join(sep);
+
+      const rows = [];
+      for (const row of this.analyzeResults.familyData) {
+        for (const t of row.taxaList) {
+          rows.push([
+            q(row.family), row.count, row.dedupCount, row.taxa, row.pct + '%',
+            q(t.name), t.count, t.dedup
+          ].join(sep));
+        }
+      }
+      return [header, ...rows].join('\n');
+    },
+
+    async copyFamilyData(format = 'tsv') {
       if (!this.analyzeResults?.familyData?.length) return;
-      const header = 'PLANT_FAMILY\tRAW_RECORDS\tTAXA_COUNT\tPCT_OF_TOTAL';
-      const rows = this.analyzeResults.familyData.map(r =>
-        `${r.family}\t${r.count}\t${r.taxa}\t${r.pct}%`);
-      await navigator.clipboard.writeText([header, ...rows].join('\n'));
+      await navigator.clipboard.writeText(this.buildFamilyText(format));
       this._flashBtn('btn-copy-family');
     },
 
-    downloadFamilyCSV() {
+    // keep old name as alias so any stale callers still work
+    async copyFamilyCSV() { return this.copyFamilyData('tsv'); },
+
+    downloadFamilyData(format = 'tsv') {
       if (!this.analyzeResults?.familyData?.length) return;
-      const lines = ['Plant Family,Raw Records,Taxa Count,% of Total',
-        ...this.analyzeResults.familyData.map(r =>
-          `"${r.family}",${r.count},${r.taxa},${r.pct}%`)];
+      const text = this.buildFamilyText(format);
       const name = (this.analyzeResults?.binomial_name || 'species').replace(/\s+/g, '_');
-      this._downloadText(lines.join('\n'), `${name}_plant_families.csv`, 'text/csv');
+      const mime = format === 'csv' ? 'text/csv' : 'text/plain';
+      this._downloadText(text, `${name}_plant_families.${format}`, mime);
     },
+
+    downloadFamilyCSV() { this.downloadFamilyData('csv'); },
     // ── END FAMILY CSV ───────────────────────────────────────────────────────
 
     // ── CHART RENDERS ────────────────────────────────────────────────────────
     renderAnalyzeCharts() {
       if (!this.analyzeResults) return;
-      const top = this.analyzeResults.rawFlowers.slice(0, 15);
-      const rawVals   = top.map(f => this.analyzeResults.rawCounts[f]);
-      const dedupVals = top.map(f => this.analyzeResults.eventCounts[f] || 0);
+
+      let labels, rawVals, dedupVals;
+
+      if (this.analyzeChartMode === 'genus') {
+        // Aggregate species-level counts up to genus
+        const genusRaw = {}, genusDedup = {};
+        for (const name of this.analyzeResults.rawFlowers) {
+          const genus = name.split(' ')[0];
+          genusRaw[genus]   = (genusRaw[genus]   || 0) + (this.analyzeResults.rawCounts[name]   || 0);
+          genusDedup[genus] = (genusDedup[genus]  || 0) + (this.analyzeResults.eventCounts[name] || 0);
+        }
+        const sortedGenera = Object.keys(genusRaw).sort((a, b) => genusRaw[b] - genusRaw[a]);
+        labels    = sortedGenera;
+        rawVals   = labels.map(g => genusRaw[g]);
+        dedupVals = labels.map(g => genusDedup[g]);
+
+      } else if (this.analyzeChartMode === 'family') {
+        // Aggregate by plant family using familyCache (populated by enrichFamilies)
+        const famRaw = {}, famDedup = {};
+        for (const name of this.analyzeResults.rawFlowers) {
+          const genus  = name.split(' ')[0];
+          const family = this.familyCache[genus.toLowerCase()] || 'Unknown / Unresolved';
+          famRaw[family]   = (famRaw[family]   || 0) + (this.analyzeResults.rawCounts[name]   || 0);
+          famDedup[family] = (famDedup[family]  || 0) + (this.analyzeResults.eventCounts[name] || 0);
+        }
+        const sortedFamilies = Object.keys(famRaw).sort((a, b) => famRaw[b] - famRaw[a]);
+        labels    = sortedFamilies;
+        rawVals   = labels.map(f => famRaw[f]);
+        dedupVals = labels.map(f => famDedup[f]);
+
+      } else {
+        // Species (default)
+        labels    = this.analyzeResults.rawFlowers;
+        rawVals   = labels.map(f => this.analyzeResults.rawCounts[f]);
+        dedupVals = labels.map(f => this.analyzeResults.eventCounts[f] || 0);
+      }
+
+      // Dynamic height: 26px per bar row, min 300px
+      const chartH = Math.max(300, labels.length * 26);
+      const rawEl2  = document.getElementById('rawChart');
+      const dedupEl2 = document.getElementById('dedupChart');
+      if (rawEl2?.parentElement)   rawEl2.parentElement.style.height   = chartH + 'px';
+      if (dedupEl2?.parentElement) dedupEl2.parentElement.style.height = chartH + 'px';
 
       const baseOpts = (datasets) => ({
         type: 'bar',
-        data: { labels: top, datasets },
+        data: { labels, datasets },
         options: {
           indexAxis: 'y',
           animation: false,
@@ -2546,20 +2961,71 @@ document.addEventListener('alpine:init', () => {
     },
     // ── END CHART RENDERS ────────────────────────────────────────────────────
 
-    async copyAnalysisChart() {
+    _buildAnalysisChartRows() {
+      // Returns [{name, raw, dedup}] respecting the species/genus/family toggle
+      if (!this.analyzeResults) return [];
+      if (this.analyzeChartMode === 'genus') {
+        const genusRaw = {}, genusDedup = {};
+        for (const name of this.analyzeResults.rawFlowers) {
+          const genus = name.split(' ')[0];
+          genusRaw[genus]   = (genusRaw[genus]   || 0) + (this.analyzeResults.rawCounts[name]   || 0);
+          genusDedup[genus] = (genusDedup[genus]  || 0) + (this.analyzeResults.eventCounts[name] || 0);
+        }
+        return Object.keys(genusRaw)
+          .sort((a, b) => genusRaw[b] - genusRaw[a])
+          .map(g => ({ name: g, raw: genusRaw[g], dedup: genusDedup[g] || 0 }));
+      } else if (this.analyzeChartMode === 'family') {
+        const famRaw = {}, famDedup = {};
+        for (const name of this.analyzeResults.rawFlowers) {
+          const genus  = name.split(' ')[0];
+          const family = this.familyCache[genus.toLowerCase()] || 'Unknown / Unresolved';
+          famRaw[family]   = (famRaw[family]   || 0) + (this.analyzeResults.rawCounts[name]   || 0);
+          famDedup[family] = (famDedup[family]  || 0) + (this.analyzeResults.eventCounts[name] || 0);
+        }
+        return Object.keys(famRaw)
+          .sort((a, b) => famRaw[b] - famRaw[a])
+          .map(f => ({ name: f, raw: famRaw[f], dedup: famDedup[f] || 0 }));
+      } else {
+        return this.analyzeResults.rawFlowers.map(f => ({
+          name: f,
+          raw: this.analyzeResults.rawCounts[f] || 0,
+          dedup: this.analyzeResults.eventCounts[f] || 0
+        }));
+      }
+    },
+
+    buildAnalysisChartText(format = 'tsv') {
+      const rows = this._buildAnalysisChartRows();
+      if (!rows.length) return '';
+      if (format === 'txt') {
+        const maxLen = Math.max(...rows.map(r => r.name.length), 12);
+        const header = 'FLOWER_TAXON'.padEnd(maxLen + 2) + 'RAW_TOTAL'.padStart(10) + '  ' + 'DEDUP_EVENTS'.padStart(12);
+        const lines  = rows.map(r => r.name.padEnd(maxLen + 2) + String(r.raw).padStart(10) + '  ' + String(r.dedup).padStart(12));
+        return [header, ...lines].join('\n');
+      }
+      const sep = format === 'csv' ? ',' : '\t';
+      const q   = format === 'csv' ? v => `"${v}"` : v => v;
+      const header = [q('Flower Taxon'), q('Raw Total'), q('Dedup Events')].join(sep);
+      const lines  = rows.map(r => [q(r.name), r.raw, r.dedup].join(sep));
+      return [header, ...lines].join('\n');
+    },
+
+    async copyAnalysisChart(format = 'tsv') {
       if (!this.analyzeResults) return;
-      const header = 'FLOWER_TAXON\tRAW_TOTAL\tDEDUP_EVENTS';
-      const rows = this.analyzeResults.compTable.map(r => `${r.name}\t${r.raw}\t${r.dedup}`);
-      await navigator.clipboard.writeText([header, ...rows].join('\n'));
+      await navigator.clipboard.writeText(this.buildAnalysisChartText(format));
       this._flashBtn('btn-copy-chart');
     },
 
-    downloadAnalysisCSV() {
+    downloadAnalysisChart(format = 'csv') {
       if (!this.analyzeResults) return;
-      const lines = ['Flower Taxon,Raw Total,Dedup Events',
-        ...this.analyzeResults.compTable.map(r => `"${r.name}",${r.raw},${r.dedup}`)];
-      this._downloadText(lines.join('\n'), `${this.analyzeResults.binomial_name.replace(' ','_')}_floral_analysis.csv`, 'text/csv');
+      const text  = this.buildAnalysisChartText(format);
+      const group = this.analyzeChartMode;
+      const base  = this.analyzeResults.binomial_name.replace(' ', '_');
+      const mime  = format === 'csv' ? 'text/csv' : 'text/plain';
+      this._downloadText(text, `${base}_floral_${group}.${format}`, mime);
     },
+
+    downloadAnalysisCSV() { this.downloadAnalysisChart('csv'); },
 
     async copyFloralCitations() {
       if (!this.analyzeResults?.floralCitations) return;

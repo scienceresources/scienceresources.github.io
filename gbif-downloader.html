@@ -644,6 +644,133 @@
         </div>
       </template>
 
+      <!-- State/Province breakdown -->
+      <template x-if="stateChartRows.length > 0">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-5">
+
+          <!-- Header + actions -->
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <i class="fa-solid fa-map-location-dot mr-1.5 text-emerald-400"></i>
+              Records per State / Province
+              <span class="text-emerald-400 ml-1" x-text="'(' + stateChartRows.length + ' regions)'"></span>
+            </p>
+            <div class="flex gap-2 flex-wrap">
+              <button @click="downloadStateCSV()" class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-green-600 border border-slate-200 hover:border-green-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-download text-[10px]"></i>Download CSV</button>
+              <button @click="copyStateTable()" id="btn-copy-state-table" class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-emerald-600 border border-slate-200 hover:border-emerald-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-copy text-[10px]"></i>Copy Table</button>
+              <button @click="copyStateNarrative()" id="btn-copy-state-narrative" class="copy-btn flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-violet-600 border border-slate-200 hover:border-violet-300 px-3 py-1.5 rounded-lg bg-white transition-all"><i class="fa-solid fa-align-left text-[10px]"></i>Copy Narrative</button>
+            </div>
+          </div>
+
+          <!-- Narrative preview -->
+          <div class="bg-violet-50 border border-violet-200 rounded-xl p-4">
+            <p class="text-[10px] font-black uppercase tracking-widest text-violet-400 mb-2"><i class="fa-solid fa-align-left mr-1.5"></i>Narrative Preview</p>
+            <p class="text-xs text-slate-700 leading-relaxed font-mono" x-text="buildStateNarrativeText()"></p>
+          </div>
+
+          <!-- Bar chart -->
+          <div class="bg-slate-50 rounded-xl border border-slate-100 p-4 max-h-96 overflow-y-auto">
+            <template x-for="([st, cnt], i) in stateChartRows" :key="i">
+              <div class="flex items-center gap-3 px-1 py-[4px] hover:bg-emerald-50 rounded transition-colors group">
+                <div class="w-8 shrink-0 text-right"><span class="text-[10px] font-mono text-slate-300" x-text="i+1"></span></div>
+                <div class="w-44 shrink-0 text-right">
+                  <span class="text-[11px] font-mono text-slate-700 truncate block" x-text="st"></span>
+                </div>
+                <div class="flex-1 flex items-center gap-2 min-w-0">
+                  <div class="h-5 rounded-sm"
+                    :style="'width:' + (stateChartMax > 0 ? (cnt/stateChartMax*100).toFixed(1) : 0) + '%; background:rgba(16,185,129,' + (0.3 + 0.6*(cnt/stateChartMax)).toFixed(2) + ');min-width:' + (cnt > 0 ? 3 : 0) + 'px'">
+                  </div>
+                  <span class="text-[10px] font-mono text-slate-400 group-hover:text-slate-600 whitespace-nowrap shrink-0" x-text="cnt.toLocaleString() + ' (' + (occurrences.length > 0 ? (cnt/occurrences.length*100).toFixed(1) : 0) + '%)'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Detailed state table (species + citations) -->
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+              <i class="fa-solid fa-table mr-1.5 text-emerald-400"></i>State Records — Detail Table
+              <span class="text-slate-300 font-normal ml-1 normal-case">(copy-paste ready · tab-separated)</span>
+            </p>
+            <div class="overflow-x-auto rounded-xl border border-slate-100">
+              <table class="data-table w-full">
+                <thead>
+                  <tr>
+                    <th class="text-left">State / Province</th>
+                    <th class="text-right">Records</th>
+                    <template x-if="stateTableRows.some(r => r.species.length > 0)">
+                      <th class="text-left">Species Collected</th>
+                    </template>
+                    <th class="text-left">In-text Citation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="row in stateTableRows" :key="row.state">
+                    <tr>
+                      <td class="font-bold text-slate-700" x-text="row.state"></td>
+                      <td class="text-right font-mono font-bold text-emerald-700" x-text="row.count.toLocaleString()"></td>
+                      <template x-if="stateTableRows.some(r => r.species.length > 0)">
+                        <td>
+                          <template x-if="row.species.length === 0">
+                            <span class="text-slate-300">—</span>
+                          </template>
+                          <template x-if="row.species.length > 0">
+                            <div class="flex flex-wrap gap-1">
+                              <template x-for="sp in row.species" :key="sp">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded bg-violet-50 border border-violet-100 text-[10px] italic text-violet-700" style="font-family:Georgia,serif;" x-text="sp"></span>
+                              </template>
+                            </div>
+                          </template>
+                        </td>
+                      </template>
+                      <td class="max-w-xs text-[10px] text-slate-500 font-mono whitespace-normal leading-relaxed" x-text="row.intext || '—'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Per-state dataset citations -->
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+              <i class="fa-solid fa-quote-left mr-1.5 text-amber-400"></i>Dataset Citations by State
+            </p>
+            <div class="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+              <template x-for="row in stateTableRows" :key="'cite-' + row.state">
+                <template x-if="row.citations.length > 0">
+                  <div class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                      <i class="fa-solid fa-map-pin text-emerald-400 text-[10px]"></i>
+                      <span class="text-[11px] font-black text-slate-700 uppercase tracking-widest" x-text="row.state"></span>
+                      <span class="text-[10px] font-mono text-slate-400" x-text="'· ' + row.count.toLocaleString() + ' records · ' + row.citations.length + ' dataset(s)'"></span>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2">
+                      <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">In-text</p>
+                      <p class="text-[11px] text-slate-700 leading-relaxed font-mono" x-text="row.intext"></p>
+                    </div>
+                    <div class="space-y-1.5">
+                      <template x-for="(ds, di) in row.citations" :key="di">
+                        <div class="cite-card bg-white rounded-lg px-3 py-2 border border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors" @click="copySingleCitation(ds.citation)">
+                          <p class="text-[11px] font-semibold text-slate-700 mb-0.5" x-text="ds.title"></p>
+                          <p class="text-[10px] text-slate-500 leading-relaxed font-mono" x-text="ds.citation"></p>
+                          <div class="flex items-center gap-2 mt-1">
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded" :class="ds.license.includes('CC0') ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'" x-text="ds.license"></span>
+                            <span x-show="ds.doi" class="text-[10px] text-amber-500 hover:underline font-mono cursor-pointer" @click.stop="window.open('https://doi.org/' + ds.doi,'_blank')" x-text="'doi.org/' + ds.doi"></span>
+                            <span class="text-[9px] text-slate-300 ml-auto"><i class="fa-solid fa-copy mr-0.5"></i>click to copy</span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </template>
+            </div>
+          </div>
+
+        </div>
+      </template>
+
     </div>
   </template>
   <template x-if="occurrences.length === 0">
@@ -839,6 +966,7 @@ document.addEventListener('alpine:init', () => {
 
     // Taxa stats
     _speciesCountData:{}, _institutionCountData:{}, _borCountData:{}, _yearCountData:{}, _countryCountData:{},
+    _stateCountData:{}, _stateSpeciesData:{}, _stateDatasetsData:{},
     _yearChart:null,
 
     // Taxon
@@ -1023,6 +1151,22 @@ document.addEventListener('alpine:init', () => {
     get countryChartMax() {
       const r=this.countryChartRows;return r.length?r[0][1]:1;
     },
+    get stateChartRows() {
+      return Object.entries(this._stateCountData||{}).sort((a,b)=>b[1]-a[1]);
+    },
+    get stateChartMax() {
+      const r=this.stateChartRows;return r.length?r[0][1]:1;
+    },
+    // Returns array of {state, count, species:[], datasets:[], intext, citations:[]}
+    get stateTableRows() {
+      return this.stateChartRows.map(([state,count])=>{
+        const species=(this._stateSpeciesData[state]||[]).slice().sort();
+        const dkeys=this._stateDatasetsData[state]||[];
+        const citations=dkeys.map(dk=>this.datasetInfoCache[dk]).filter(Boolean);
+        const intext=citations.length?this.buildInTextCitation(citations.map(c=>({citation:c.citation,license:c.license}))):'';
+        return{state,count,species,citations,intext};
+      });
+    },
 
     // ── Helpers ──────────────────────────────────────────────────────────
     addLog(msg,type='info'){this.log.push({msg,type});if(this.log.length>500)this.log.shift();},
@@ -1148,6 +1292,79 @@ document.addEventListener('alpine:init', () => {
       for(const d of this.citationsData)lines.push([esc(d.title),esc(d.citation),esc(d.license),esc(d.doi||'')].join(','));
       this._dl(lines.join('\n'),'gbif_citations.csv','text/csv');
     },
+
+    // ── State/Province table helpers ──────────────────────────────────────
+    buildStateNarrativeText(){
+      const rows=this.stateTableRows;
+      if(!rows.length)return'No state/province data yet — run a query first.';
+      const multiSpecies=rows.some(r=>r.species.length>1);
+      const parts=rows.map(row=>{
+        // Build the citation list: use in-text refs for each dataset
+        const citeRefs=row.citations.map(ds=>this.parseInTextRef(ds.citation).intext).filter(Boolean);
+        const citeStr=citeRefs.length?citeRefs.join('; '):'';
+        // If multiple species, prefix with species list
+        if(multiSpecies&&row.species.length>0){
+          const spList=row.species.length===1
+            ?row.species[0]
+            :row.species.slice(0,-1).join(', ')+' and '+row.species[row.species.length-1];
+          return citeStr
+            ?`${row.state} (${spList}; ${citeStr})`
+            :`${row.state} (${spList})`;
+        }
+        return citeStr?`${row.state} (${citeStr})`:row.state;
+      });
+      // Determine subject: use species name(s) if only one species, otherwise "This taxon"
+      const allSpp=[...new Set(rows.flatMap(r=>r.species))];
+      let subject;
+      if(allSpp.length===1)subject=allSpp[0];
+      else if(allSpp.length===2)subject=allSpp.join(' and ');
+      else if(allSpp.length>2)subject=allSpp.slice(0,-1).join(', ')+', and '+allSpp[allSpp.length-1];
+      else subject='This taxon';
+      const stateList=parts.length>1
+        ?parts.slice(0,-1).join(', ')+', and '+parts[parts.length-1]
+        :parts[0];
+      return`${subject} has currently been found in ${stateList}.`;
+    },
+    async copyStateNarrative(){
+      const text=this.buildStateNarrativeText();
+      if(!text)return;
+      try{await navigator.clipboard.writeText(text);this._flashBtn('btn-copy-state-narrative');}catch(e){}
+    },
+
+    buildStateTableText(){
+      const rows=this.stateTableRows;
+      if(!rows.length)return'';
+      const multiSpecies=rows.some(r=>r.species.length>1);
+      const header=multiSpecies
+        ?'State/Province\tRecords\tSpecies\tIn-text Citation'
+        :'State/Province\tRecords\tIn-text Citation';
+      const lines=[header];
+      for(const r of rows){
+        const intext=r.intext||'—';
+        if(multiSpecies) lines.push(`${r.state}\t${r.count}\t${r.species.join('; ') || '—'}\t${intext}`);
+        else lines.push(`${r.state}\t${r.count}\t${intext}`);
+      }
+      return lines.join('\n');
+    },
+    async copyStateTable(){
+      const text=this.buildStateTableText();
+      if(!text)return;
+      try{await navigator.clipboard.writeText(text);this._flashBtn('btn-copy-state-table');}catch(e){}
+    },
+    downloadStateCSV(){
+      const rows=this.stateTableRows;
+      if(!rows.length)return;
+      const esc=v=>{const s=String(v||'');return s.includes(',')||s.includes('"')||s.includes('\n')?`"${s.replace(/"/g,'""')}"`:`${s}`;};
+      const multiSpecies=rows.some(r=>r.species.length>1);
+      const header=multiSpecies?'State/Province,Records,Species,In-text Citation':'State/Province,Records,In-text Citation';
+      const lines=[header];
+      for(const r of rows){
+        const intext=r.intext||'';
+        if(multiSpecies) lines.push([esc(r.state),esc(r.count),esc(r.species.join('; ')),esc(intext)].join(','));
+        else lines.push([esc(r.state),esc(r.count),esc(intext)].join(','));
+      }
+      this._dl(lines.join('\n'),'gbif_state_records.csv','text/csv');
+    },
     _flashBtn(id){
       const btn=document.getElementById(id);if(!btn)return;
       const orig=btn.innerHTML;btn.classList.add('copied');
@@ -1184,6 +1401,7 @@ document.addEventListener('alpine:init', () => {
     // ── Taxa stats ─────────────────────────────────────────────────────────
     buildTaxaStats(){
       const spCount={}, instCount={}, borCount={}, yearCount={}, ccCount={};
+      const stateCount={}, stateSpecies={}, stateDatasets={};
       for(const o of this.occurrences){
         const sp=o.species||null;
         if(sp)spCount[sp]=(spCount[sp]||0)+1;
@@ -1195,12 +1413,23 @@ document.addEventListener('alpine:init', () => {
         if(yr&&!isNaN(parseInt(yr)))yearCount[yr]=(yearCount[yr]||0)+1;
         const cc=o.countryCode||null;
         if(cc)ccCount[cc]=(ccCount[cc]||0)+1;
+        // State/province stats
+        const st=o.stateProvince||null;
+        if(st){
+          stateCount[st]=(stateCount[st]||0)+1;
+          if(sp){if(!stateSpecies[st])stateSpecies[st]=new Set();stateSpecies[st].add(sp);}
+          const dk=o.datasetKey||null;
+          if(dk){if(!stateDatasets[st])stateDatasets[st]=new Set();stateDatasets[st].add(dk);}
+        }
       }
       this._speciesCountData=spCount;
       this._institutionCountData=instCount;
       this._borCountData=borCount;
       this._yearCountData=yearCount;
       this._countryCountData=ccCount;
+      this._stateCountData=stateCount;
+      this._stateSpeciesData=Object.fromEntries(Object.entries(stateSpecies).map(([k,v])=>[k,[...v].sort()]));
+      this._stateDatasetsData=Object.fromEntries(Object.entries(stateDatasets).map(([k,v])=>[k,[...v]]));
       const badge=document.getElementById('taxa-badge');
       if(badge){badge.textContent=Object.keys(spCount).length.toLocaleString();badge.classList.remove('hidden');}
     },
@@ -1447,7 +1676,7 @@ document.addEventListener('alpine:init', () => {
       this.occurrences=[];this.totalCount=null;this.progress=0;
       this.citationsData=[];this.inTextPreview='';this.datasetInfoCache={};
       this.phenologyData={};this.phenologyTotal=0;
-      this._speciesCountData={};this._institutionCountData={};this._borCountData={};this._yearCountData={};this._countryCountData={};
+      this._speciesCountData={};this._institutionCountData={};this._borCountData={};this._yearCountData={};this._countryCountData={};this._stateCountData={};this._stateSpeciesData={};this._stateDatasetsData={};
       this.resultPage=1; // reset to first page on new fetch
       try{
         const rawMax=parseInt(this.filters.maxRecords);
