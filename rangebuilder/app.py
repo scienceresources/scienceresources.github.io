@@ -1,11 +1,10 @@
 """
 Distribution Range Builder – Flask backend
-Exact Python logic from the notebook, zero changes to algorithms.
 """
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import io, json, re, zipfile
+import io, json, re, zipfile, threading
 import pandas as pd
 import geopandas as gpd
 import shapely
@@ -15,11 +14,21 @@ app = Flask(__name__, static_folder="static")
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
 CORS(app)
 
-# ── Land mask (loaded once at startup) ─────────────────────────────────────────
-print("Downloading Natural Earth 50m land mask...")
-_land_gdf = gpd.read_file("https://naciscdn.org/naturalearth/50m/physical/ne_50m_land.zip")
-LAND_MASK = _land_gdf.to_crs("EPSG:4326").union_all()
-print("  Land mask ready.")
+# ── Land mask — lazy-loaded on first use ───────────────────────────────────────
+_land_lock = threading.Lock()
+_LAND_MASK = None
+
+def get_land_mask():
+    global _LAND_MASK
+    if _LAND_MASK is not None:
+        return _LAND_MASK
+    with _land_lock:
+        if _LAND_MASK is None:
+            print("Downloading Natural Earth 50m land mask…")
+            gdf = gpd.read_file("https://naciscdn.org/naturalearth/50m/physical/ne_50m_land.zip")
+            _LAND_MASK = gdf.to_crs("EPSG:4326").union_all()
+            print("  Land mask ready.")
+    return _LAND_MASK
 
 
 # ── Smoothing ──────────────────────────────────────────────────────────────────
@@ -51,28 +60,29 @@ def apply_smoothing(geom, iterations=6):
 # ── Range builder ──────────────────────────────────────────────────────────────
 def build_range(df, buffer_deg=1.2, concave_ratio=0.25, simplify_tol=0.12, smooth_iter=6):
     df = df.copy()
-    df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
+    df["latitude"]  = pd.to_numeric(df["latitude"],  errors="coerce")
     df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
     df = df.dropna(subset=["latitude", "longitude"])
-    # Filter out null-island (0, 0) points
+    # Filter null-island (0, 0) points
     df = df[~((df["latitude"] == 0) & (df["longitude"] == 0))]
     if df.empty:
-        raise ValueError("No valid lat/lon rows after filtering.")
+        raise ValueError("No valid coordinate rows after filtering.")
     gdf = gpd.GeoDataFrame(
         df, geometry=gpd.points_from_xy(df.longitude, df.latitude), crs="EPSG:4326"
     )
-    all_pts = gdf.geometry.union_all()
-    hull = shapely.concave_hull(all_pts, ratio=concave_ratio)
+    all_pts  = gdf.geometry.union_all()
+    hull     = shapely.concave_hull(all_pts, ratio=concave_ratio)
     buffered = hull.buffer(buffer_deg, quad_segs=16, join_style=1)
     smoothed = apply_smoothing(buffered.simplify(simplify_tol), iterations=smooth_iter)
-    clipped = smoothed.intersection(LAND_MASK)
+    land     = get_land_mask()
+    clipped  = smoothed.intersection(land)
     if isinstance(clipped, MultiPolygon):
-        valid = [p for p in clipped.geoms if gdf.geometry.intersects(p).any()]
+        valid   = [p for p in clipped.geoms if gdf.geometry.intersects(p).any()]
         clipped = MultiPolygon(valid) if len(valid) > 1 else (valid[0] if valid else clipped)
     return clipped, df
 
 
-# ── DwC / CSV field normalisation ─────────────────────────────────────────────
+# ── DwC field normalisation ────────────────────────────────────────────────────
 OUTPUT_COLS = [
     "speciesname", "latitude", "longitude", "recordedby", "datefound",
     "determinedby", "lifestage", "sex", "notes", "rights", "rightsholder",
@@ -83,7 +93,6 @@ SPECIES_KEYS = ["species", "speciesname", "scientificname", "taxonname", "verbat
 
 
 def normalise_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Map raw/DwC column names to our standard schema."""
     df = df.copy()
     df.columns = [c.strip() for c in df.columns]
     col_lower = {c.lower(): c for c in df.columns}
@@ -96,17 +105,14 @@ def normalise_df(df: pd.DataFrame) -> pd.DataFrame:
 
     out = pd.DataFrame(index=df.index)
 
-    # Species name
     out["speciesname"] = None
     for k in SPECIES_KEYS:
         if k in col_lower:
             out["speciesname"] = df[col_lower[k]]
             break
 
-    # Coordinates
-    out["latitude"]  = pick("decimallatitude", "latitude")
-    out["longitude"] = pick("decimallongitude", "longitude")
-
+    out["latitude"]     = pick("decimallatitude",  "latitude")
+    out["longitude"]    = pick("decimallongitude", "longitude")
     out["recordedby"]   = pick("recordedby")
     out["determinedby"] = pick("identifiedby", "determinedby")
     out["lifestage"]    = pick("lifestage")
@@ -114,17 +120,18 @@ def normalise_df(df: pd.DataFrame) -> pd.DataFrame:
     out["rightsholder"] = pick("rightsholder")
     out["rights"]       = pick("license", "accessrights", "rights")
 
-    # Date: build from year/month/day if present, else eventDate/datefound
+    # Date
     if all(k in col_lower for k in ("year", "month", "day")):
         yr = df[col_lower["year"]].astype(str).str.strip().replace("nan", "")
         mo = df[col_lower["month"]].astype(str).str.strip().str.zfill(2).replace("nan", "")
         dy = df[col_lower["day"]].astype(str).str.strip().str.zfill(2).replace("nan", "")
-        built = (yr + "-" + mo + "-" + dy).where(yr != "" and mo != "" and dy != "", other=None)
-        out["datefound"] = built
+        out["datefound"] = (yr + "-" + mo + "-" + dy).where(
+            (yr != "") & (mo != "") & (dy != ""), other=None
+        )
     else:
         out["datefound"] = pick("eventdate", "datefound")
 
-    # Notes: combine fieldNotes + eventRemarks
+    # Notes
     n1 = pick("fieldnotes", "notes").fillna("").astype(str)
     n2 = pick("eventremarks").fillna("").astype(str)
     combined = (n1 + " " + n2).str.strip()
@@ -139,21 +146,21 @@ def normalise_df(df: pd.DataFrame) -> pd.DataFrame:
             pick("stateprovince").fillna("").astype(str),
             pick("countrycode", "country").fillna("").astype(str),
         ], axis=1)
-        out["locality"] = parts.apply(lambda r: ", ".join(v for v in r if v), axis=1).replace("", None)
+        out["locality"] = parts.apply(
+            lambda r: ", ".join(v for v in r if v), axis=1
+        ).replace("", None)
 
-    # Source link
     out["sourcelink"] = pick("sourcelink", "occurrenceid")
 
     return out[[c for c in OUTPUT_COLS if c in out.columns]]
 
 
-# ── File parsing helper ────────────────────────────────────────────────────────
+# ── File parsing ───────────────────────────────────────────────────────────────
 def read_occurrence_file(file_bytes: bytes, filename: str) -> pd.DataFrame:
-    """Parse CSV, TSV, TXT, or DwC-A ZIP into a raw DataFrame."""
     fn = filename.lower()
     if fn.endswith(".zip"):
         with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
-            names = zf.namelist()
+            names    = zf.namelist()
             occ_name = next((n for n in names if n.lower() == "occurrence.txt"), None)
             if occ_name is None:
                 occ_name = next((n for n in names if n.lower().endswith("occurrence.txt")), None)
@@ -161,27 +168,13 @@ def read_occurrence_file(file_bytes: bytes, filename: str) -> pd.DataFrame:
                 raise ValueError("occurrence.txt not found in ZIP.")
             raw = zf.read(occ_name).decode("utf-8-sig")
         return pd.read_csv(io.StringIO(raw), sep="\t", low_memory=False, dtype=str)
-    elif fn.endswith(".csv"):
-        text = file_bytes.decode("utf-8-sig")
-        return pd.read_csv(io.StringIO(text), sep=",", low_memory=False, dtype=str)
     else:
-        # TSV / TXT — auto-detect separator
+        # occurrence.txt — tab-separated
         text = file_bytes.decode("utf-8-sig")
-        first_line = text.split("\n")[0]
-        sep = "\t" if "\t" in first_line else ","
-        return pd.read_csv(io.StringIO(text), sep=sep, low_memory=False, dtype=str)
+        return pd.read_csv(io.StringIO(text), sep="\t", low_memory=False, dtype=str)
 
 
 # ── JS helpers ─────────────────────────────────────────────────────────────────
-def extract_tsv_blocks(js_content):
-    blocks = re.findall(r"`(.*?)`", js_content, re.DOTALL)
-    return [b.strip() for b in blocks if "latitude" in b]
-
-
-def tsv_to_df(tsv_text):
-    return pd.read_csv(io.StringIO(tsv_text.strip()), sep="\t", low_memory=False)
-
-
 def to_geojson_str(geom):
     return json.dumps(json.loads(gpd.GeoSeries([geom]).to_json()), separators=(",", ":"))
 
@@ -234,15 +227,15 @@ L.tileLayer("https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
 
 if (speciesRangeGeoJSON) {{
   L.geoJSON(speciesRangeGeoJSON, {{
-    style: {{ color: "#3366ff", weight: 2, fillColor: "#6699ff", fillOpacity: 0.25 }},
+    style: {{ color: "#0d9488", weight: 2, fillColor: "#2dd4bf", fillOpacity: 0.2 }},
     interactive: false,
   }}).addTo(map);
 }}
 
 L.geoJSON(speciesData, {{
   pointToLayer: (f, ll) => L.circleMarker(ll, {{
-    radius: 5, color: "#ff6600", fillColor: "#ff6600", fillOpacity: 0.9,
-  }}).bindPopup(Object.entries(f.properties).map(([k,v]) => `<b>${{k}}:</b> ${{v}}`).join("<br>")),
+    radius: 5, color: "#0f766e", fillColor: "#14b8a6", fillOpacity: 0.85, weight: 1.5,
+  }}).bindPopup(Object.entries(f.properties).filter(([,v])=>v).map(([k,v]) => `<b>${{k}}:</b> ${{v}}`).join("<br>")),
 }}).addTo(map);
 
 if (speciesData.features.length > 0) {{
@@ -254,7 +247,6 @@ setTimeout(() => map.invalidateSize(), 700);
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
-
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
@@ -263,41 +255,26 @@ def index():
 @app.route("/process", methods=["POST"])
 def process():
     """
-    Multipart form endpoint.
-    input_type=js   → .js file with embedded TSV
-    input_type=tsv  → raw tsv_text string in form body
-    input_type=file → uploaded CSV / TSV / TXT / DwC-A ZIP
+    input_type=file  → uploaded occurrence.txt or DwC-A ZIP
+    input_type=tsv   → raw tsv_text string (used by GBIF API path in frontend)
     """
     try:
-        input_type = request.form.get("input_type", "tsv")
+        input_type = request.form.get("input_type", "file")
 
-        if input_type == "js":
-            js_file = request.files.get("file")
-            if not js_file:
-                return jsonify({"error": "No JS file uploaded."}), 400
-            js_content = js_file.read().decode("utf-8")
-            tsv_blocks = extract_tsv_blocks(js_content)
-            if not tsv_blocks:
-                return jsonify({"error": "No TSV data found in JS file."}), 400
-            df = tsv_to_df(tsv_blocks[0])
-            tsv_text = tsv_blocks[0]
-
-        elif input_type == "file":
+        if input_type == "file":
             uploaded = request.files.get("file")
             if not uploaded:
                 return jsonify({"error": "No file uploaded."}), 400
             raw_df = read_occurrence_file(uploaded.read(), uploaded.filename)
-            df = normalise_df(raw_df)
-            tsv_text = df.fillna("").to_csv(sep="\t", index=False)
-
-        else:  # tsv (used by GBIF API path)
+            df     = normalise_df(raw_df)
+        else:
             tsv_text = request.form.get("tsv_text", "").strip()
             if not tsv_text:
                 return jsonify({"error": "No TSV data provided."}), 400
-            df = tsv_to_df(tsv_text)
+            df = pd.read_csv(io.StringIO(tsv_text), sep="\t", low_memory=False)
 
         final_range, clean_df = build_range(df)
-        geojson_str = to_geojson_str(final_range)
+        geojson_str  = to_geojson_str(final_range)
         geojson_dict = json.loads(geojson_str)
 
         species_name = ""
@@ -308,49 +285,14 @@ def process():
                     species_name = str(vals.iloc[0])
                     break
 
-        js_output = build_full_js(tsv_text, geojson_str)
-        return jsonify({
-            "geojson": geojson_dict,
-            "geojson_str": geojson_str,
-            "js_output": js_output,
-            "record_count": len(clean_df),
-            "species_name": species_name,
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/process_json", methods=["POST"])
-def process_json():
-    """
-    JSON body endpoint for pre-parsed rows from the GBIF API path.
-    Body: { rows: [{speciesname, latitude, longitude, ...}], species_name: "..." }
-    """
-    try:
-        data = request.get_json(force=True)
-        rows = data.get("rows", [])
-        if not rows:
-            return jsonify({"error": "No rows provided."}), 400
-
-        df = pd.DataFrame(rows)
-        final_range, clean_df = build_range(df)
-        geojson_str = to_geojson_str(final_range)
-        geojson_dict = json.loads(geojson_str)
-
-        species_name = data.get("species_name", "")
-        if not species_name and "speciesname" in clean_df.columns:
-            vals = clean_df["speciesname"].dropna()
-            if not vals.empty:
-                species_name = str(vals.iloc[0])
-
         available = [c for c in OUTPUT_COLS if c in df.columns]
-        tsv_text = df[available].fillna("").to_csv(sep="\t", index=False)
-        js_output = build_full_js(tsv_text, geojson_str)
+        tsv_out   = df[available].fillna("").to_csv(sep="\t", index=False)
+        js_output = build_full_js(tsv_out, geojson_str)
 
         return jsonify({
-            "geojson": geojson_dict,
-            "geojson_str": geojson_str,
-            "js_output": js_output,
+            "geojson":      geojson_dict,
+            "geojson_str":  geojson_str,
+            "js_output":    js_output,
             "record_count": len(clean_df),
             "species_name": species_name,
         })
