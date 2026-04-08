@@ -607,25 +607,18 @@ async function runPipeline(){
     addLog(`✅ ${outRows.length.toLocaleString()} rows ready`,'ok');
     setProgress(65);
 
-    // Step 3: Build range polygon
+    // Step 3: Build range polygon — send only lat/lon/species to stay under size limits
     addLog('🐍 Building range polygon…','info');
     setBusy(true,'Building range polygon…');
-    const payload=outRows.map(r=>({
-      speciesname:r.speciesname,latitude:r.latitude,longitude:r.longitude,
-      recordedby:r.recordedby,datefound:r.datefound,determinedby:r.determinedby,
-      lifestage:r.lifestage,sex:r.sex,notes:r.notes,rights:r.rights,
-      rightsholder:r.rightsholder,sourcelink:r.sourcelink,gbif_link:r.gbif_link,locality:r.locality
-    }));
-    // Use /process with TSV form data (same endpoint as JS upload, avoids /process_json)
-    const _tsvCols=['speciesname','latitude','longitude','recordedby','datefound','determinedby','lifestage','sex','notes','rights','rightsholder','sourcelink','gbif_link','locality'];
-    const _tsvText=[_tsvCols.join('\t'),...payload.map(r=>_tsvCols.map(c=>r[c]??'').join('\t'))].join('\n');
+    const _minCols=['speciesname','latitude','longitude'];
+    const _minTsv=[_minCols.join('\t'),...outRows.map(r=>_minCols.map(c=>r[c]??'').join('\t'))].join('\n');
     const _form=new FormData();
     _form.append('input_type','tsv');
-    _form.append('tsv_text',_tsvText);
+    _form.append('tsv_text',_minTsv);
     const res=await fetch(`${API}/process`,{method:'POST',body:_form});
     const d=await res.json();
     if(!res.ok||d.error) throw new Error(d.error||'Backend error');
-    resultData=d;
+    resultData={...d,species_name:d.species_name||sp};
     setProgress(100);
     addLog(`✅ Range polygon built!`,'ok');
     showResults(d,outRows);
@@ -694,7 +687,53 @@ function dlFile(fmt){
   trigger(new Blob([serialize(outRows,sep)],{type:'text/plain'}),`${safeName()}.${fmt}`);
 }
 function dlGeoJSON(){if(!resultData)return;trigger(new Blob([resultData.geojson_str],{type:'application/json'}),`${safeName()}_range.geojson`);}
-function dlJS(){if(!resultData)return;trigger(new Blob([resultData.js_output],{type:'text/javascript'}),`${safeName()}_map.js`);}
+function buildJsOutput(){
+  const tsvCols=['speciesname','latitude','longitude','recordedby','datefound','determinedby','lifestage','sex','notes','rights','rightsholder','sourcelink','gbif_link','locality'];
+  const tsvText=[tsvCols.join('\t'),...outRows.map(r=>tsvCols.map(c=>{const v=r[c];return v==null?'':String(v).replace(/\t/g,' ');}).join('\t'))].join('\n');
+  const geo=resultData.geojson_str;
+  // Build output using array join to avoid nested template literal escaping issues
+  const lines=[
+    '// Distribution Range Map',
+    'const tsvText = `' + tsvText + '`;',
+    '',
+    'function tsvToGeoJSON(tsv) {',
+    '  const lines = tsv.trim().split(/\\r?\\n/);',
+    '  const headers = lines[0].split("\\t").map(h => h.trim());',
+    '  const features = [];',
+    '  for (let i = 1; i < lines.length; i++) {',
+    '    if (!lines[i].trim()) continue;',
+    '    const cols = lines[i].split("\\t");',
+    '    const obj = {};',
+    '    headers.forEach((h, j) => { obj[h] = cols[j] ? cols[j].trim() : ""; });',
+    '    const lat = parseFloat(obj["latitude"]);',
+    '    const lon = parseFloat(obj["longitude"]);',
+    '    if (isNaN(lat) || isNaN(lon)) continue;',
+    '    features.push({ type: "Feature", properties: obj, geometry: { type: "Point", coordinates: [lon, lat] } });',
+    '  }',
+    '  return { type: "FeatureCollection", features };',
+    '}',
+    '',
+    'const speciesData = tsvToGeoJSON(tsvText);',
+    'const speciesRangeGeoJSON = ' + geo + ';',
+    '',
+    'const map = L.map("map").setView([39, -120], 5);',
+    'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 14, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);',
+    'if (speciesRangeGeoJSON) {',
+    '  L.geoJSON(speciesRangeGeoJSON, { style: { color: "#3366ff", weight: 2, fillColor: "#6699ff", fillOpacity: 0.25 }, interactive: false }).addTo(map);',
+    '}',
+    'L.geoJSON(speciesData, {',
+    '  pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 5, color: "#ff6600", fillColor: "#ff6600", fillOpacity: 0.9 })',
+    '    .bindPopup(Object.entries(f.properties).map(([k,v]) => `<b>${k}:</b> ${v}`).join("<br>"))',
+    '}).addTo(map);',
+    'if (speciesData.features.length > 0) {',
+    '  const bounds = speciesData.features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]);',
+    '  map.fitBounds(bounds, { padding: [10, 10] });',
+    '}',
+    'setTimeout(() => map.invalidateSize(), 700);',
+  ];
+  return lines.join('\n');
+}
+function dlJS(){if(!resultData||!outRows.length)return;trigger(new Blob([buildJsOutput()],{type:'text/javascript'}),`${safeName()}_map.js`);}
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
