@@ -180,9 +180,10 @@ def to_geojson_str(geom):
 
 
 def build_full_js(tsv_text, geojson_str):
-    return f"""// Distribution Range Map
+    return f"""// ── Distribution Range Map ──────────────────────────────────────────────────
 const tsvText = `{tsv_text.strip()}`;
 
+// ── TSV → GeoJSON ─────────────────────────────────────────────────────────────
 function tsvToGeoJSON(tsv) {{
   const lines = tsv.trim().split(/\\r?\\n/);
   const headers = lines[0].split("\\t").map(h => h.trim());
@@ -190,6 +191,7 @@ function tsvToGeoJSON(tsv) {{
   for (let i = 1; i < lines.length; i++) {{
     if (!lines[i].trim()) continue;
     const cols = lines[i].split("\\t");
+    if (cols.length < headers.length) continue;
     const obj = {{}};
     headers.forEach((h, j) => {{ obj[h] = cols[j] ? cols[j].trim() : ""; }});
     const lat = parseFloat(obj["latitude"]);
@@ -198,18 +200,19 @@ function tsvToGeoJSON(tsv) {{
     features.push({{
       type: "Feature",
       properties: {{
-        name: obj["speciesname"] || "",
-        latitude: lat, longitude: lon,
-        foundBy: obj["recordedby"] || "",
-        dateFound: obj["datefound"] || "",
+        name:         obj["speciesname"]  || "",
+        latitude:     lat,
+        longitude:    lon,
+        foundBy:      obj["recordedby"]   || "",
+        dateFound:    obj["datefound"]    || "",
         determinedBy: obj["determinedby"] || "",
-        lifeStage: obj["lifestage"] || "",
-        sex: obj["sex"] || "",
-        notes: obj["notes"] || "",
-        rights: obj["rights"] || "",
+        lifeStage:    obj["lifestage"]    || "",
+        sex:          obj["sex"]          || "",
+        notes:        obj["notes"]        || "",
+        rights:       obj["rights"]       || "",
         rightsHolder: obj["rightsholder"] || "",
-        sourceLink: obj["sourcelink"] || "",
-        locality: obj["locality"] || "",
+        sourceLink:   obj["sourcelink"]   || "",
+        locality:     obj["locality"]     || "",
       }},
       geometry: {{ type: "Point", coordinates: [lon, lat] }},
     }});
@@ -218,30 +221,109 @@ function tsvToGeoJSON(tsv) {{
 }}
 
 const speciesData = tsvToGeoJSON(tsvText);
+
+// ── Range polygon ─────────────────────────────────────────────────────────────
 const speciesRangeGeoJSON = {geojson_str};
 
+// ── Popup builder ─────────────────────────────────────────────────────────────
+function buildPopup(p) {{
+  const parts = [
+    `<b>${{p.name}}</b>`,
+    `<b>Coordinates:</b> ${{parseFloat(p.latitude).toFixed(4)}}, ${{parseFloat(p.longitude).toFixed(4)}}`,
+  ];
+  if (p.locality && p.locality.trim())
+    parts.push(`<b>Locality:</b> ${{p.locality}}`);
+  parts.push(
+    `<b>Recorded By:</b> ${{p.foundBy      || "Unknown"}}`,
+    `<b>Date Found:</b>  ${{p.dateFound    || "Unknown"}}`,
+    `<b>Determined By:</b> ${{p.determinedBy || "Unknown"}}`,
+    `<b>Life Stage:</b>  ${{p.lifeStage    || "Unknown"}}`,
+    `<b>Sex:</b>         ${{p.sex          || "Unknown"}}`,
+    `<b>Notes:</b>       ${{p.notes        || "None"}}`
+  );
+  if (p.rights)       parts.push(`<b>Rights:</b> ${{p.rights}}`);
+  if (p.rightsHolder) parts.push(`<b>Rights Holder:</b> ${{p.rightsHolder}}`);
+
+  // Source link — detect GBIF URLs vs generic URLs vs plain text
+  if (p.sourceLink) {{
+    const link = p.sourceLink.trim();
+    const isGBIF = /gbif\\.org\\/occurrence/i.test(link);
+    const isURL  = /^https?:\\/\\//i.test(link);
+    const isDOI  = /^10\\.\\d{{4,9}}\\//i.test(link);
+    if (isGBIF)
+      parts.push(`<b>Source:</b> <a href="${{link}}" target="_blank" rel="noopener noreferrer">View GBIF Record</a>`);
+    else if (isURL)
+      parts.push(`<b>Source:</b> <a href="${{link}}" target="_blank" rel="noopener noreferrer">View Record</a>`);
+    else if (isDOI)
+      parts.push(`<b>Source:</b> <a href="https://doi.org/${{link}}" target="_blank" rel="noopener noreferrer">${{link}}</a>`);
+    else
+      parts.push(`<b>Source:</b> ${{link}}`);
+  }}
+  return parts.join("<br>");
+}}
+
+// ── Zoom-aware radius ─────────────────────────────────────────────────────────
+function zoomToRadius(zoom) {{
+  if (zoom >= 12) return 7;
+  if (zoom >= 10) return 6;
+  if (zoom >= 8)  return 5;
+  if (zoom >= 6)  return 4;
+  if (zoom >= 5)  return 3;
+  return 2;
+}}
+
+// ── Point layer ───────────────────────────────────────────────────────────────
+function addPointLayer(geojson, color) {{
+  const layer = L.geoJSON(geojson, {{
+    pointToLayer: (feature, latlng) => {{
+      const marker = L.circleMarker(latlng, {{
+        radius: zoomToRadius(map.getZoom()),
+        color, fillColor: color, fillOpacity: 0.9,
+      }});
+      marker.bindPopup(buildPopup(feature.properties));
+      return marker;
+    }},
+  }}).addTo(map);
+  map.on("zoomend", () => {{
+    const r = zoomToRadius(map.getZoom());
+    layer.eachLayer(m => m.setRadius(r));
+  }});
+  return layer;
+}}
+
+// ── Locate a visible .map-placeholder and inject the map div ─────────────────
+function isVisible(el) {{ return el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); }}
+const allPlaceholders = document.querySelectorAll(".map-placeholder");
+let target = null;
+allPlaceholders.forEach(el => {{ if (isVisible(el)) target = el; }});
+const mapEl = document.getElementById("map");
+if (target && mapEl) target.appendChild(mapEl);
+
+// ── Map init ──────────────────────────────────────────────────────────────────
 const map = L.map("map").setView([39, -120], 5);
 L.tileLayer("https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
   maxZoom: 14, attribution: "&copy; OpenStreetMap contributors",
 }}).addTo(map);
 
+// ── Draw range polygon (beneath points) ──────────────────────────────────────
 if (speciesRangeGeoJSON) {{
   L.geoJSON(speciesRangeGeoJSON, {{
-    style: {{ color: "#0d9488", weight: 2, fillColor: "#2dd4bf", fillOpacity: 0.2 }},
+    style: {{ color: "#3366ff", weight: 2, fillColor: "#6699ff", fillOpacity: 0.25, smoothFactor: 1 }},
     interactive: false,
   }}).addTo(map);
 }}
 
-L.geoJSON(speciesData, {{
-  pointToLayer: (f, ll) => L.circleMarker(ll, {{
-    radius: 5, color: "#0f766e", fillColor: "#14b8a6", fillOpacity: 0.85, weight: 1.5,
-  }}).bindPopup(Object.entries(f.properties).filter(([,v])=>v).map(([k,v]) => `<b>${{k}}:</b> ${{v}}`).join("<br>")),
-}}).addTo(map);
+// ── Draw points ───────────────────────────────────────────────────────────────
+const pointLayer = addPointLayer(speciesData, "#ff6600");
 
+// ── Fit bounds ────────────────────────────────────────────────────────────────
 if (speciesData.features.length > 0) {{
   const bounds = speciesData.features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]);
   map.fitBounds(bounds, {{ padding: [10, 10] }});
 }}
+
+// ── Resize handlers ───────────────────────────────────────────────────────────
+window.addEventListener("resize", () => {{ setTimeout(() => map.invalidateSize(), 500); }});
 setTimeout(() => map.invalidateSize(), 700);
 """
 

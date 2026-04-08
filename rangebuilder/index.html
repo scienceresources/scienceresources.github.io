@@ -97,6 +97,7 @@
             <div class="drop-zone rounded-xl p-6 cursor-pointer hover:border-teal-300 hover:bg-teal-50/50 flex flex-col items-center justify-center min-h-[160px] relative"
               id="dropZone" onclick="document.getElementById('fileInput').click()">
               <input type="file" id="fileInput" accept=".zip,.txt" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                style="pointer-events: none;"
                 onchange="onFileSelect(this)" />
 
               <div id="dzEmpty" class="flex items-center gap-5 text-center w-full justify-center">
