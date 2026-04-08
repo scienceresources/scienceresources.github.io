@@ -12,6 +12,7 @@ import shapely
 from shapely.geometry import Polygon, MultiPolygon
 
 app = Flask(__name__, static_folder="static")
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
 CORS(app)
 
 # ── Land mask (loaded once at startup) ─────────────────────────────────────────
@@ -71,7 +72,6 @@ def build_range(df, buffer_deg=1.2, concave_ratio=0.25, simplify_tol=0.12, smoot
 
 # ── JS helpers ─────────────────────────────────────────────────────────────────
 def extract_tsv_blocks(js_content):
-    """Return a list of TSV strings found inside backtick template literals."""
     blocks = re.findall(r"`(.*?)`", js_content, re.DOTALL)
     return [b.strip() for b in blocks if "latitude" in b]
 
@@ -81,52 +81,30 @@ def tsv_to_df(tsv_text):
 
 
 def to_geojson_str(geom):
-    """Compact JSON string of the geometry as a FeatureCollection."""
     return json.dumps(json.loads(gpd.GeoSeries([geom]).to_json()), separators=(",", ":"))
 
 
-def inject_geojson(js_content, geojson_str):
-    pattern = r"const speciesRangeGeoJSON\s*=\s*null;"
-    replacement = f"const speciesRangeGeoJSON = {geojson_str};"
-    updated, n = re.subn(pattern, replacement, js_content)
-    if n == 0:
-        raise ValueError('Could not find "const speciesRangeGeoJSON = null;" in the JS file.')
-    return updated
-
-
 def build_full_js(tsv_text, geojson_str):
-    """Generate the full .js output from TSV + polygon GeoJSON string."""
-    return f"""// =========================
-// Melissodes Map Visualization
-// =========================
-
+    return f"""// Distribution Range Map
 const tsvText = `{tsv_text.strip()}`;
 
 function tsvToGeoJSON(tsv) {{
   const lines = tsv.trim().split(/\\r?\\n/);
   const headers = lines[0].split("\\t").map(h => h.trim());
   const features = [];
-
   for (let i = 1; i < lines.length; i++) {{
     if (!lines[i].trim()) continue;
     const cols = lines[i].split("\\t");
-    if (cols.length < headers.length) continue;
-
     const obj = {{}};
-    headers.forEach((h, j) => {{
-      obj[h] = cols[j] ? cols[j].trim() : "";
-    }});
-
+    headers.forEach((h, j) => {{ obj[h] = cols[j] ? cols[j].trim() : ""; }});
     const lat = parseFloat(obj["latitude"]);
     const lon = parseFloat(obj["longitude"]);
     if (isNaN(lat) || isNaN(lon)) continue;
-
     features.push({{
       type: "Feature",
       properties: {{
         name: obj["speciesname"] || "",
-        latitude: lat,
-        longitude: lon,
+        latitude: lat, longitude: lon,
         foundBy: obj["recordedby"] || "",
         dateFound: obj["datefound"] || "",
         determinedBy: obj["determinedby"] || "",
@@ -142,165 +120,35 @@ function tsvToGeoJSON(tsv) {{
       geometry: {{ type: "Point", coordinates: [lon, lat] }},
     }});
   }}
-
   return {{ type: "FeatureCollection", features }};
 }}
 
-const melissodesData = tsvToGeoJSON(tsvText);
+const speciesData = tsvToGeoJSON(tsvText);
+const speciesRangeGeoJSON = {geojson_str};
 
-function isVisible(el) {{
-  return el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-}}
-
-const allPlaceholders = document.querySelectorAll(".map-placeholder");
-let target = null;
-allPlaceholders.forEach((el) => {{
-  if (isVisible(el)) target = el;
-}});
-
-const mapEl = document.getElementById("map");
-if (target && mapEl) {{
-  target.appendChild(mapEl);
-  console.log("🗺️ Moved map into:", target.parentElement.className);
-}}
-
-// ─── Create map ───────────────────────────────────────────────────────────────
 const map = L.map("map").setView([39, -120], 5);
 L.tileLayer("https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
-  maxZoom: 14,
-  attribution: "&copy; OpenStreetMap contributors",
+  maxZoom: 14, attribution: "&copy; OpenStreetMap contributors",
 }}).addTo(map);
 
-// ─── Popup builder ────────────────────────────────────────────────────────────
-function buildPopup(p) {{
-  const popupParts = [
-    `<b>${{p.name}}</b>`,
-    `<b>Coordinates:</b> ${{parseFloat(p.latitude).toFixed(4)}}, ${{parseFloat(p.longitude).toFixed(4)}}`,
-  ];
-
-  if (p.locality && p.locality.trim())
-    popupParts.push(`<b>Locality:</b> ${{p.locality}}`);
-
-  popupParts.push(
-    `<b>Recorded By:</b> ${{p.foundBy || "Unknown"}}`,
-    `<b>Date Found:</b> ${{p.dateFound || "Unknown"}}`,
-    `<b>Determined By:</b> ${{p.determinedBy || "Unknown"}}`,
-    `<b>Life Stage:</b> ${{p.lifeStage || "Unknown"}}`,
-    `<b>Sex:</b> ${{p.sex || "Unknown"}}`,
-    `<b>Notes:</b> ${{p.notes || "None"}}`
-  );
-
-  if (p.rights) popupParts.push(`<b>Rights:</b> ${{p.rights}}`);
-  if (p.rightsHolder) popupParts.push(`<b>Rights Holder:</b> ${{p.rightsHolder}}`);
-
-  if (p.gbif_link) {{
-    popupParts.push(
-      `<b>Source:</b> <a href="${{p.gbif_link}}" target="_blank" rel="noopener noreferrer">View GBIF Record</a>`
-    );
-    if (p.sourceLink) {{
-      const link = p.sourceLink.trim();
-      if (/^https?:\\/\\//i.test(link))
-        popupParts.push(`<b>Discover Life Link:</b> <a href="${{link}}" target="_blank" rel="noopener noreferrer">View Discover Life Record</a>`);
-      else
-        popupParts.push(`<b>Discover Life Link:</b> ${{link}}`);
-    }}
-  }} else if (p.sourceLink) {{
-    const link = p.sourceLink.trim();
-    const isURL = /^https?:\\/\\//i.test(link);
-    const isDOI = /^10\\.\\d{{4,9}}\\/[-._;()\\/:A-Z0-9]+$/i.test(link);
-    if (isURL)
-      popupParts.push(`<b>Source:</b> <a href="${{link}}" target="_blank" rel="noopener noreferrer">View Record</a>`);
-    else if (isDOI)
-      popupParts.push(`<b>Source:</b> <a href="https://doi.org/${{link}}" target="_blank" rel="noopener noreferrer">${{link}}</a>`);
-    else
-      popupParts.push(`<b>Source:</b> ${{link}}`);
-  }}
-
-  return popupParts.join("<br>");
-}}
-
-// ─── Zoom-aware point layer ───────────────────────────────────────────────────
-function zoomToRadius(zoom) {{
-  if (zoom >= 12) return 7;
-  if (zoom >= 10) return 6;
-  if (zoom >= 8)  return 5;
-  if (zoom >= 6)  return 4;
-  if (zoom >= 5)  return 3;
-  return 2;
-}}
-
-function addPointLayer(geojson, color) {{
-  const layer = L.geoJSON(geojson, {{
-    pointToLayer: (feature, latlng) => {{
-      const marker = L.circleMarker(latlng, {{
-        radius: zoomToRadius(map.getZoom()),
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.9,
-      }});
-      marker.bindPopup(buildPopup(feature.properties));
-      return marker;
-    }},
-  }}).addTo(map);
-
-  map.on("zoomend", () => {{
-    const r = zoomToRadius(map.getZoom());
-    layer.eachLayer(m => m.setRadius(r));
-  }});
-
-  return layer;
-}}
-
-// ─── PASTE GEOJSON HERE (AUTOMATED) ──────────────────────────────────────────
-const speciesRangeGeoJSON = {geojson_str};
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─── Draw range polygon (beneath points) ─────────────────────────────────────
 if (speciesRangeGeoJSON) {{
   L.geoJSON(speciesRangeGeoJSON, {{
-    style: {{
-      color: "#3366ff",
-      weight: 2,
-      fillColor: "#6699ff",
-      fillOpacity: 0.25,
-      smoothFactor: 1,
-    }},
+    style: {{ color: "#3366ff", weight: 2, fillColor: "#6699ff", fillOpacity: 0.25 }},
     interactive: false,
   }}).addTo(map);
 }}
 
-// ─── Draw points (on top of polygon) ─────────────────────────────────────────
-const pointLayer = addPointLayer(melissodesData, "#ff6600");
+L.geoJSON(speciesData, {{
+  pointToLayer: (f, ll) => L.circleMarker(ll, {{
+    radius: 5, color: "#ff6600", fillColor: "#ff6600", fillOpacity: 0.9,
+  }}).bindPopup(Object.entries(f.properties).map(([k,v]) => `<b>${{k}}:</b> ${{v}}`).join("<br>")),
+}}).addTo(map);
 
-// ─── Fit bounds to all valid points ──────────────────────────────────────────
-if (melissodesData.features.length > 0) {{
-  const bounds = melissodesData.features.map(f => [
-    f.geometry.coordinates[1],
-    f.geometry.coordinates[0],
-  ]);
+if (speciesData.features.length > 0) {{
+  const bounds = speciesData.features.map(f => [f.geometry.coordinates[1], f.geometry.coordinates[0]]);
   map.fitBounds(bounds, {{ padding: [10, 10] }});
 }}
-
-// Resize handlers
-window.addEventListener("resize", () => {{
-  setTimeout(() => map.invalidateSize(), 500);
-}});
 setTimeout(() => map.invalidateSize(), 700);
-
-window.addEventListener("resize", () => {{
-  setTimeout(() => {{
-    const allPlaceholders = document.querySelectorAll(".map-placeholder");
-    const mapEl = document.getElementById("map");
-    let target = null;
-    allPlaceholders.forEach((el) => {{
-      if (el.offsetParent !== null) target = el;
-    }});
-    if (target && mapEl && target !== mapEl.parentElement) {{
-      target.appendChild(mapEl);
-      if (typeof map !== "undefined" && map.invalidateSize) map.invalidateSize();
-    }}
-  }}, 600);
-}});
 """
 
 
@@ -313,18 +161,9 @@ def index():
 
 @app.route("/process", methods=["POST"])
 def process():
-    """
-    Accepts multipart form with:
-      - mode: 'species' or 'subspecies'
-      - file: .js file  (optional, if js_mode)
-      - tsv_text: raw TSV string  (optional, if tsv_mode)
-      - input_type: 'js' | 'tsv'
-    Returns JSON: { geojson, js_output, record_count, species_name }
-    """
+    """Legacy endpoint — multipart form with tsv_text or .js file upload."""
     try:
-        mode = request.form.get("mode", "species")
         input_type = request.form.get("input_type", "tsv")
-
         if input_type == "js":
             js_file = request.files.get("file")
             if not js_file:
@@ -332,7 +171,7 @@ def process():
             js_content = js_file.read().decode("utf-8")
             tsv_blocks = extract_tsv_blocks(js_content)
             if not tsv_blocks:
-                return jsonify({"error": "No TSV data found inside backtick blocks in the JS file."}), 400
+                return jsonify({"error": "No TSV data found in JS file."}), 400
             tsv_text = tsv_blocks[0]
         else:
             tsv_text = request.form.get("tsv_text", "").strip()
@@ -343,23 +182,52 @@ def process():
         final_range, clean_df = build_range(df)
         geojson_str = to_geojson_str(final_range)
         geojson_dict = json.loads(geojson_str)
-
-        # Derive species name
         species_name = ""
         if "speciesname" in clean_df.columns and not clean_df["speciesname"].dropna().empty:
             species_name = clean_df["speciesname"].dropna().iloc[0]
+        js_output = build_full_js(tsv_text, geojson_str)
+        return jsonify({
+            "geojson": geojson_dict, "geojson_str": geojson_str,
+            "js_output": js_output, "record_count": len(clean_df), "species_name": species_name,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-        # Build JS output
+
+@app.route("/process_json", methods=["POST"])
+def process_json():
+    """
+    New endpoint — accepts JSON body to avoid 413 errors with large datasets.
+    Body: { rows: [{speciesname, latitude, longitude, ...}], species_name: "..." }
+    """
+    try:
+        data = request.get_json(force=True)
+        rows = data.get("rows", [])
+        if not rows:
+            return jsonify({"error": "No rows provided."}), 400
+
+        df = pd.DataFrame(rows)
+        final_range, clean_df = build_range(df)
+        geojson_str = to_geojson_str(final_range)
+        geojson_dict = json.loads(geojson_str)
+
+        species_name = data.get("species_name", "")
+        if not species_name and "speciesname" in clean_df.columns:
+            vals = clean_df["speciesname"].dropna()
+            if not vals.empty:
+                species_name = str(vals.iloc[0])
+
+        COLS = ["speciesname", "latitude", "longitude", "recordedby", "datefound",
+                "determinedby", "lifestage", "sex", "notes", "rights", "rightsholder",
+                "sourcelink", "gbif_link", "locality"]
+        available = [c for c in COLS if c in df.columns]
+        tsv_text = df[available].fillna("").to_csv(sep="\t", index=False)
         js_output = build_full_js(tsv_text, geojson_str)
 
         return jsonify({
-            "geojson": geojson_dict,
-            "geojson_str": geojson_str,
-            "js_output": js_output,
-            "record_count": len(clean_df),
-            "species_name": species_name,
+            "geojson": geojson_dict, "geojson_str": geojson_str,
+            "js_output": js_output, "record_count": len(clean_df), "species_name": species_name,
         })
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
