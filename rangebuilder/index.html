@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🐝 Distribution Range Builder</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0d1117;
+      --surface:    #161b22;
+      --surface2:   #1f2937;
+      --border:     #30363d;
+      --accent:     #f5a623;
+      --accent2:    #3b82f6;
+      --text:       #e6edf3;
+      --text-dim:   #8b949e;
+      --success:    #3fb950;
+      --error:      #f85149;
+      --radius:     8px;
+      --font-mono:  'Space Mono', monospace;
+      --font-sans:  'DM Sans', sans-serif;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+
+    /* ── Layout ────────────────────────────────────────────────────────────── */
+    .app { display: grid; grid-template-columns: 380px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
+
+    /* ── Header ────────────────────────────────────────────────────────────── */
+    header {
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+    }
+    header .bee { font-size: 22px; }
+    header h1 { font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+    header .subtitle { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+    header .backend-badge {
+      margin-left: auto;
+      font-size: 10px; font-family: var(--font-mono);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 3px 10px; border-radius: 20px; color: var(--text-dim);
+    }
+    header .backend-badge span { color: var(--success); }
+
+    /* ── Sidebar ───────────────────────────────────────────────────────────── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex; flex-direction: column;
+    }
+
+    .section {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title {
+      font-family: var(--font-mono);
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* ── Mode toggle ───────────────────────────────────────────────────────── */
+    .toggle-group { display: flex; gap: 0; background: var(--bg); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+    .toggle-btn {
+      flex: 1; padding: 8px; font-family: var(--font-mono); font-size: 11px;
+      font-weight: 700; cursor: pointer; border: none; background: transparent;
+      color: var(--text-dim); transition: all 0.15s;
+    }
+    .toggle-btn.active { background: var(--accent); color: #000; }
+    .toggle-btn:hover:not(.active) { background: var(--surface2); color: var(--text); }
+
+    /* ── Input type selector ───────────────────────────────────────────────── */
+    .input-tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+    .input-tab {
+      padding: 6px 14px; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      cursor: pointer; border: 1px solid var(--border); background: transparent;
+      color: var(--text-dim); border-radius: var(--radius); transition: all 0.15s;
+    }
+    .input-tab.active { border-color: var(--accent2); color: var(--accent2); background: rgba(59,130,246,0.1); }
+
+    /* ── File drop zone ────────────────────────────────────────────────────── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent2); background: rgba(59,130,246,0.06); }
+    .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .drop-zone .icon { font-size: 28px; margin-bottom: 8px; }
+    .drop-zone .label { font-size: 13px; color: var(--text-dim); }
+    .drop-zone .label strong { color: var(--accent2); }
+    .drop-zone .filename { font-family: var(--font-mono); font-size: 11px; color: var(--success); margin-top: 6px; }
+
+    /* ── Textarea ──────────────────────────────────────────────────────────── */
+    textarea {
+      width: 100%; height: 160px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 12px;
+      font-family: var(--font-mono); font-size: 11px; color: var(--text);
+      resize: vertical; outline: none; transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: var(--accent2); }
+    textarea::placeholder { color: var(--text-dim); }
+
+    /* ── Run button ────────────────────────────────────────────────────────── */
+    .run-btn {
+      width: 100%; padding: 12px;
+      background: var(--accent); border: none;
+      color: #000; font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+      letter-spacing: 0.05em; cursor: pointer;
+      border-radius: var(--radius); transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .run-btn:hover { background: #fbbf24; transform: translateY(-1px); }
+    .run-btn:active { transform: translateY(0); }
+    .run-btn:disabled { background: var(--surface2); color: var(--text-dim); cursor: not-allowed; transform: none; }
+
+    /* ── Status / log ──────────────────────────────────────────────────────── */
+    .log-area {
+      font-family: var(--font-mono); font-size: 11px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 12px;
+      min-height: 60px; color: var(--text-dim);
+      white-space: pre-wrap; word-break: break-all;
+      line-height: 1.6;
+    }
+    .log-area .ok  { color: var(--success); }
+    .log-area .err { color: var(--error); }
+    .log-area .info{ color: var(--accent2); }
+
+    /* ── Download buttons ──────────────────────────────────────────────────── */
+    .dl-group { display: flex; flex-direction: column; gap: 8px; }
+    .dl-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); cursor: pointer; font-family: var(--font-sans);
+      font-size: 13px; color: var(--text); transition: all 0.15s; text-decoration: none;
+    }
+    .dl-btn:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(59,130,246,0.08); }
+    .dl-btn:disabled, .dl-btn.disabled { opacity: 0.3; pointer-events: none; }
+    .dl-btn .dl-icon { font-size: 18px; }
+    .dl-btn .dl-info { display: flex; flex-direction: column; }
+    .dl-btn .dl-name { font-weight: 600; font-size: 12px; }
+    .dl-btn .dl-desc { font-size: 11px; color: var(--text-dim); }
+
+    /* ── Stats chip ────────────────────────────────────────────────────────── */
+    .stat-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      font-family: var(--font-mono); font-size: 11px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px; color: var(--text-dim);
+    }
+    .chip span { color: var(--text); font-weight: 700; }
+
+    /* ── Map area ──────────────────────────────────────────────────────────── */
+    .map-area { position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    .map-overlay {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: var(--bg); z-index: 500;
+      gap: 16px; pointer-events: none;
+    }
+    .map-overlay .overlay-icon { font-size: 56px; }
+    .map-overlay .overlay-text { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); text-align: center; }
+    .map-overlay.hidden { display: none; }
+
+    /* Spinner */
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Scrollbar ─────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Responsive ────────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; height: auto; min-height: 100vh; }
+      .map-area { height: 50vh; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <span class="bee">🐝</span>
+    <h1>Distribution Range Builder</h1>
+    <span class="subtitle">/ polygon generator</span>
+    <span class="backend-badge">backend: <span>Python + Flask</span></span>
+  </header>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <!-- Mode -->
+    <div class="section">
+      <div class="section-title">Mode</div>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="modeSpecies" onclick="setMode('species')">Species</button>
+        <button class="toggle-btn" id="modeSubspecies" onclick="setMode('subspecies')">Subspecies</button>
+      </div>
+      <p style="margin-top:10px; font-size:11px; color:var(--text-dim); line-height:1.6;">
+        <strong style="color:var(--text)">Species:</strong> single TSV block → one range polygon.<br>
+        <strong style="color:var(--text)">Subspecies:</strong> JS with three TSV blocks; species-wide polygon embedded.
+      </p>
+    </div>
+
+    <!-- Input -->
+    <div class="section">
+      <div class="section-title">Input Data</div>
+      <div class="input-tabs">
+        <button class="input-tab active" id="tabTSV" onclick="setInputType('tsv')">Paste TSV</button>
+        <button class="input-tab" id="tabJS"  onclick="setInputType('js')">Upload .js</button>
+      </div>
+
+      <!-- TSV panel -->
+      <div id="panelTSV">
+        <textarea id="tsvInput" placeholder="speciesname&#9;latitude&#9;longitude&#9;recordedby&#9;...&#10;Apis mellifera&#9;45.0&#9;-122.5&#9;..."></textarea>
+        <p style="margin-top:6px; font-size:11px; color:var(--text-dim);">Tab-separated. Must include <code style="color:var(--accent2)">latitude</code> &amp; <code style="color:var(--accent2)">longitude</code> columns.</p>
+      </div>
+
+      <!-- JS file panel -->
+      <div id="panelJS" style="display:none;">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="jsFile" accept=".js" onchange="onFileSelect(this)" />
+          <div class="icon">📄</div>
+          <div class="label"><strong>Click to upload</strong> or drag & drop</div>
+          <div class="label">.js files only</div>
+          <div class="filename" id="fileName" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Run -->
+    <div class="section">
+      <button class="run-btn" id="runBtn" onclick="runProcess()">
+        <span>▶</span> Build Range Polygon
+      </button>
+    </div>
+
+    <!-- Log -->
+    <div class="section">
+      <div class="section-title">Status</div>
+      <div class="log-area" id="logArea">Waiting for input…</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="section" id="statsSection" style="display:none;">
+      <div class="section-title">Result</div>
+      <div class="stat-chips" id="statChips"></div>
+    </div>
+
+    <!-- Downloads -->
+    <div class="section">
+      <div class="section-title">Downloads</div>
+      <div class="dl-group">
+        <button class="dl-btn disabled" id="dlGeoJSON" onclick="downloadGeoJSON()">
+          <span class="dl-icon">🗺️</span>
+          <div class="dl-info">
+            <span class="dl-name">GeoJSON</span>
+            <span class="dl-desc">Range polygon as .geojson</span>
+          </div>
+        </button>
+        <button class="dl-btn disabled" id="dlJS" onclick="downloadJS()">
+          <span class="dl-icon">📦</span>
+          <div class="dl-info">
+            <span class="dl-name">JavaScript</span>
+            <span class="dl-desc">Full .js with GeoJSON baked in</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- Map -->
+  <div class="map-area">
+    <div id="map"></div>
+    <div class="map-overlay" id="mapOverlay">
+      <span class="overlay-icon">🌍</span>
+      <span class="overlay-text">Build a range polygon to see it here</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentMode = 'species';
+let currentInputType = 'tsv';
+let resultData = null;
+let mapInstance = null;
+let rangeLayer = null;
+let pointLayer = null;
+
+// ── Map init ──────────────────────────────────────────────────────────────────
+mapInstance = L.map('map').setView([39, -120], 4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 14,
+  attribution: '&copy; OpenStreetMap contributors',
+}).addTo(mapInstance);
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('modeSpecies').classList.toggle('active', m === 'species');
+  document.getElementById('modeSubspecies').classList.toggle('active', m === 'subspecies');
+}
+
+function setInputType(t) {
+  currentInputType = t;
+  document.getElementById('tabTSV').classList.toggle('active', t === 'tsv');
+  document.getElementById('tabJS').classList.toggle('active', t === 'js');
+  document.getElementById('panelTSV').style.display = t === 'tsv' ? '' : 'none';
+  document.getElementById('panelJS').style.display  = t === 'js'  ? '' : 'none';
+}
+
+function onFileSelect(input) {
+  const name = input.files[0]?.name || '';
+  const el = document.getElementById('fileName');
+  el.textContent = name;
+  el.style.display = name ? '' : 'none';
+}
+
+function log(html) {
+  document.getElementById('logArea').innerHTML = html;
+}
+
+function setLoading(loading) {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Processing…'
+    : '<span>▶</span> Build Range Polygon';
+  if (loading) {
+    document.getElementById('mapOverlay').classList.remove('hidden');
+    document.getElementById('mapOverlay').innerHTML = `
+      <div class="spinner"></div>
+      <span class="overlay-text">Running Python pipeline…<br>Chaikin smoothing · concave hull · land clip</span>`;
+  }
+}
+
+// ── Drag & drop ───────────────────────────────────────────────────────────────
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) {
+    const dt = new DataTransfer(); dt.items.add(f);
+    document.getElementById('jsFile').files = dt.files;
+    onFileSelect(document.getElementById('jsFile'));
+  }
+});
+
+// ── Run ───────────────────────────────────────────────────────────────────────
+async function runProcess() {
+  // Determine backend URL
+  const API = window.location.origin;
+
+  setLoading(true);
+  log('<span class="info">⏳ Sending to Python backend…</span>');
+  resultData = null;
+  enableDownloads(false);
+
+  try {
+    const form = new FormData();
+    form.append('mode', currentMode);
+    form.append('input_type', currentInputType);
+
+    if (currentInputType === 'js') {
+      const file = document.getElementById('jsFile').files[0];
+      if (!file) { log('<span class="err">✗ No JS file selected.</span>'); setLoading(false); return; }
+      form.append('file', file);
+    } else {
+      const tsv = document.getElementById('tsvInput').value.trim();
+      if (!tsv) { log('<span class="err">✗ TSV input is empty.</span>'); setLoading(false); return; }
+      form.append('tsv_text', tsv);
+    }
+
+    const res = await fetch(`${API}/process`, { method: 'POST', body: form });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      log(`<span class="err">✗ Error: ${data.error || 'Unknown error'}</span>`);
+      setLoading(false);
+      return;
+    }
+
+    resultData = data;
+    log(`<span class="ok">✓ Range polygon built successfully.</span>\n` +
+        `<span class="info">  Records used: ${data.record_count}</span>\n` +
+        `<span class="info">  Species: ${data.species_name || 'unknown'}</span>`);
+
+    // Update stats
+    document.getElementById('statsSection').style.display = '';
+    document.getElementById('statChips').innerHTML = `
+      <div class="chip">Records: <span>${data.record_count}</span></div>
+      <div class="chip">Mode: <span>${currentMode}</span></div>`;
+
+    // Draw on map
+    drawResults(data);
+    enableDownloads(true);
+
+  } catch (err) {
+    log(`<span class="err">✗ Network error: ${err.message}\n\nMake sure the Flask backend is running on localhost:5000</span>`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── Map drawing ───────────────────────────────────────────────────────────────
+function drawResults(data) {
+  // Hide overlay
+  document.getElementById('mapOverlay').classList.add('hidden');
+
+  // Clear old layers
+  if (rangeLayer) { mapInstance.removeLayer(rangeLayer); rangeLayer = null; }
+  if (pointLayer) { mapInstance.removeLayer(pointLayer); pointLayer = null; }
+
+  // Range polygon
+  rangeLayer = L.geoJSON(data.geojson, {
+    style: { color: '#3366ff', weight: 2, fillColor: '#6699ff', fillOpacity: 0.25, smoothFactor: 1 },
+    interactive: false,
+  }).addTo(mapInstance);
+
+  // Points from TSV
+  const tsv = currentInputType === 'tsv'
+    ? document.getElementById('tsvInput').value.trim()
+    : null;
+
+  if (tsv) {
+    const pts = tsvToFeatures(tsv);
+    if (pts.length > 0) {
+      const fc = { type: 'FeatureCollection', features: pts };
+      pointLayer = L.geoJSON(fc, {
+        pointToLayer: (f, ll) => L.circleMarker(ll, {
+          radius: 5, color: '#ff6600', fillColor: '#ff6600', fillOpacity: 0.9,
+        }).bindPopup(buildPopup(f.properties)),
+      }).addTo(mapInstance);
+    }
+  }
+
+  // Fit bounds
+  try { mapInstance.fitBounds(rangeLayer.getBounds(), { padding: [20, 20] }); } catch(e) {}
+  setTimeout(() => mapInstance.invalidateSize(), 300);
+}
+
+function tsvToFeatures(tsv) {
+  const lines = tsv.trim().split(/\r?\n/);
+  const headers = lines[0].split('\t').map(h => h.trim());
+  const features = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = lines[i].split('\t');
+    const obj = {};
+    headers.forEach((h, j) => obj[h] = (cols[j] || '').trim());
+    const lat = parseFloat(obj.latitude), lon = parseFloat(obj.longitude);
+    if (isNaN(lat) || isNaN(lon)) continue;
+    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: obj });
+  }
+  return features;
+}
+
+function buildPopup(p) {
+  const parts = [`<b>${p.speciesname || p.name || ''}</b>`];
+  if (p.latitude && p.longitude) parts.push(`<b>Coords:</b> ${parseFloat(p.latitude).toFixed(4)}, ${parseFloat(p.longitude).toFixed(4)}`);
+  if (p.locality) parts.push(`<b>Locality:</b> ${p.locality}`);
+  if (p.recordedby) parts.push(`<b>Recorded by:</b> ${p.recordedby}`);
+  if (p.datefound)  parts.push(`<b>Date:</b> ${p.datefound}`);
+  if (p.gbif_link)  parts.push(`<b>Source:</b> <a href="${p.gbif_link}" target="_blank">GBIF</a>`);
+  return parts.join('<br>');
+}
+
+// ── Downloads ─────────────────────────────────────────────────────────────────
+function enableDownloads(on) {
+  ['dlGeoJSON','dlJS'].forEach(id => {
+    document.getElementById(id).classList.toggle('disabled', !on);
+  });
+}
+
+function safeName() {
+  return (resultData?.species_name || 'range').replace(/\s+/g, '_').toLowerCase();
+}
+
+function downloadGeoJSON() {
+  if (!resultData) return;
+  const blob = new Blob([resultData.geojson_str], { type: 'application/json' });
+  triggerDownload(blob, `${safeName()}_range.geojson`);
+}
+
+function downloadJS() {
+  if (!resultData) return;
+  const blob = new Blob([resultData.js_output], { type: 'text/javascript' });
+  triggerDownload(blob, `${safeName()}_map.js`);
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
