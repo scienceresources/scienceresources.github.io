@@ -132,7 +132,7 @@
   <header>
     <span style="font-size:22px">🐝</span>
     <h1>Distribution Range Builder</h1>
-    <span class="subtitle">/ GBIF + Polygon Generator</span>
+    <span class="subtitle">/ Occurrence + Polygon Generator</span>
     <span class="badge">backend: <span>Python + Flask</span></span>
   </header>
 
@@ -280,7 +280,7 @@
 const API = 'https://scienceresources-github-io.onrender.com';
 const EXCL_KEYS = new Set(['50c9509d-22c7-4a22-a47d-8c48425ef4a7','7f5e4129-0717-428e-876a-464fbd5d9a47']);
 const EXCL_PUB = ['inaturalist','bugguide'];
-const COLS = ['speciesname','latitude','longitude','recordedby','datefound','determinedby','lifestage','sex','notes','rights','rightsholder','sourcelink','gbif_link','locality'];
+const COLS = ['speciesname','latitude','longitude','recordedby','datefound','determinedby','lifestage','sex','notes','rights','rightsholder','sourcelink','locality'];
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let mode = 'species', inputType = 'api';
@@ -519,7 +519,6 @@ function buildRow(raw,sp,o){
   if(o.combineNotes){const a=(g('fieldNotes','notes')||'').trim(),b=(g('eventRemarks')||'').trim();notes=[a,b].filter(Boolean).join(' ')||null;}
   else notes=g('fieldNotes','notes');
   const locality=g('locality')||[g('county'),g('stateProvince'),g('countryCode','country')].filter(Boolean).join(', ')||null;
-  const gbifId=g('gbifID','key','id');
   return {
     speciesname: sp||g('speciesname','species')||'',
     latitude:lat, longitude:lon,
@@ -531,8 +530,7 @@ function buildRow(raw,sp,o){
     notes,
     rights:getLicense(g('license','accessRights','rights')),
     rightsholder:g('rightsHolder','rightsholder'),
-    sourcelink:gbifId?`https://www.gbif.org/occurrence/${gbifId}`:g('sourcelink'),
-    gbif_link:g('gbif_link'),
+    sourcelink:g('sourcelink','occurrenceID'),
     locality,
     _lat:lat,_lon:lon
   };
@@ -566,9 +564,22 @@ async function runPipeline(){
       addLog(`✅ Fetched ${rawRows.length.toLocaleString()} records`,'ok');
     } else if(inputType==='upload'){
       if(!files.upload){addLog('✗ Upload a file first.','err');return;}
-      setBusy(true,'Reading file…');
-      addLog(`📂 Reading ${files.upload.name}…`,'info');
-      rawRows=await parseFile(files.upload,o.excludeINat);
+      setBusy(true,'Sending file to backend…');
+      addLog(`📂 Uploading ${files.upload.name} to backend…`,'info');
+      setProgress(30);
+      const _form=new FormData();
+      _form.append('input_type','file');
+      _form.append('file',files.upload);
+      const res=await fetch(`${API}/process`,{method:'POST',body:_form});
+      const d=await res.json();
+      if(!res.ok||d.error) throw new Error(d.error||'Backend error');
+      resultData=d;
+      outRows=[];// rows not available client-side for file upload path
+      addLog(`✅ Range built: ${d.record_count.toLocaleString()} records`,'ok');
+      setProgress(100);
+      showResults(d,[]);
+      setBusy(false);
+      return;
     } else {
       if(!files.js){addLog('✗ Upload a .js file first.','err');return;}
       setBusy(true,'Sending to backend…');
@@ -597,10 +608,10 @@ async function runPipeline(){
     setBusy(true,'Converting records…');
     const converted=[];
     for(const raw of rawRows){
-      if(o.dropNullCoords){
-        const la=parseFloat(raw.decimalLatitude||raw.latitude),lo=parseFloat(raw.decimalLongitude||raw.longitude);
-        if(isNaN(la)||isNaN(lo))continue;
-      }
+      const la=parseFloat(raw.decimalLatitude||raw.latitude),lo=parseFloat(raw.decimalLongitude||raw.longitude);
+      if(isNaN(la)||isNaN(lo)) continue;
+      if(la===0&&lo===0) continue; // filter null-island
+      if(o.dropNullCoords){/* already filtered above */}
       converted.push(buildRow(raw,sp,o));
     }
     outRows=converted;
@@ -648,7 +659,7 @@ function showResults(data,rows){
   }).addTo(mapInst);
 
   if(rows.length>0){
-    const pts=rows.filter(r=>{const la=parseFloat(r._lat||r.latitude),lo=parseFloat(r._lon||r.longitude);return !isNaN(la)&&!isNaN(lo);});
+    const pts=rows.filter(r=>{const la=parseFloat(r._lat||r.latitude),lo=parseFloat(r._lon||r.longitude);return !isNaN(la)&&!isNaN(lo)&&!(la===0&&lo===0);});
     if(pts.length>0){
       ptLayer=L.geoJSON({type:'FeatureCollection',features:pts.map(r=>({
         type:'Feature',
@@ -670,7 +681,7 @@ function showResults(data,rows){
 function makePopup(p){
   return [['Species',p.speciesname],['Locality',p.locality],['Date',p.datefound],['Recorded by',p.recordedby],['Notes',p.notes]]
     .filter(([,v])=>v).map(([k,v])=>`<b>${k}:</b> ${escHtml(String(v))}`).join('<br>')
-    +(p.sourcelink?`<br><a href="${escHtml(p.sourcelink)}" target="_blank">View on GBIF →</a>`:'');
+    +(p.sourcelink?`<br><a href="${escHtml(p.sourcelink)}" target="_blank">Source →</a>`:'');
 }
 
 // ── Downloads ─────────────────────────────────────────────────────────────────
@@ -688,7 +699,7 @@ function dlFile(fmt){
 }
 function dlGeoJSON(){if(!resultData)return;trigger(new Blob([resultData.geojson_str],{type:'application/json'}),`${safeName()}_range.geojson`);}
 function buildJsOutput(){
-  const tsvCols=['speciesname','latitude','longitude','recordedby','datefound','determinedby','lifestage','sex','notes','rights','rightsholder','sourcelink','gbif_link','locality'];
+  const tsvCols=['speciesname','latitude','longitude','recordedby','datefound','determinedby','lifestage','sex','notes','rights','rightsholder','sourcelink','locality'];
   const tsvText=[tsvCols.join('\t'),...outRows.map(r=>tsvCols.map(c=>{const v=r[c];return v==null?'':String(v).replace(/\t/g,' ');}).join('\t'))].join('\n');
   const geo=resultData.geojson_str;
   // Build output using array join to avoid nested template literal escaping issues
