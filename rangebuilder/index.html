@@ -5,121 +5,209 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🐝 Distribution Range Builder</title>
 
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
   <style>
+    /* ── Reset & base ──────────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      --bg: #0d1117; --surface: #161b22; --surface2: #1f2937;
-      --border: #30363d; --accent: #f5a623; --accent2: #3b82f6;
-      --text: #e6edf3; --text-dim: #8b949e;
-      --success: #3fb950; --error: #f85149; --warn: #e3b341;
-      --radius: 8px; --font-mono: 'Space Mono', monospace; --font-sans: 'DM Sans', sans-serif;
+      --bg:         #0d1117;
+      --surface:    #161b22;
+      --surface2:   #1f2937;
+      --border:     #30363d;
+      --accent:     #f5a623;
+      --accent2:    #3b82f6;
+      --text:       #e6edf3;
+      --text-dim:   #8b949e;
+      --success:    #3fb950;
+      --error:      #f85149;
+      --radius:     8px;
+      --font-mono:  'Space Mono', monospace;
+      --font-sans:  'DM Sans', sans-serif;
     }
+
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
-    .app { display: grid; grid-template-columns: 400px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
 
+    /* ── Layout ────────────────────────────────────────────────────────────── */
+    .app { display: grid; grid-template-columns: 380px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
+
+    /* ── Header ────────────────────────────────────────────────────────────── */
     header {
-      grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 24px;
-      background: var(--surface); border-bottom: 1px solid var(--border); font-family: var(--font-mono);
+      grid-column: 1 / -1;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
     }
+    header .bee { font-size: 22px; }
     header h1 { font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
-    header .subtitle { font-size: 11px; color: var(--text-dim); }
-    header .badge { margin-left: auto; font-size: 10px; background: var(--surface2); border: 1px solid var(--border); padding: 3px 10px; border-radius: 20px; color: var(--text-dim); }
-    header .badge span { color: var(--success); }
+    header .subtitle { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+    header .backend-badge {
+      margin-left: auto;
+      font-size: 10px; font-family: var(--font-mono);
+      background: var(--surface2); border: 1px solid var(--border);
+      padding: 3px 10px; border-radius: 20px; color: var(--text-dim);
+    }
+    header .backend-badge span { color: var(--success); }
 
-    .sidebar { background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
-    .section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
-    .section-title { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    /* ── Sidebar ───────────────────────────────────────────────────────────── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex; flex-direction: column;
+    }
+
+    .section {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title {
+      font-family: var(--font-mono);
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
     .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-    .tab-group { display: flex; background: var(--bg); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); margin-bottom: 14px; }
-    .tab-btn { flex: 1; padding: 8px 4px; font-family: var(--font-mono); font-size: 10px; font-weight: 700; cursor: pointer; border: none; background: transparent; color: var(--text-dim); transition: all 0.15s; }
-    .tab-btn.active { background: var(--accent); color: #000; }
-    .tab-btn:hover:not(.active) { background: var(--surface2); color: var(--text); }
+    /* ── Mode toggle ───────────────────────────────────────────────────────── */
+    .toggle-group { display: flex; gap: 0; background: var(--bg); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+    .toggle-btn {
+      flex: 1; padding: 8px; font-family: var(--font-mono); font-size: 11px;
+      font-weight: 700; cursor: pointer; border: none; background: transparent;
+      color: var(--text-dim); transition: all 0.15s;
+    }
+    .toggle-btn.active { background: var(--accent); color: #000; }
+    .toggle-btn:hover:not(.active) { background: var(--surface2); color: var(--text); }
 
-    input[type=text], input[type=number], select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--text); outline: none; transition: border-color 0.2s; }
-    input:focus, select:focus { border-color: var(--accent2); }
-    input::placeholder { color: var(--text-dim); }
+    /* ── Input type selector ───────────────────────────────────────────────── */
+    .input-tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+    .input-tab {
+      padding: 6px 14px; font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      cursor: pointer; border: 1px solid var(--border); background: transparent;
+      color: var(--text-dim); border-radius: var(--radius); transition: all 0.15s;
+    }
+    .input-tab.active { border-color: var(--accent2); color: var(--accent2); background: rgba(59,130,246,0.1); }
 
-    label.check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin-bottom: 8px; }
-    label.check input[type=checkbox] { margin-top: 3px; accent-color: var(--accent); flex-shrink: 0; }
-    label.check span { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
-    label.check span strong { color: var(--text); }
-
-    .search-wrap { position: relative; }
-    .search-row { display: flex; gap: 8px; }
-    .search-row input { flex: 1; }
-    .search-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); padding: 8px 14px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
-    .search-btn:hover { border-color: var(--accent2); }
-    .suggestions { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); max-height: 220px; overflow-y: auto; }
-    .sug-item { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.1s; }
-    .sug-item:last-child { border-bottom: none; }
-    .sug-item:hover { background: var(--surface2); }
-    .sug-name { font-style: italic; font-size: 13px; color: var(--text); }
-    .sug-meta { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); margin-top: 2px; }
-
-    .selected-box { background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.3); border-radius: var(--radius); padding: 10px 12px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .selected-box .sel-name { font-size: 13px; font-style: italic; color: var(--success); }
-    .selected-box .sel-meta { font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); }
-    .clear-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; padding: 0; line-height: 1; }
-    .clear-btn:hover { color: var(--error); }
-
-    .drop-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 22px 16px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+    /* ── File drop zone ────────────────────────────────────────────────────── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
     .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent2); background: rgba(59,130,246,0.06); }
     .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
-    .drop-icon { font-size: 22px; margin-bottom: 6px; }
-    .drop-label { font-size: 12px; color: var(--text-dim); }
-    .drop-label strong { color: var(--accent2); }
-    .drop-file { font-family: var(--font-mono); font-size: 11px; color: var(--success); margin-top: 4px; }
+    .drop-zone .icon { font-size: 28px; margin-bottom: 8px; }
+    .drop-zone .label { font-size: 13px; color: var(--text-dim); }
+    .drop-zone .label strong { color: var(--accent2); }
+    .drop-zone .filename { font-family: var(--font-mono); font-size: 11px; color: var(--success); margin-top: 6px; }
 
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .field-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.08em; }
-    .hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+    /* ── Textarea ──────────────────────────────────────────────────────────── */
+    textarea {
+      width: 100%; height: 160px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 12px;
+      font-family: var(--font-mono); font-size: 11px; color: var(--text);
+      resize: vertical; outline: none; transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: var(--accent2); }
+    textarea::placeholder { color: var(--text-dim); }
 
-    .run-btn { width: 100%; padding: 12px; background: var(--accent); border: none; color: #000; font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 0.05em; cursor: pointer; border-radius: var(--radius); transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .run-btn:hover:not(:disabled) { background: #fbbf24; transform: translateY(-1px); }
+    /* ── Run button ────────────────────────────────────────────────────────── */
+    .run-btn {
+      width: 100%; padding: 12px;
+      background: var(--accent); border: none;
+      color: #000; font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+      letter-spacing: 0.05em; cursor: pointer;
+      border-radius: var(--radius); transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .run-btn:hover { background: #fbbf24; transform: translateY(-1px); }
+    .run-btn:active { transform: translateY(0); }
     .run-btn:disabled { background: var(--surface2); color: var(--text-dim); cursor: not-allowed; transform: none; }
 
-    .log-area { font-family: var(--font-mono); font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; min-height: 64px; color: var(--text-dim); white-space: pre-wrap; line-height: 1.6; max-height: 160px; overflow-y: auto; }
-    .log-area .ok { color: var(--success); }
+    /* ── Status / log ──────────────────────────────────────────────────────── */
+    .log-area {
+      font-family: var(--font-mono); font-size: 11px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 12px;
+      min-height: 60px; color: var(--text-dim);
+      white-space: pre-wrap; word-break: break-all;
+      line-height: 1.6;
+    }
+    .log-area .ok  { color: var(--success); }
     .log-area .err { color: var(--error); }
-    .log-area .info { color: var(--accent2); }
-    .log-area .warn { color: var(--warn); }
+    .log-area .info{ color: var(--accent2); }
 
-    .progress-wrap { height: 4px; background: var(--border); border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
+    /* ── Download buttons ──────────────────────────────────────────────────── */
+    .dl-group { display: flex; flex-direction: column; gap: 8px; }
+    .dl-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); cursor: pointer; font-family: var(--font-sans);
+      font-size: 13px; color: var(--text); transition: all 0.15s; text-decoration: none;
+    }
+    .dl-btn:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(59,130,246,0.08); }
+    .dl-btn:disabled, .dl-btn.disabled { opacity: 0.3; pointer-events: none; }
+    .dl-btn .dl-icon { font-size: 18px; }
+    .dl-btn .dl-info { display: flex; flex-direction: column; }
+    .dl-btn .dl-name { font-weight: 600; font-size: 12px; }
+    .dl-btn .dl-desc { font-size: 11px; color: var(--text-dim); }
 
+    /* ── Stats chip ────────────────────────────────────────────────────────── */
     .stat-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-    .chip { font-family: var(--font-mono); font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; color: var(--text-dim); }
+    .chip {
+      font-family: var(--font-mono); font-size: 11px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 12px; color: var(--text-dim);
+    }
     .chip span { color: var(--text); font-weight: 700; }
 
-    .dl-group { display: flex; flex-direction: column; gap: 8px; }
-    .dl-btn { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; font-size: 13px; color: var(--text); transition: all 0.15s; width: 100%; text-align: left; }
-    .dl-btn:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(59,130,246,0.08); }
-    .dl-btn.disabled { opacity: 0.3; pointer-events: none; }
-    .dl-icon { font-size: 16px; flex-shrink: 0; }
-    .dl-info { display: flex; flex-direction: column; }
-    .dl-name { font-weight: 600; font-size: 12px; }
-    .dl-desc { font-size: 11px; color: var(--text-dim); }
-
+    /* ── Map area ──────────────────────────────────────────────────────────── */
     .map-area { position: relative; }
     #map { width: 100%; height: 100%; }
-    .map-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); z-index: 500; gap: 16px; pointer-events: none; }
-    .map-overlay .ov-icon { font-size: 56px; }
-    .map-overlay .ov-text { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); text-align: center; line-height: 1.6; }
+
+    .map-overlay {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: var(--bg); z-index: 500;
+      gap: 16px; pointer-events: none;
+    }
+    .map-overlay .overlay-icon { font-size: 56px; }
+    .map-overlay .overlay-text { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); text-align: center; }
     .map-overlay.hidden { display: none; }
 
-    .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    /* Spinner */
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Scrollbar ─────────────────────────────────────────────────────────── */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+    /* ── Responsive ────────────────────────────────────────────────────────── */
     @media (max-width: 768px) {
       .app { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; height: auto; min-height: 100vh; }
       .map-area { height: 50vh; }
@@ -129,109 +217,66 @@
 <body>
 <div class="app">
 
+  <!-- Header -->
   <header>
-    <span style="font-size:22px">🐝</span>
+    <span class="bee">🐝</span>
     <h1>Distribution Range Builder</h1>
-    <span class="subtitle">/ GBIF + Polygon Generator</span>
-    <span class="badge">backend: <span>Python + Flask</span></span>
+    <span class="subtitle">/ polygon generator</span>
+    <span class="backend-badge">backend: <span>Python + Flask</span></span>
   </header>
 
+  <!-- Sidebar -->
   <aside class="sidebar">
 
     <!-- Mode -->
     <div class="section">
       <div class="section-title">Mode</div>
-      <div class="tab-group">
-        <button class="tab-btn active" id="modeSpecies" onclick="setMode('species')">Species</button>
-        <button class="tab-btn" id="modeSubspecies" onclick="setMode('subspecies')">Subspecies</button>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="modeSpecies" onclick="setMode('species')">Species</button>
+        <button class="toggle-btn" id="modeSubspecies" onclick="setMode('subspecies')">Subspecies</button>
       </div>
+      <p style="margin-top:10px; font-size:11px; color:var(--text-dim); line-height:1.6;">
+        <strong style="color:var(--text)">Species:</strong> single TSV block → one range polygon.<br>
+        <strong style="color:var(--text)">Subspecies:</strong> JS with three TSV blocks; species-wide polygon embedded.
+      </p>
     </div>
 
-    <!-- Data Source -->
+    <!-- Input -->
     <div class="section">
-      <div class="section-title">Data Source</div>
-      <div class="tab-group">
-        <button class="tab-btn active" id="tabApi" onclick="setInputType('api')">🌐 GBIF API</button>
-        <button class="tab-btn" id="tabUpload" onclick="setInputType('upload')">📂 File Upload</button>
-        <button class="tab-btn" id="tabJs" onclick="setInputType('js')">📦 .js File</button>
+      <div class="section-title">Input Data</div>
+      <div class="input-tabs">
+        <button class="input-tab active" id="tabTSV" onclick="setInputType('tsv')">Paste TSV</button>
+        <button class="input-tab" id="tabJS"  onclick="setInputType('js')">Upload .js</button>
       </div>
 
-      <!-- GBIF API -->
-      <div id="panelApi">
-        <div class="field-label">Search Species</div>
-        <div class="search-wrap">
-          <div class="search-row">
-            <input type="text" id="taxonInput" placeholder="e.g. Melissodes apicatus"
-              oninput="onTaxonType(this.value)" onkeydown="if(event.key==='Enter')doSearch()" />
-            <button class="search-btn" onclick="doSearch()">Search</button>
-          </div>
-          <div class="suggestions" id="suggestions" style="display:none;"></div>
-        </div>
-        <div class="selected-box" id="selectedBox" style="display:none;">
-          <div>
-            <div class="sel-name" id="selName"></div>
-            <div class="sel-meta" id="selMeta"></div>
-          </div>
-          <button class="clear-btn" onclick="clearTaxon()">✕</button>
-        </div>
-        <div class="grid2" style="margin-top:12px;">
-          <div>
-            <div class="field-label">Max Records</div>
-            <input type="number" id="apiMax" placeholder="All (up to 100k)" min="1" step="100" />
-          </div>
-          <div>
-            <div class="field-label">Country (ISO)</div>
-            <input type="text" id="apiCountry" value="US" placeholder="US, CA…" />
-          </div>
-        </div>
+      <!-- TSV panel -->
+      <div id="panelTSV">
+        <textarea id="tsvInput" placeholder="speciesname&#9;latitude&#9;longitude&#9;recordedby&#9;...&#10;Apis mellifera&#9;45.0&#9;-122.5&#9;..."></textarea>
+        <p style="margin-top:6px; font-size:11px; color:var(--text-dim);">Tab-separated. Must include <code style="color:var(--accent2)">latitude</code> &amp; <code style="color:var(--accent2)">longitude</code> columns.</p>
       </div>
 
-      <!-- File Upload -->
-      <div id="panelUpload" style="display:none;">
-        <div class="drop-zone" id="dzUpload">
-          <input type="file" id="fileUpload" accept=".zip,.csv,.tsv,.txt" onchange="onFileSelect(this,'upload')" />
-          <div class="drop-icon">📂</div>
-          <div class="drop-label"><strong>Click to upload</strong> or drag & drop</div>
-          <div class="drop-label">DwC-A ZIP · CSV · TSV · TXT</div>
-          <div class="drop-file" id="fileUploadName" style="display:none;"></div>
-        </div>
-        <p class="hint">Upload a Darwin Core Archive ZIP from GBIF, or any tab/comma-separated occurrence file.</p>
-      </div>
-
-      <!-- JS File -->
-      <div id="panelJs" style="display:none;">
-        <div class="drop-zone" id="dzJs">
-          <input type="file" id="fileJs" accept=".js" onchange="onFileSelect(this,'js')" />
-          <div class="drop-icon">📦</div>
-          <div class="drop-label"><strong>Click to upload</strong> or drag & drop</div>
-          <div class="drop-label">.js files with embedded TSV data</div>
-          <div class="drop-file" id="fileJsName" style="display:none;"></div>
+      <!-- JS file panel -->
+      <div id="panelJS" style="display:none;">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="jsFile" accept=".js" onchange="onFileSelect(this)" />
+          <div class="icon">📄</div>
+          <div class="label"><strong>Click to upload</strong> or drag & drop</div>
+          <div class="label">.js files only</div>
+          <div class="filename" id="fileName" style="display:none;"></div>
         </div>
       </div>
-    </div>
-
-    <!-- Options -->
-    <div class="section">
-      <div class="section-title">Options</div>
-      <label class="check"><input type="checkbox" id="optExclude" checked /><span><strong>Exclude iNat &amp; BugGuide</strong></span></label>
-      <label class="check"><input type="checkbox" id="optDropCoords" /><span><strong>Drop records missing coordinates</strong></span></label>
-      <label class="check"><input type="checkbox" id="optBuildDate" checked /><span><strong>Build ISO date</strong> (YYYY-MM-DD)</span></label>
-      <label class="check"><input type="checkbox" id="optNotes" checked /><span><strong>Combine notes fields</strong></span></label>
     </div>
 
     <!-- Run -->
     <div class="section">
-      <button class="run-btn" id="runBtn" onclick="runPipeline()">
-        <span>▶</span> Fetch &amp; Build Range
+      <button class="run-btn" id="runBtn" onclick="runProcess()">
+        <span>▶</span> Build Range Polygon
       </button>
     </div>
 
-    <!-- Status -->
+    <!-- Log -->
     <div class="section">
       <div class="section-title">Status</div>
-      <div class="progress-wrap" id="progWrap" style="display:none;">
-        <div class="progress-fill" id="progFill" style="width:0%"></div>
-      </div>
       <div class="log-area" id="logArea">Waiting for input…</div>
     </div>
 
@@ -245,453 +290,254 @@
     <div class="section">
       <div class="section-title">Downloads</div>
       <div class="dl-group">
-        <button class="dl-btn disabled" id="dlCSV" onclick="dlFile('csv')">
-          <span class="dl-icon">📄</span>
-          <div class="dl-info"><span class="dl-name">Custom CSV</span><span class="dl-desc">All records in custom format (.csv)</span></div>
-        </button>
-        <button class="dl-btn disabled" id="dlTSV" onclick="dlFile('tsv')">
-          <span class="dl-icon">📋</span>
-          <div class="dl-info"><span class="dl-name">Custom TSV</span><span class="dl-desc">Tab-separated (.tsv)</span></div>
-        </button>
-        <button class="dl-btn disabled" id="dlGeoJSON" onclick="dlGeoJSON()">
+        <button class="dl-btn disabled" id="dlGeoJSON" onclick="downloadGeoJSON()">
           <span class="dl-icon">🗺️</span>
-          <div class="dl-info"><span class="dl-name">GeoJSON</span><span class="dl-desc">Range polygon (.geojson)</span></div>
+          <div class="dl-info">
+            <span class="dl-name">GeoJSON</span>
+            <span class="dl-desc">Range polygon as .geojson</span>
+          </div>
         </button>
-        <button class="dl-btn disabled" id="dlJS" onclick="dlJS()">
+        <button class="dl-btn disabled" id="dlJS" onclick="downloadJS()">
           <span class="dl-icon">📦</span>
-          <div class="dl-info"><span class="dl-name">Map JavaScript</span><span class="dl-desc">Full .js with data &amp; polygon baked in</span></div>
+          <div class="dl-info">
+            <span class="dl-name">JavaScript</span>
+            <span class="dl-desc">Full .js with GeoJSON baked in</span>
+          </div>
         </button>
       </div>
     </div>
 
   </aside>
 
+  <!-- Map -->
   <div class="map-area">
     <div id="map"></div>
     <div class="map-overlay" id="mapOverlay">
-      <span class="ov-icon">🌍</span>
-      <span class="ov-text">Search a species or upload a file,<br>then click Fetch &amp; Build Range</span>
+      <span class="overlay-icon">🌍</span>
+      <span class="overlay-text">Build a range polygon to see it here</span>
     </div>
   </div>
 
 </div>
+
 <script>
-// ── Constants ─────────────────────────────────────────────────────────────────
-const EXCL_KEYS = new Set(['50c9509d-22c7-4a22-a47d-8c48425ef4a7','7f5e4129-0717-428e-876a-464fbd5d9a47']);
-const EXCL_PUB = ['inaturalist','bugguide'];
-const COLS = ['speciesname','latitude','longitude','recordedby','datefound','determinedby','lifestage','sex','notes','rights','rightsholder','sourcelink','gbif_link','locality'];
-
 // ── State ─────────────────────────────────────────────────────────────────────
-let mode = 'species', inputType = 'api';
-let selTaxon = null;
-let files = { upload: null, js: null };
-let outRows = [], resultData = null;
-let mapInst = null, rangeLayer = null, ptLayer = null;
-let debounce = null, logLines = [];
+let currentMode = 'species';
+let currentInputType = 'tsv';
+let resultData = null;
+let mapInstance = null;
+let rangeLayer = null;
+let pointLayer = null;
 
-// ── Map ───────────────────────────────────────────────────────────────────────
-mapInst = L.map('map').setView([39,-120],4);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:14,attribution:'&copy; OpenStreetMap contributors'}).addTo(mapInst);
+// ── Map init ──────────────────────────────────────────────────────────────────
+mapInstance = L.map('map').setView([39, -120], 4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 14,
+  attribution: '&copy; OpenStreetMap contributors',
+}).addTo(mapInstance);
 
-// ── UI ────────────────────────────────────────────────────────────────────────
-function setMode(m){
-  mode=m;
-  ['species','subspecies'].forEach(id=>document.getElementById('mode'+id.charAt(0).toUpperCase()+id.slice(1)).classList.toggle('active',m===id));
-}
-function setInputType(t){
-  inputType=t;
-  [{k:'api',p:'Api'},{k:'upload',p:'Upload'},{k:'js',p:'Js'}].forEach(({k,p})=>{
-    document.getElementById('tab'+p).classList.toggle('active',t===k);
-    document.getElementById('panel'+p).style.display=t===k?'':'none';
-  });
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setMode(m) {
+  currentMode = m;
+  document.getElementById('modeSpecies').classList.toggle('active', m === 'species');
+  document.getElementById('modeSubspecies').classList.toggle('active', m === 'subspecies');
 }
 
-// ── Logging ───────────────────────────────────────────────────────────────────
-function addLog(msg,type=''){
-  logLines.push({msg,type});
-  if(logLines.length>200)logLines.shift();
-  const el=document.getElementById('logArea');
-  el.innerHTML=logLines.map(l=>l.type?`<span class="${l.type}">${escHtml(l.msg)}</span>`:escHtml(l.msg)).join('\n');
-  el.scrollTop=el.scrollHeight;
+function setInputType(t) {
+  currentInputType = t;
+  document.getElementById('tabTSV').classList.toggle('active', t === 'tsv');
+  document.getElementById('tabJS').classList.toggle('active', t === 'js');
+  document.getElementById('panelTSV').style.display = t === 'tsv' ? '' : 'none';
+  document.getElementById('panelJS').style.display  = t === 'js'  ? '' : 'none';
 }
-function clearLog(){logLines=[];document.getElementById('logArea').innerHTML='';}
-function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function setProgress(p){
-  const w=document.getElementById('progWrap');
-  w.style.display=p>0?'':'none';
-  document.getElementById('progFill').style.width=p+'%';
+
+function onFileSelect(input) {
+  const name = input.files[0]?.name || '';
+  const el = document.getElementById('fileName');
+  el.textContent = name;
+  el.style.display = name ? '' : 'none';
 }
-function setBusy(busy,label='Processing…'){
-  const btn=document.getElementById('runBtn');
-  btn.disabled=busy;
-  btn.innerHTML=busy
-    ?`<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> ${label}`
-    :'<span>▶</span> Fetch &amp; Build Range';
-  if(busy){
-    const ov=document.getElementById('mapOverlay');
-    ov.classList.remove('hidden');
-    ov.innerHTML=`<div class="spinner"></div><span class="ov-text">${escHtml(label)}</span>`;
+
+function log(html) {
+  document.getElementById('logArea').innerHTML = html;
+}
+
+function setLoading(loading) {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = loading;
+  btn.innerHTML = loading
+    ? '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Processing…'
+    : '<span>▶</span> Build Range Polygon';
+  if (loading) {
+    document.getElementById('mapOverlay').classList.remove('hidden');
+    document.getElementById('mapOverlay').innerHTML = `
+      <div class="spinner"></div>
+      <span class="overlay-text">Running Python pipeline…<br>Chaikin smoothing · concave hull · land clip</span>`;
   }
 }
-function setDownloads(on){
-  ['dlCSV','dlTSV','dlGeoJSON','dlJS'].forEach(id=>document.getElementById(id).classList.toggle('disabled',!on));
-}
 
-// ── Taxon search ──────────────────────────────────────────────────────────────
-function onTaxonType(v){
-  clearTimeout(debounce);
-  if(v.length<2){hideSug();return;}
-  debounce=setTimeout(()=>doSearch(v),400);
-}
-async function doSearch(q){
-  q=q||document.getElementById('taxonInput').value.trim();
-  if(!q||q.length<2)return;
-  try{
-    const r=await fetch(`https://api.gbif.org/v1/species/suggest?q=${encodeURIComponent(q)}&limit=10&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`);
-    const d=await r.json();
-    showSug(d.filter(s=>s.rank==='SPECIES'||s.rank==='SUBSPECIES').slice(0,8));
-  }catch(e){addLog('Search error: '+e.message,'warn');}
-}
-function showSug(items){
-  const el=document.getElementById('suggestions');
-  if(!items.length){el.style.display='none';return;}
-  el.style.display='';
-  el.innerHTML=items.map(s=>`
-    <div class="sug-item" onclick='pickTaxon(${JSON.stringify(JSON.stringify(s))})'>
-      <div class="sug-name">${escHtml(s.canonicalName||s.scientificName)}</div>
-      <div class="sug-meta">${escHtml(s.rank||'')} · ${escHtml(s.family||'')} · key: ${s.key}</div>
-    </div>`).join('');
-}
-function hideSug(){document.getElementById('suggestions').style.display='none';}
-function pickTaxon(sJson){
-  const s=JSON.parse(sJson);
-  selTaxon=s;
-  hideSug();
-  document.getElementById('taxonInput').value=s.canonicalName||s.scientificName;
-  document.getElementById('selName').textContent=s.canonicalName||s.scientificName;
-  document.getElementById('selMeta').textContent=`GBIF key: ${s.key} · ${s.rank||''}`;
-  document.getElementById('selectedBox').style.display='';
-}
-function clearTaxon(){
-  selTaxon=null;
-  document.getElementById('taxonInput').value='';
-  document.getElementById('selectedBox').style.display='none';
-}
-document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))hideSug();});
+// ── Drag & drop ───────────────────────────────────────────────────────────────
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) {
+    const dt = new DataTransfer(); dt.items.add(f);
+    document.getElementById('jsFile').files = dt.files;
+    onFileSelect(document.getElementById('jsFile'));
+  }
+});
 
-// ── File select ───────────────────────────────────────────────────────────────
-function onFileSelect(input,key){
-  const f=input.files[0];
-  files[key]=f;
-  const nameEl=document.getElementById(key==='upload'?'fileUploadName':'fileJsName');
-  nameEl.textContent=f?f.name:'';
-  nameEl.style.display=f?'':'none';
-}
-function setupDrop(dzId,key){
-  const dz=document.getElementById(dzId);
-  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
-  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
-  dz.addEventListener('drop',e=>{
-    e.preventDefault();dz.classList.remove('drag-over');
-    const f=e.dataTransfer.files[0];
-    if(f){files[key]=f;const n=document.getElementById(key==='upload'?'fileUploadName':'fileJsName');n.textContent=f.name;n.style.display='';}
-  });
-}
-setupDrop('dzUpload','upload');
-setupDrop('dzJs','js');
+// ── Run ───────────────────────────────────────────────────────────────────────
+async function runProcess() {
+  // Determine backend URL
+  const API = window.location.origin;
 
-// ── GBIF fetch ────────────────────────────────────────────────────────────────
-async function fetchGBIF(key,max,country,excl){
-  const lim=300; let off=0,all=[],tot=null;
-  const basis='&basisOfRecord=PRESERVED_SPECIMEN&basisOfRecord=MATERIAL_SAMPLE&basisOfRecord=HUMAN_OBSERVATION';
-  addLog(`📡 Fetching occurrences…`,'info');
-  while(all.length<max){
-    const cp=country?`&country=${encodeURIComponent(country)}`:'';
-    const r=await fetch(`https://api.gbif.org/v1/occurrence/search?taxonKey=${key}&limit=${lim}&offset=${off}${basis}${cp}`);
-    if(!r.ok) throw new Error(`GBIF API ${r.status}`);
-    const d=await r.json();
-    if(tot===null){
-      tot=d.count;
-      addLog(`📊 GBIF: ${tot.toLocaleString()} matching records`,'ok');
-      if(tot===0) throw new Error('No occurrences found.');
-    }
-    const filtered=excl
-      ? d.results.filter(r=>!EXCL_KEYS.has(r.datasetKey)&&!EXCL_PUB.some(p=>(r.publishingOrgKey||r.datasetName||'').toLowerCase().includes(p)))
-      : d.results;
-    all.push(...filtered);
-    const ex=d.results.length-filtered.length;
-    addLog(`  Page ${Math.floor(off/lim)+1}: +${filtered.length}${ex>0?' ('+ex+' excl)':''}`);
-    setProgress(10+Math.min(40,Math.round((all.length/max)*40)));
-    if(d.endOfRecords||!d.results.length||all.length>=max)break;
-    off+=lim;
-    await sleep(80);
-  }
-  return all.slice(0,max);
-}
+  setLoading(true);
+  log('<span class="info">⏳ Sending to Python backend…</span>');
+  resultData = null;
+  enableDownloads(false);
 
-// ── File parsing ──────────────────────────────────────────────────────────────
-async function parseFile(file,excl){
-  const name=file.name, ab=await file.arrayBuffer();
-  let rows=[];
-  if(name.endsWith('.zip')){
-    const zip=await JSZip.loadAsync(ab);
-    const occ=zip.file('occurrence.txt');
-    if(!occ) throw new Error('occurrence.txt not found in ZIP.');
-    addLog('✅ Found occurrence.txt in ZIP','ok');
-    rows=parseTSV(await occ.async('string'));
-  }else if(name.endsWith('.csv')){
-    rows=parseCSV(new TextDecoder('utf-8').decode(ab));
-    addLog(`✅ Loaded CSV: ${rows.length.toLocaleString()} records`,'ok');
-  }else{
-    rows=parseTSV(new TextDecoder('utf-8').decode(ab));
-    addLog(`✅ Loaded file: ${rows.length.toLocaleString()} records`,'ok');
-  }
-  if(excl){
-    const b=rows.length;
-    rows=rows.filter(r=>!EXCL_KEYS.has(r.datasetKey)&&!EXCL_PUB.some(p=>(r.datasetName||r.institutionCode||'').toLowerCase().includes(p)));
-    if(b-rows.length>0) addLog(`🚫 Excluded ${(b-rows.length).toLocaleString()} iNat/BugGuide`,'warn');
-  }
-  return rows;
-}
-function parseTSV(text){
-  const c=text.charCodeAt(0)===0xFEFF?text.slice(1):text;
-  const lines=c.split('\n'); if(lines.length<2)return[];
-  const h=lines[0].split('\t').map(s=>s.trim().replace(/^\ufeff/,''));
-  const rows=[];
-  for(let i=1;i<lines.length;i++){
-    if(!lines[i].trim())continue;
-    const v=lines[i].split('\t'), obj={};
-    h.forEach((hh,j)=>{const val=(v[j]||'').trim();obj[hh]=(val===''||val.toLowerCase()==='nan')?null:val;});
-    rows.push(obj);
-  }
-  return rows;
-}
-function parseCSV(text){
-  const c=text.charCodeAt(0)===0xFEFF?text.slice(1):text;
-  const lines=c.split('\n'); if(lines.length<2)return[];
-  const h=csvLine(lines[0]).map(s=>s.trim());
-  const rows=[];
-  for(let i=1;i<lines.length;i++){
-    if(!lines[i].trim())continue;
-    const v=csvLine(lines[i]),obj={};
-    h.forEach((hh,j)=>{const val=(v[j]||'').trim();obj[hh]=(val===''||val.toLowerCase()==='nan')?null:val;});
-    rows.push(obj);
-  }
-  return rows;
-}
-function csvLine(line){
-  const r=[];let cur='',inQ=false;
-  for(let i=0;i<line.length;i++){
-    const ch=line[i];
-    if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}
-    else if(ch===','&&!inQ){r.push(cur.trim());cur='';}
-    else cur+=ch;
-  }
-  r.push(cur.trim());return r;
-}
+  try {
+    const form = new FormData();
+    form.append('mode', currentMode);
+    form.append('input_type', currentInputType);
 
-// ── Row conversion ────────────────────────────────────────────────────────────
-function getLicense(url){
-  if(!url)return'';
-  if(url.startsWith('CC'))return url.replace(/_/g,' ');
-  const u=url.toLowerCase();
-  if(u.includes('publicdomain/zero')||u.includes('cc0'))return'CC0 1.0';
-  const p=[];
-  if(u.includes('/by'))p.push('BY');
-  if(u.includes('nc'))p.push('NC');
-  if(u.includes('sa'))p.push('SA');
-  const m=u.match(/(\d\.\d)/);
-  return p.length?`CC ${p.join('-')} ${m?m[1]:'4.0'}`:'';
-}
-function buildRow(raw,sp,o){
-  const g=(...ks)=>{for(const k of ks)if(raw[k]!=null&&raw[k]!=='')return raw[k];return null;};
-  const lat=g('decimalLatitude','latitude');
-  const lon=g('decimalLongitude','longitude');
-  const yr=g('year'), mo=g('month'), dy=g('day');
-  let date=null;
-  if(o.buildDate&&yr&&mo&&dy) date=`${String(yr).padStart(4,'0')}-${String(mo).padStart(2,'0')}-${String(dy).padStart(2,'0')}`;
-  else if(o.buildDate&&yr&&mo) date=`${yr}-${String(mo).padStart(2,'0')}`;
-  else if(o.buildDate&&yr) date=String(yr);
-  else date=g('eventDate','datefound');
-  let notes=null;
-  if(o.combineNotes){const a=(g('fieldNotes','notes')||'').trim(),b=(g('eventRemarks')||'').trim();notes=[a,b].filter(Boolean).join(' ')||null;}
-  else notes=g('fieldNotes','notes');
-  const locality=g('locality')||[g('county'),g('stateProvince'),g('countryCode','country')].filter(Boolean).join(', ')||null;
-  const gbifId=g('gbifID','key','id');
-  return {
-    speciesname: sp||g('speciesname','species')||'',
-    latitude:lat, longitude:lon,
-    recordedby:g('recordedBy','recordedby'),
-    datefound:date,
-    determinedby:g('identifiedBy','determinedby'),
-    lifestage:g('lifeStage','lifestage'),
-    sex:g('sex'),
-    notes,
-    rights:getLicense(g('license','accessRights','rights')),
-    rightsholder:g('rightsHolder','rightsholder'),
-    sourcelink:gbifId?`https://www.gbif.org/occurrence/${gbifId}`:g('sourcelink'),
-    gbif_link:g('gbif_link'),
-    locality,
-    _lat:lat,_lon:lon
-  };
-}
-
-// ── Main pipeline ─────────────────────────────────────────────────────────────
-async function runPipeline(){
-  clearLog();
-  outRows=[];resultData=null;
-  setDownloads(false);
-  document.getElementById('statsSection').style.display='none';
-  setProgress(0);
-  const o={
-    excludeINat:document.getElementById('optExclude').checked,
-    dropNullCoords:document.getElementById('optDropCoords').checked,
-    buildDate:document.getElementById('optBuildDate').checked,
-    combineNotes:document.getElementById('optNotes').checked,
-  };
-  let sp='',rawRows=[],isApi=false;
-  try{
-    // Step 1: Get records
-    if(inputType==='api'){
-      if(!selTaxon){addLog('✗ Select a species first.','err');return;}
-      sp=selTaxon.canonicalName||selTaxon.scientificName;
-      const maxRaw=document.getElementById('apiMax').value;
-      const max=(!maxRaw||isNaN(+maxRaw)||+maxRaw<=0)?100000:Math.min(+maxRaw,100000);
-      const country=document.getElementById('apiCountry').value.trim();
-      setBusy(true,'Fetching from GBIF…');
-      rawRows=await fetchGBIF(selTaxon.key,max,country,o.excludeINat);
-      isApi=true;
-      addLog(`✅ Fetched ${rawRows.length.toLocaleString()} records`,'ok');
-    } else if(inputType==='upload'){
-      if(!files.upload){addLog('✗ Upload a file first.','err');return;}
-      setBusy(true,'Reading file…');
-      addLog(`📂 Reading ${files.upload.name}…`,'info');
-      rawRows=await parseFile(files.upload,o.excludeINat);
+    if (currentInputType === 'js') {
+      const file = document.getElementById('jsFile').files[0];
+      if (!file) { log('<span class="err">✗ No JS file selected.</span>'); setLoading(false); return; }
+      form.append('file', file);
     } else {
-      if(!files.js){addLog('✗ Upload a .js file first.','err');return;}
-      setBusy(true,'Sending to backend…');
-      const form=new FormData();
-      form.append('mode',mode);
-      form.append('input_type','js');
-      form.append('file',files.js);
-      setProgress(50);
-      const res=await fetch(`${window.location.origin}/process`,{method:'POST',body:form});
-      const d=await res.json();
-      if(!res.ok||d.error) throw new Error(d.error||'Backend error');
-      resultData=d;
-      addLog(`✅ Range built: ${d.record_count} records`,'ok');
-      setProgress(100);
-      showResults(d,[]);
-      setBusy(false);
+      const tsv = document.getElementById('tsvInput').value.trim();
+      if (!tsv) { log('<span class="err">✗ TSV input is empty.</span>'); setLoading(false); return; }
+      form.append('tsv_text', tsv);
+    }
+
+    const res = await fetch(`${API}/process`, { method: 'POST', body: form });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      log(`<span class="err">✗ Error: ${data.error || 'Unknown error'}</span>`);
+      setLoading(false);
       return;
     }
 
-    if(!rawRows.length) throw new Error('No records after filtering.');
+    resultData = data;
+    log(`<span class="ok">✓ Range polygon built successfully.</span>\n` +
+        `<span class="info">  Records used: ${data.record_count}</span>\n` +
+        `<span class="info">  Species: ${data.species_name || 'unknown'}</span>`);
 
-    // Step 2: Convert to custom format
-    setProgress(55);
-    addLog(`🔄 Converting ${rawRows.length.toLocaleString()} records…`,'info');
-    setBusy(true,'Converting records…');
-    const converted=[];
-    for(const raw of rawRows){
-      if(o.dropNullCoords){
-        const la=parseFloat(raw.decimalLatitude||raw.latitude),lo=parseFloat(raw.decimalLongitude||raw.longitude);
-        if(isNaN(la)||isNaN(lo))continue;
-      }
-      converted.push(buildRow(raw,sp,o));
-    }
-    outRows=converted;
-    addLog(`✅ ${outRows.length.toLocaleString()} rows ready`,'ok');
-    setProgress(65);
+    // Update stats
+    document.getElementById('statsSection').style.display = '';
+    document.getElementById('statChips').innerHTML = `
+      <div class="chip">Records: <span>${data.record_count}</span></div>
+      <div class="chip">Mode: <span>${currentMode}</span></div>`;
 
-    // Step 3: Build range polygon
-    addLog('🐍 Building range polygon…','info');
-    setBusy(true,'Building range polygon…');
-    const payload=outRows.map(r=>({
-      speciesname:r.speciesname,latitude:r.latitude,longitude:r.longitude,
-      recordedby:r.recordedby,datefound:r.datefound,determinedby:r.determinedby,
-      lifestage:r.lifestage,sex:r.sex,notes:r.notes,rights:r.rights,
-      rightsholder:r.rightsholder,sourcelink:r.sourcelink,gbif_link:r.gbif_link,locality:r.locality
-    }));
-    const res=await fetch(`${window.location.origin}/process_json`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({rows:payload,species_name:sp})
-    });
-    const d=await res.json();
-    if(!res.ok||d.error) throw new Error(d.error||'Backend error');
-    resultData=d;
-    setProgress(100);
-    addLog(`✅ Range polygon built!`,'ok');
-    showResults(d,outRows);
+    // Draw on map
+    drawResults(data);
+    enableDownloads(true);
 
-  }catch(e){
-    addLog(`✗ ${e.message}`,'err');
-    const ov=document.getElementById('mapOverlay');
-    ov.classList.remove('hidden');
-    ov.innerHTML=`<span class="ov-icon">⚠️</span><span class="ov-text">${escHtml(e.message)}</span>`;
-  }finally{
-    setBusy(false);
+  } catch (err) {
+    log(`<span class="err">✗ Network error: ${err.message}\n\nMake sure the Flask backend is running on localhost:5000</span>`);
+  } finally {
+    setLoading(false);
   }
 }
 
-function showResults(data,rows){
-  document.getElementById('statsSection').style.display='';
-  document.getElementById('statChips').innerHTML=`
-    <div class="chip">Records: <span>${data.record_count.toLocaleString()}</span></div>
-    <div class="chip">Species: <span>${escHtml((data.species_name||'unknown').split(' ').slice(0,2).join(' '))}</span></div>`;
-
-  if(rangeLayer){mapInst.removeLayer(rangeLayer);rangeLayer=null;}
-  if(ptLayer){mapInst.removeLayer(ptLayer);ptLayer=null;}
-
-  rangeLayer=L.geoJSON(data.geojson,{
-    style:{color:'#3366ff',weight:2,fillColor:'#6699ff',fillOpacity:0.25,smoothFactor:1},
-    interactive:false
-  }).addTo(mapInst);
-
-  if(rows.length>0){
-    const pts=rows.filter(r=>{const la=parseFloat(r._lat||r.latitude),lo=parseFloat(r._lon||r.longitude);return !isNaN(la)&&!isNaN(lo);});
-    if(pts.length>0){
-      ptLayer=L.geoJSON({type:'FeatureCollection',features:pts.map(r=>({
-        type:'Feature',
-        geometry:{type:'Point',coordinates:[parseFloat(r._lon||r.longitude),parseFloat(r._lat||r.latitude)]},
-        properties:r
-      }))},{
-        pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:5,color:'#ff6600',fillColor:'#ff6600',fillOpacity:0.9})
-          .bindPopup(makePopup(f.properties))
-      }).addTo(mapInst);
-    }
-  }
-
+// ── Map drawing ───────────────────────────────────────────────────────────────
+function drawResults(data) {
+  // Hide overlay
   document.getElementById('mapOverlay').classList.add('hidden');
-  try{mapInst.fitBounds(rangeLayer.getBounds(),{padding:[20,20]});}catch(e){}
-  setTimeout(()=>mapInst.invalidateSize(),300);
-  setDownloads(true);
+
+  // Clear old layers
+  if (rangeLayer) { mapInstance.removeLayer(rangeLayer); rangeLayer = null; }
+  if (pointLayer) { mapInstance.removeLayer(pointLayer); pointLayer = null; }
+
+  // Range polygon
+  rangeLayer = L.geoJSON(data.geojson, {
+    style: { color: '#3366ff', weight: 2, fillColor: '#6699ff', fillOpacity: 0.25, smoothFactor: 1 },
+    interactive: false,
+  }).addTo(mapInstance);
+
+  // Points from TSV
+  const tsv = currentInputType === 'tsv'
+    ? document.getElementById('tsvInput').value.trim()
+    : null;
+
+  if (tsv) {
+    const pts = tsvToFeatures(tsv);
+    if (pts.length > 0) {
+      const fc = { type: 'FeatureCollection', features: pts };
+      pointLayer = L.geoJSON(fc, {
+        pointToLayer: (f, ll) => L.circleMarker(ll, {
+          radius: 5, color: '#ff6600', fillColor: '#ff6600', fillOpacity: 0.9,
+        }).bindPopup(buildPopup(f.properties)),
+      }).addTo(mapInstance);
+    }
+  }
+
+  // Fit bounds
+  try { mapInstance.fitBounds(rangeLayer.getBounds(), { padding: [20, 20] }); } catch(e) {}
+  setTimeout(() => mapInstance.invalidateSize(), 300);
 }
 
-function makePopup(p){
-  return [['Species',p.speciesname],['Locality',p.locality],['Date',p.datefound],['Recorded by',p.recordedby],['Notes',p.notes]]
-    .filter(([,v])=>v).map(([k,v])=>`<b>${k}:</b> ${escHtml(String(v))}`).join('<br>')
-    +(p.sourcelink?`<br><a href="${escHtml(p.sourcelink)}" target="_blank">View on GBIF →</a>`:'');
+function tsvToFeatures(tsv) {
+  const lines = tsv.trim().split(/\r?\n/);
+  const headers = lines[0].split('\t').map(h => h.trim());
+  const features = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = lines[i].split('\t');
+    const obj = {};
+    headers.forEach((h, j) => obj[h] = (cols[j] || '').trim());
+    const lat = parseFloat(obj.latitude), lon = parseFloat(obj.longitude);
+    if (isNaN(lat) || isNaN(lon)) continue;
+    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: obj });
+  }
+  return features;
+}
+
+function buildPopup(p) {
+  const parts = [`<b>${p.speciesname || p.name || ''}</b>`];
+  if (p.latitude && p.longitude) parts.push(`<b>Coords:</b> ${parseFloat(p.latitude).toFixed(4)}, ${parseFloat(p.longitude).toFixed(4)}`);
+  if (p.locality) parts.push(`<b>Locality:</b> ${p.locality}`);
+  if (p.recordedby) parts.push(`<b>Recorded by:</b> ${p.recordedby}`);
+  if (p.datefound)  parts.push(`<b>Date:</b> ${p.datefound}`);
+  if (p.gbif_link)  parts.push(`<b>Source:</b> <a href="${p.gbif_link}" target="_blank">GBIF</a>`);
+  return parts.join('<br>');
 }
 
 // ── Downloads ─────────────────────────────────────────────────────────────────
-function safeName(){return((resultData&&resultData.species_name)||'range').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'').toLowerCase();}
-function serialize(rows,sep){
-  const esc=(v,t)=>{if(v==null)return'';const s=String(v);if(t)return s.replace(/\t/g,' ');return(s.includes(',')||s.includes('"')||s.includes('\n'))?`"${s.replace(/"/g,'""')}"`:`${s}`;};
-  const t=sep==='\t';
-  return[COLS.join(sep),...rows.map(r=>COLS.map(c=>esc(r[c],t)).join(sep))].join('\n');
+function enableDownloads(on) {
+  ['dlGeoJSON','dlJS'].forEach(id => {
+    document.getElementById(id).classList.toggle('disabled', !on);
+  });
 }
-function trigger(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);}
-function dlFile(fmt){
-  if(!outRows.length)return;
-  const sep=fmt==='tsv'?'\t':',';
-  trigger(new Blob([serialize(outRows,sep)],{type:'text/plain'}),`${safeName()}.${fmt}`);
-}
-function dlGeoJSON(){if(!resultData)return;trigger(new Blob([resultData.geojson_str],{type:'application/json'}),`${safeName()}_range.geojson`);}
-function dlJS(){if(!resultData)return;trigger(new Blob([resultData.js_output],{type:'text/javascript'}),`${safeName()}_map.js`);}
 
-function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function safeName() {
+  return (resultData?.species_name || 'range').replace(/\s+/g, '_').toLowerCase();
+}
+
+function downloadGeoJSON() {
+  if (!resultData) return;
+  const blob = new Blob([resultData.geojson_str], { type: 'application/json' });
+  triggerDownload(blob, `${safeName()}_range.geojson`);
+}
+
+function downloadJS() {
+  if (!resultData) return;
+  const blob = new Blob([resultData.js_output], { type: 'text/javascript' });
+  triggerDownload(blob, `${safeName()}_map.js`);
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
