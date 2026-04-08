@@ -10,7 +10,7 @@ import geopandas as gpd
 import shapely
 from shapely.geometry import Polygon, MultiPolygon
 
-app = Flask(__name__, static_folder="static")
+app = Flask(__name__, static_folder="rangebuilder")
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
 CORS(app)
 
@@ -364,7 +364,7 @@ def build_occurrences_geojson(df: pd.DataFrame) -> dict:
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
-    return send_from_directory("static", "index.html")
+    return send_from_directory("rangebuilder", "index.html")
 
 
 @app.route("/process", methods=["POST"])
