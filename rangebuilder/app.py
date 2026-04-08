@@ -180,8 +180,10 @@ def to_geojson_str(geom):
 
 
 def build_full_js(tsv_text, geojson_str):
+    # Escape characters that would break the JS template literal
+    tsv_safe = tsv_text.strip().replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
     return f"""// ── Distribution Range Map ──────────────────────────────────────────────────
-const tsvText = `{tsv_text.strip()}`;
+const tsvText = `{tsv_safe}`;
 
 // ── TSV → GeoJSON ─────────────────────────────────────────────────────────────
 function tsvToGeoJSON(tsv) {{
@@ -328,6 +330,37 @@ setTimeout(() => map.invalidateSize(), 700);
 """
 
 
+# ── Occurrences GeoJSON (for live map points) ─────────────────────────────────
+def build_occurrences_geojson(df: pd.DataFrame) -> dict:
+    """Convert a cleaned occurrence DataFrame into a GeoJSON FeatureCollection."""
+    features = []
+    for _, row in df.iterrows():
+        lat = pd.to_numeric(row.get("latitude", None), errors="coerce")
+        lon = pd.to_numeric(row.get("longitude", None), errors="coerce")
+        if pd.isna(lat) or pd.isna(lon) or (lat == 0 and lon == 0):
+            continue
+        features.append({
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [float(lon), float(lat)]},
+            "properties": {
+                "name":         str(row.get("speciesname",  "") or ""),
+                "latitude":     float(lat),
+                "longitude":    float(lon),
+                "foundBy":      str(row.get("recordedby",   "") or ""),
+                "dateFound":    str(row.get("datefound",    "") or ""),
+                "determinedBy": str(row.get("determinedby", "") or ""),
+                "lifeStage":    str(row.get("lifestage",    "") or ""),
+                "sex":          str(row.get("sex",          "") or ""),
+                "notes":        str(row.get("notes",        "") or ""),
+                "rights":       str(row.get("rights",       "") or ""),
+                "rightsHolder": str(row.get("rightsholder", "") or ""),
+                "sourceLink":   str(row.get("sourcelink",   "") or ""),
+                "locality":     str(row.get("locality",     "") or ""),
+            },
+        })
+    return {"type": "FeatureCollection", "features": features}
+
+
 # ── Routes ─────────────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
@@ -370,13 +403,16 @@ def process():
         available = [c for c in OUTPUT_COLS if c in df.columns]
         tsv_out   = df[available].fillna("").to_csv(sep="\t", index=False)
         js_output = build_full_js(tsv_out, geojson_str)
+        occurrences_geojson = build_occurrences_geojson(clean_df)
 
         return jsonify({
-            "geojson":      geojson_dict,
-            "geojson_str":  geojson_str,
-            "js_output":    js_output,
-            "record_count": len(clean_df),
-            "species_name": species_name,
+            "geojson":            geojson_dict,
+            "geojson_str":        geojson_str,
+            "js_output":          js_output,
+            "record_count":       len(clean_df),
+            "species_name":       species_name,
+            "occurrences_geojson": occurrences_geojson,
+            "tsv_output":         tsv_out,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

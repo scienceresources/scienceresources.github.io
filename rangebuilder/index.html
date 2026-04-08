@@ -360,6 +360,67 @@ function setDownloads(on) {
   });
 }
 
+// ── Map helpers (popup, zoom-aware radius, point layer) ────────────────────────
+function buildPopup(p) {
+  const parts = [
+    `<b>${p.name || 'Unknown'}</b>`,
+    `<b>Coordinates:</b> ${parseFloat(p.latitude).toFixed(4)}, ${parseFloat(p.longitude).toFixed(4)}`,
+  ];
+  if (p.locality && p.locality.trim()) parts.push(`<b>Locality:</b> ${p.locality}`);
+  parts.push(
+    `<b>Recorded By:</b> ${p.foundBy      || 'Unknown'}`,
+    `<b>Date Found:</b>  ${p.dateFound    || 'Unknown'}`,
+    `<b>Determined By:</b> ${p.determinedBy || 'Unknown'}`,
+    `<b>Life Stage:</b>  ${p.lifeStage    || 'Unknown'}`,
+    `<b>Sex:</b>         ${p.sex          || 'Unknown'}`,
+    `<b>Notes:</b>       ${p.notes        || 'None'}`
+  );
+  if (p.rights)       parts.push(`<b>Rights:</b> ${p.rights}`);
+  if (p.rightsHolder) parts.push(`<b>Rights Holder:</b> ${p.rightsHolder}`);
+  if (p.sourceLink) {
+    const link = p.sourceLink.trim();
+    const isGBIF = /gbif\.org\/occurrence/i.test(link);
+    const isURL  = /^https?:\/\//i.test(link);
+    const isDOI  = /^10\.\d{4,9}\//i.test(link);
+    if (isGBIF)
+      parts.push(`<b>Source:</b> <a href="${link}" target="_blank" rel="noopener noreferrer">View GBIF Record</a>`);
+    else if (isURL)
+      parts.push(`<b>Source:</b> <a href="${link}" target="_blank" rel="noopener noreferrer">View Record</a>`);
+    else if (isDOI)
+      parts.push(`<b>Source:</b> <a href="https://doi.org/${link}" target="_blank" rel="noopener noreferrer">${link}</a>`);
+    else
+      parts.push(`<b>Source:</b> ${link}`);
+  }
+  return parts.join('<br>');
+}
+
+function zoomToRadius(zoom) {
+  if (zoom >= 12) return 7;
+  if (zoom >= 10) return 6;
+  if (zoom >= 8)  return 5;
+  if (zoom >= 6)  return 4;
+  if (zoom >= 5)  return 3;
+  return 2;
+}
+
+function addPointLayer(geojson, color) {
+  const layer = L.geoJSON(geojson, {
+    pointToLayer: (feature, latlng) => {
+      const marker = L.circleMarker(latlng, {
+        radius: zoomToRadius(mapInst.getZoom()),
+        color, fillColor: color, fillOpacity: 0.9,
+      });
+      marker.bindPopup(buildPopup(feature.properties));
+      return marker;
+    },
+  }).addTo(mapInst);
+  mapInst.on('zoomend', () => {
+    const r = zoomToRadius(mapInst.getZoom());
+    layer.eachLayer(m => m.setRadius(r));
+  });
+  return layer;
+}
+
 // ── Main pipeline ──────────────────────────────────────────────────────────────
 async function runPipeline() {
   if (!uploadedFile) return;
@@ -417,17 +478,28 @@ function showResults(data) {
   if (rangeLayer) { mapInst.removeLayer(rangeLayer); rangeLayer = null; }
   if (ptLayer)    { mapInst.removeLayer(ptLayer);    ptLayer    = null; }
 
+  // Draw range polygon (beneath points)
   rangeLayer = L.geoJSON(data.geojson, {
     style: { color: '#0d9488', weight: 2, fillColor: '#2dd4bf', fillOpacity: 0.2, smoothFactor: 1 },
     interactive: false,
   }).addTo(mapInst);
+
+  // Draw occurrence dots dynamically
+  if (data.occurrences_geojson && data.occurrences_geojson.features.length > 0) {
+    ptLayer = addPointLayer(data.occurrences_geojson, '#ff6600');
+    const bounds = data.occurrences_geojson.features.map(f => [
+      f.geometry.coordinates[1], f.geometry.coordinates[0]
+    ]);
+    try { mapInst.fitBounds(bounds, { padding: [20, 20] }); } catch(e) {}
+  } else {
+    try { mapInst.fitBounds(rangeLayer.getBounds(), { padding: [20, 20] }); } catch(e) {}
+  }
 
   document.getElementById('mapPlaceholder').style.display = 'none';
   document.getElementById('step4card').classList.remove('hidden');
   setStepState('step3', 'done');
   setDownloads(true);
 
-  try { mapInst.fitBounds(rangeLayer.getBounds(), { padding: [20, 20] }); } catch(e) {}
   setTimeout(() => mapInst.invalidateSize(), 300);
 }
 
@@ -445,12 +517,9 @@ function dlGeoJSON() {
   trigger(new Blob([resultData.geojson_str], { type: 'application/json' }), `${safeName()}_range.geojson`);
 }
 function dlFile(fmt) {
-  if (!resultData || !resultData.js_output) return;
-  // Extract TSV block from js_output as a fallback download
-  // For proper downloads we parse the tsv from the js_output
-  const match = resultData.js_output.match(/const tsvText = `([\s\S]*?)`;/);
-  if (!match) return;
-  const tsv = match[1].trim();
+  if (!resultData) return;
+  const tsv = resultData.tsv_output || '';
+  if (!tsv) return;
   if (fmt === 'tsv') {
     trigger(new Blob([tsv], { type: 'text/plain' }), `${safeName()}.tsv`);
   } else {
