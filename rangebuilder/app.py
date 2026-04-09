@@ -5,6 +5,9 @@ Distribution Range Builder – Flask backend
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import io, json, re, zipfile, threading
+from math import isnan
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import requests as req_lib
 import pandas as pd
 import geopandas as gpd
 import shapely
@@ -13,6 +16,98 @@ from shapely.geometry import Polygon, MultiPolygon
 app = Flask(__name__, static_folder="rangebuild")
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
 CORS(app)
+
+
+# ── iNat / BugGuide exclusion — verbatim from gbif-csv converter ──────────────
+EXCLUDED_DATASET_KEYS = {
+    '50c9509d-22c7-4a22-a47d-8c48425ef4a7',  # iNaturalist research-grade
+    '7f5e4129-0717-428e-876a-464fbd5d9a47',  # BugGuide
+}
+EXCLUDED_PUBLISHERS = ['inaturalist', 'bugguide']
+
+
+def exclude_inat(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter out iNaturalist and BugGuide rows — matches converter excludeINat logic."""
+    col_lower = {c.lower(): c for c in df.columns}
+    mask = pd.Series(True, index=df.index)
+
+    if 'datasetkey' in col_lower:
+        mask &= ~df[col_lower['datasetkey']].isin(EXCLUDED_DATASET_KEYS)
+
+    for pub_col in ('datasetname', 'institutioncode'):
+        if pub_col in col_lower:
+            lower_vals = df[col_lower[pub_col]].fillna('').str.lower()
+            for ex in EXCLUDED_PUBLISHERS:
+                mask &= ~lower_vals.str.contains(ex, na=False)
+
+    excluded = (~mask).sum()
+    if excluded:
+        print(f"  🚫 Excluded {excluded} iNat/BugGuide rows")
+    return df[mask].copy()
+
+
+# ── Reverse geocoding — verbatim from converter reverseGeocode ────────────────
+_geo_cache: dict = {}
+_geo_lock = threading.Lock()
+
+
+def reverse_geocode(lat: float, lon: float) -> str | None:
+    """Call bigdatacloud.net — same endpoint and field logic as the converter."""
+    key = f"{round(lat, 3)},{round(lon, 3)}"
+    with _geo_lock:
+        if key in _geo_cache:
+            return _geo_cache[key]
+    try:
+        url = (
+            f"https://api.bigdatacloud.net/data/reverse-geocode-client"
+            f"?latitude={lat}&longitude={lon}&localityLanguage=en"
+        )
+        resp = req_lib.get(url, timeout=6)
+        d = resp.json()
+        parts = [
+            d.get("locality") or d.get("city") or "",
+            d.get("principalSubdivision") or "",
+            d.get("countryName") or "",
+        ]
+        result = ", ".join(p for p in parts if p) or None
+    except Exception:
+        result = None
+    with _geo_lock:
+        _geo_cache[key] = result
+    return result
+
+
+def geocode_missing(df: pd.DataFrame) -> pd.DataFrame:
+    """Fill empty locality via reverse geocoding — mirrors converter BATCH=8 logic."""
+    df = df.copy()
+    empty_mask = df["locality"].isna() | (df["locality"].fillna("").astype(str).str.strip() == "")
+    needs_geo = df[empty_mask].dropna(subset=["latitude", "longitude"])
+
+    if needs_geo.empty:
+        return df
+
+    print(f"  🌍 Reverse geocoding {len(needs_geo)} records missing locality…")
+
+    def do_geocode(args):
+        idx, lat, lon = args
+        try:
+            la, lo = float(lat), float(lon)
+            if not (isnan(la) or isnan(lo)):
+                return idx, reverse_geocode(la, lo)
+        except (ValueError, TypeError):
+            pass
+        return idx, None
+
+    tasks = [(row.Index, row.latitude, row.longitude)
+             for row in needs_geo.itertuples()]
+
+    BATCH = 8
+    with ThreadPoolExecutor(max_workers=BATCH) as ex:
+        for idx, result in ex.map(do_geocode, tasks):
+            if result:
+                df.at[idx, "locality"] = result
+
+    return df
 
 # ── Land mask — lazy-loaded on first use ───────────────────────────────────────
 _land_lock = threading.Lock()
@@ -137,18 +232,28 @@ def normalise_df(df: pd.DataFrame) -> pd.DataFrame:
     combined = (n1 + " " + n2).str.strip()
     out["notes"] = combined.replace("", None)
 
-    # Locality
-    if "locality" in col_lower:
-        out["locality"] = df[col_lower["locality"]]
-    else:
+    # Locality — verbatim from converter buildRow:
+    #   parts = [county, stateProvince, countryCode].filter(Boolean).join(', ')
+    # The DwC `locality` field is intentionally skipped for DwC-A input because
+    # it contains vague strings (e.g. "near Moses Lake"). We only fall back to it
+    # for pre-converted TSV files that lack the DwC geo columns entirely.
+    dwc_geo = any(k in col_lower for k in ("county", "stateprovince"))
+    if dwc_geo:
         parts = pd.concat([
             pick("county").fillna("").astype(str),
             pick("stateprovince").fillna("").astype(str),
             pick("countrycode", "country").fillna("").astype(str),
         ], axis=1)
-        out["locality"] = parts.apply(
-            lambda r: ", ".join(v for v in r if v), axis=1
-        ).replace("", None)
+        built = parts.apply(lambda r: ", ".join(v for v in r if v), axis=1).replace("", None)
+        # For rows where all three are blank, fall back to the locality column
+        if "locality" in col_lower:
+            out["locality"] = built.where(built.notna(), df[col_lower["locality"]])
+        else:
+            out["locality"] = built
+    elif "locality" in col_lower:
+        out["locality"] = df[col_lower["locality"]]
+    else:
+        out["locality"] = None
 
     # sourcelink: prefer an explicit sourcelink column; if absent, build the
     # GBIF occurrence URL from gbifID (matching the gbif-csv converter output).
@@ -422,12 +527,15 @@ def process():
             if not uploaded:
                 return jsonify({"error": "No file uploaded."}), 400
             raw_df = read_occurrence_file(uploaded.read(), uploaded.filename)
+            raw_df = exclude_inat(raw_df)        # filter iNat/BugGuide (converter logic)
             df     = normalise_df(raw_df)
+            df     = geocode_missing(df)         # reverse-geocode blank localities
         else:
             tsv_text = request.form.get("tsv_text", "").strip()
             if not tsv_text:
                 return jsonify({"error": "No TSV data provided."}), 400
             df = pd.read_csv(io.StringIO(tsv_text), sep="\t", low_memory=False)
+            df = geocode_missing(df)             # also geocode API/TSV path
 
         final_range, clean_df = build_range(df)
         geojson_str  = to_geojson_str(final_range)
