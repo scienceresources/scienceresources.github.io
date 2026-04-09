@@ -523,10 +523,16 @@ function showResults(data) {
   }).addTo(mapInst);
 
   // Parse occurrence points from js_output TSV and render them
-  const tsvMatch = data.js_output && data.js_output.match(/const tsvText = `([\s\S]*?)`;/);
-  if (tsvMatch) {
-    const pts = tsvToPoints(tsvMatch[1]);
-    if (pts.length) ptLayer = addPointLayer(pts);
+  if (data.js_output) {
+    const startMarker = 'const tsvText = `';
+    const endMarker   = '`;\n\nfunction tsvToGeoJSON';
+    const s = data.js_output.indexOf(startMarker);
+    const e = data.js_output.indexOf(endMarker);
+    if (s !== -1 && e !== -1) {
+      const tsv = data.js_output.slice(s + startMarker.length, e);
+      const pts = tsvToPoints(tsv);
+      if (pts.length) ptLayer = addPointLayer(pts);
+    }
   }
 
   document.getElementById('mapPlaceholder').style.display = 'none';
