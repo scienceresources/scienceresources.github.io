@@ -495,7 +495,7 @@ function addAgeLegend(baseColor) {{
       {{ label: "40–59 years ago", factor: 0.40 }},
       {{ label: "60–79 years ago", factor: 0.60 }},
       {{ label: "80+ years ago",   factor: 0.80 }},
-      { label: "Date unknown",    factor: 0.55, dashed: true },
+      {{ label: "Date unknown",    factor: 0.55, dashed: true }},
     ];
     div.innerHTML = `<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#475569;margin-bottom:6px;">Observation Age</div>` +
       entries.map(e => {{
