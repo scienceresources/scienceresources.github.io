@@ -150,18 +150,22 @@ def normalise_df(df: pd.DataFrame) -> pd.DataFrame:
             lambda r: ", ".join(v for v in r if v), axis=1
         ).replace("", None)
 
-    out["sourcelink"] = pick("sourcelink", "occurrenceid")
-    out["gbif_link"]  = pick("gbif_link")
-
-    # If no explicit gbif_link column, build the URL from the gbifID column
-    # (present in all GBIF occurrence downloads as a bare numeric key).
-    if out["gbif_link"].fillna("").astype(str).str.strip().eq("").all():
+    # sourcelink: prefer an explicit sourcelink column; if absent, build the
+    # GBIF occurrence URL from gbifID (matching the gbif-csv converter output).
+    # occurrenceID is intentionally excluded — it's an institution-specific
+    # catalog code (e.g. "ORMEL053-25"), not a usable hyperlink.
+    if "sourcelink" in col_lower:
+        out["sourcelink"] = df[col_lower["sourcelink"]]
+    else:
         gbif_id_series = pick("gbifid", "gbif_id")
-        if not gbif_id_series.fillna("").astype(str).str.strip().eq("").all():
-            out["gbif_link"] = gbif_id_series.apply(
-                lambda x: (f"https://www.gbif.org/occurrence/{str(x).strip()}"
-                           if pd.notna(x) and str(x).strip() else "")
-            )
+        out["sourcelink"] = gbif_id_series.apply(
+            lambda x: (f"https://www.gbif.org/occurrence/{str(x).strip()}"
+                       if pd.notna(x) and str(x).strip() else None)
+        )
+
+    # gbif_link: explicit column only (blank in converter output; reserved for
+    # manual entry or future use).
+    out["gbif_link"] = pick("gbif_link")
 
     return out[[c for c in OUTPUT_COLS if c in out.columns]]
 
