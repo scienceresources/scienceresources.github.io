@@ -1605,7 +1605,7 @@ document.addEventListener('alpine:init', () => {
       if (!datasetKey) return null;
       if (this.datasetInfoCache[datasetKey]) return this.datasetInfoCache[datasetKey];
       try {
-        const res = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`, { signal: AbortSignal.timeout(8000) });
+        const res = await fetch(`https://api.gbif.org/v1/dataset/${datasetKey}`, { signal: AbortSignal.timeout(12000) });
         if (!res.ok) { this.datasetInfoCache[datasetKey] = null; return null; }
         const d = await res.json();
         const title = d.title || 'GBIF Dataset';
@@ -1633,6 +1633,15 @@ document.addEventListener('alpine:init', () => {
         const batch = keys.slice(i, i + PARALLEL);
         await Promise.all(batch.map(k => this.fetchDatasetInfo(k)));
         if (i % 20 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+      // Retry any that got null due to timeout or rate-limiting
+      const failedKeys = keys.filter(k => this.datasetInfoCache[k] === null);
+      if (failedKeys.length > 0) {
+        this.addLog(`🔄 Retrying ${failedKeys.length} failed dataset lookup(s)…`, 'warn');
+        failedKeys.forEach(k => delete this.datasetInfoCache[k]);
+        for (let i = 0; i < failedKeys.length; i += PARALLEL) {
+          await Promise.all(failedKeys.slice(i, i + PARALLEL).map(k => this.fetchDatasetInfo(k)));
+        }
       }
       const resolved = Object.values(this.datasetInfoCache).filter(Boolean).length;
       this.addLog(`✅ Dataset metadata resolved (${resolved}/${keys.length} found)`, 'ok');
@@ -1970,12 +1979,13 @@ document.addEventListener('alpine:init', () => {
 
     resolveRecordCitation(row, rawCites, doiToCitation) {
       const dk = row.datasetKey || '';
-      if (this.dataSource === 'api' && dk && this.datasetInfoCache[dk]) {
-        return this.datasetInfoCache[dk].citation || `${row.datasetName || 'GBIF Dataset'} (via GBIF.org)`;
+      if (this.dataSource === 'api' && dk) {
+        if (dk in this.datasetInfoCache && this.datasetInfoCache[dk]) {
+          return this.datasetInfoCache[dk].citation || `${row.datasetName || 'GBIF Dataset'} (via GBIF.org)`;
+        }
       }
-      if (dk && this.datasetInfoCache[dk]) {
-        const cached = this.datasetInfoCache[dk];
-        if (cached) return cached.citation;
+      if (dk && (dk in this.datasetInfoCache) && this.datasetInfoCache[dk]) {
+        return this.datasetInfoCache[dk].citation;
       }
       const dsName = (row.datasetName || '').toLowerCase();
       const inst   = (row.institutionCode || '').toLowerCase();
