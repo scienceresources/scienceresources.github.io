@@ -50,25 +50,49 @@
 
     .progress-bar { height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden; }
     .progress-fill { height: 100%; background: #14b8a6; border-radius: 2px; transition: width 0.3s ease; }
+
+    .back-arrow-desktop { display: none; }
+    .back-arrow-mobile  { display: flex; }
+    @media (min-width: 1122px) {
+      .back-arrow-desktop { display: flex; }
+      .back-arrow-mobile  { display: none; }
+    }
+
+    .leaflet-popup-content-wrapper { background:white !important; border:1px solid #e2e8f0 !important; border-radius:12px !important; box-shadow:0 4px 20px rgba(0,0,0,0.12) !important; color:#334155 !important; }
+    .leaflet-popup-tip { background:white !important; }
+    .leaflet-popup-content { font-size: 12px; line-height: 1.6; }
+    .leaflet-popup-content a { color: #0d9488; text-decoration: underline; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
 
 <!-- ── HEADER ─────────────────────────────────────────────────────────────── -->
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-  <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
-    <div class="flex items-center gap-3">
-      <div class="bg-teal-100 p-2 rounded-lg">
-        <i class="fa-solid fa-map-location-dot text-teal-600 text-xl"></i>
+  <!-- Mobile back arrow -->
+  <div class="back-arrow-mobile px-4 pt-2.5 pb-1 border-b border-slate-100">
+    <a href="gbif-index.html" class="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-bold uppercase tracking-widest">
+      <i class="fa-solid fa-arrow-left text-xs"></i>Back
+    </a>
+  </div>
+  <div class="relative">
+    <!-- Desktop back arrow -->
+    <a href="gbif-index.html" class="back-arrow-desktop absolute left-4 top-1/2 -translate-y-1/2 items-center justify-center w-9 h-9 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all">
+      <i class="fa-solid fa-arrow-left text-sm"></i>
+    </a>
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-teal-100 p-2 rounded-lg">
+          <i class="fa-solid fa-map-location-dot text-teal-600 text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Distribution Range Builder</h1>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">GBIF DwC-A · occurrence.txt · Polygon Generator</p>
+        </div>
       </div>
-      <div>
-        <h1 class="text-lg font-bold text-slate-900 leading-tight">Distribution Range Builder</h1>
-        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">GBIF DwC-A · occurrence.txt · Polygon Generator</p>
-      </div>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
+        Concave hull · Chaikin smoothing · Land-clipped · Python + Flask
+      </p>
     </div>
-    <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">
-      Concave hull · Chaikin smoothing · Land-clipped · Python + Flask
-    </p>
   </div>
 </header>
 
@@ -403,6 +427,82 @@ async function runPipeline() {
   }
 }
 
+// ── Point layer helpers ────────────────────────────────────────────────────────
+function zoomToRadius(zoom) {
+  if (zoom >= 12) return 7;
+  if (zoom >= 10) return 6;
+  if (zoom >= 8)  return 5;
+  if (zoom >= 6)  return 4;
+  if (zoom >= 5)  return 3;
+  return 2;
+}
+
+function buildPopup(p) {
+  const parts = [`<b>${escHtml(p.name)}</b>`];
+  parts.push(`<b>Coordinates:</b> ${parseFloat(p.latitude).toFixed(4)}, ${parseFloat(p.longitude).toFixed(4)}`);
+  if (p.locality)     parts.push(`<b>Locality:</b> ${escHtml(p.locality)}`);
+  parts.push(`<b>Recorded By:</b> ${escHtml(p.foundBy || 'Unknown')}`);
+  parts.push(`<b>Date Found:</b> ${escHtml(p.dateFound || 'Unknown')}`);
+  parts.push(`<b>Determined By:</b> ${escHtml(p.determinedBy || 'Unknown')}`);
+  parts.push(`<b>Life Stage:</b> ${escHtml(p.lifeStage || 'Unknown')}`);
+  parts.push(`<b>Sex:</b> ${escHtml(p.sex || 'Unknown')}`);
+  if (p.notes)        parts.push(`<b>Notes:</b> ${escHtml(p.notes)}`);
+  if (p.rights)       parts.push(`<b>Rights:</b> ${escHtml(p.rights)}`);
+  if (p.sourceLink) {
+    const lnk = p.sourceLink.trim();
+    if (/^https?:\/\//i.test(lnk))
+      parts.push(`<b>Source:</b> <a href="${lnk}" target="_blank" rel="noopener">View Record</a>`);
+    else parts.push(`<b>Source:</b> ${escHtml(lnk)}`);
+  }
+  return parts.join('<br>');
+}
+
+function tsvToPoints(tsv) {
+  const lines = tsv.trim().split(/\r?\n/);
+  const headers = lines[0].split('\t').map(h => h.trim());
+  const pts = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cols = lines[i].split('\t');
+    const obj = {};
+    headers.forEach((h, j) => { obj[h] = cols[j] ? cols[j].trim() : ''; });
+    const lat = parseFloat(obj.latitude), lon = parseFloat(obj.longitude);
+    if (isNaN(lat) || isNaN(lon) || (lat === 0 && lon === 0)) continue;
+    pts.push({ lat, lon, props: {
+      name: obj.speciesname || '',
+      latitude: lat, longitude: lon,
+      foundBy: obj.recordedby || '',
+      dateFound: obj.datefound || '',
+      determinedBy: obj.determinedby || '',
+      lifeStage: obj.lifestage || '',
+      sex: obj.sex || '',
+      notes: obj.notes || '',
+      rights: obj.rights || '',
+      locality: obj.locality || '',
+      sourceLink: obj.sourcelink || obj.gbif_link || '',
+    }});
+  }
+  return pts;
+}
+
+function addPointLayer(pts) {
+  const layer = L.layerGroup();
+  const r = zoomToRadius(mapInst.getZoom());
+  pts.forEach(pt => {
+    const m = L.circleMarker([pt.lat, pt.lon], {
+      radius: r, color: '#ff6600', fillColor: '#ff6600', fillOpacity: 0.85, weight: 1
+    });
+    m.bindPopup(buildPopup(pt.props), { maxWidth: 280 });
+    layer.addLayer(m);
+  });
+  layer.addTo(mapInst);
+  mapInst.on('zoomend', () => {
+    const nr = zoomToRadius(mapInst.getZoom());
+    layer.eachLayer(m => { if (m.setRadius) m.setRadius(nr); });
+  });
+  return layer;
+}
+
 // ── Show results ───────────────────────────────────────────────────────────────
 function showResults(data) {
   const sn = (data.species_name || 'Unknown').split(' ').slice(0, 2).join(' ');
@@ -421,6 +521,13 @@ function showResults(data) {
     style: { color: '#0d9488', weight: 2, fillColor: '#2dd4bf', fillOpacity: 0.2, smoothFactor: 1 },
     interactive: false,
   }).addTo(mapInst);
+
+  // Parse occurrence points from js_output TSV and render them
+  const tsvMatch = data.js_output && data.js_output.match(/const tsvText = `([\s\S]*?)`;/);
+  if (tsvMatch) {
+    const pts = tsvToPoints(tsvMatch[1]);
+    if (pts.length) ptLayer = addPointLayer(pts);
+  }
 
   document.getElementById('mapPlaceholder').style.display = 'none';
   document.getElementById('step4card').classList.remove('hidden');
