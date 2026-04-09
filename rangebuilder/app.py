@@ -153,6 +153,16 @@ def normalise_df(df: pd.DataFrame) -> pd.DataFrame:
     out["sourcelink"] = pick("sourcelink", "occurrenceid")
     out["gbif_link"]  = pick("gbif_link")
 
+    # If no explicit gbif_link column, build the URL from the gbifID column
+    # (present in all GBIF occurrence downloads as a bare numeric key).
+    if out["gbif_link"].fillna("").astype(str).str.strip().eq("").all():
+        gbif_id_series = pick("gbifid", "gbif_id")
+        if not gbif_id_series.fillna("").astype(str).str.strip().eq("").all():
+            out["gbif_link"] = gbif_id_series.apply(
+                lambda x: (f"https://www.gbif.org/occurrence/{str(x).strip()}"
+                           if pd.notna(x) and str(x).strip() else "")
+            )
+
     return out[[c for c in OUTPUT_COLS if c in out.columns]]
 
 
