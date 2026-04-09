@@ -19,15 +19,15 @@
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
     .drop-zone { transition: all 0.2s; border: 2px dashed #e2e8f0; }
-    .drop-zone.drag-over { border-color: #0d9488 !important; background: #f0fdfa !important; }
+    .drop-zone.drag-over { border-color: #d97706 !important; background: #fffbeb !important; }
 
     .step-card { background: white; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 20px; transition: border-color 0.2s, background 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-    .step-card.active { border-color: #2dd4bf; background: #f0fdfa; }
+    .step-card.active { border-color: #f59e0b; background: #fffbeb; }
     .step-card.done   { border-color: #86efac; background: #f0fdf4; }
 
     .step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; flex-shrink: 0; }
     .step-num.pending { background: #f1f5f9; color: #94a3b8; }
-    .step-num.active  { background: #14b8a6; color: white; }
+    .step-num.active  { background: #d97706; color: white; }
     .step-num.done    { background: #22c55e; color: white; }
 
     .spin { animation: spin 1s linear infinite; }
@@ -45,11 +45,11 @@
     .map-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; pointer-events: none; }
 
     .dl-btn { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: white; border: 1.5px solid #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 13px; color: #475569; transition: all 0.15s; width: 100%; text-align: left; }
-    .dl-btn:hover:not(:disabled) { border-color: #2dd4bf; color: #0f766e; background: #f0fdfa; }
+    .dl-btn:hover:not(:disabled) { border-color: #d97706; color: #92400e; background: #fffbeb; }
     .dl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
     .progress-bar { height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden; }
-    .progress-fill { height: 100%; background: #14b8a6; border-radius: 2px; transition: width 0.3s ease; }
+    .progress-fill { height: 100%; background: #d97706; border-radius: 2px; transition: width 0.3s ease; }
 
     .back-arrow-desktop { display: none; }
     .back-arrow-mobile  { display: flex; }
@@ -61,7 +61,7 @@
     .leaflet-popup-content-wrapper { background:white !important; border:1px solid #e2e8f0 !important; border-radius:12px !important; box-shadow:0 4px 20px rgba(0,0,0,0.12) !important; color:#334155 !important; }
     .leaflet-popup-tip { background:white !important; }
     .leaflet-popup-content { font-size: 12px; line-height: 1.6; }
-    .leaflet-popup-content a { color: #0d9488; text-decoration: underline; }
+    .leaflet-popup-content a { color: #d97706; text-decoration: underline; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col">
@@ -81,8 +81,8 @@
     </a>
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
       <div class="flex items-center gap-3">
-        <div class="bg-teal-100 p-2 rounded-lg">
-          <i class="fa-solid fa-map-location-dot text-teal-600 text-xl"></i>
+        <div class="bg-amber-100 p-2 rounded-lg">
+          <i class="fa-solid fa-map-location-dot text-amber-600 text-xl"></i>
         </div>
         <div>
           <h1 class="text-lg font-bold text-slate-900 leading-tight">Distribution Range Builder</h1>
@@ -111,22 +111,22 @@
           </div>
           <div class="flex-1">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-              <i class="fa-solid fa-circle-1 mr-1 text-teal-400"></i>Upload Occurrence Data
+              <i class="fa-solid fa-circle-1 mr-1 text-amber-500"></i>Upload Occurrence Data
             </p>
             <p class="text-sm text-slate-500 leading-relaxed mb-4">
               Upload a <strong class="text-slate-700">GBIF Darwin Core Archive ZIP</strong> or a plain
               <strong class="text-slate-700">occurrence.txt</strong> file (tab-separated).
             </p>
 
-            <div class="drop-zone rounded-xl p-6 cursor-pointer hover:border-teal-300 hover:bg-teal-50/50 flex flex-col items-center justify-center min-h-[160px] relative"
+            <div class="drop-zone rounded-xl p-6 cursor-pointer hover:border-amber-300 hover:bg-amber-50/50 flex flex-col items-center justify-center min-h-[160px] relative"
               id="dropZone" onclick="document.getElementById('fileInput').click()">
               <input type="file" id="fileInput" accept=".zip,.txt" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 style="pointer-events: none;"
                 onchange="onFileSelect(this)" />
 
               <div id="dzEmpty" class="flex items-center gap-5 text-center w-full justify-center">
-                <div class="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center shrink-0">
-                  <i class="fa-solid fa-file-arrow-up text-teal-400 text-xl"></i>
+                <div class="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center shrink-0">
+                  <i class="fa-solid fa-file-arrow-up text-amber-500 text-xl"></i>
                 </div>
                 <div class="text-left">
                   <p class="text-sm font-bold text-slate-600 mb-0.5">Drop file here</p>
@@ -158,29 +158,29 @@
           </div>
           <div class="flex-1">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-              <i class="fa-solid fa-circle-2 mr-1 text-teal-400"></i>Options
+              <i class="fa-solid fa-circle-2 mr-1 text-amber-500"></i>Options
             </p>
             <div class="space-y-2 mt-3">
               <label class="flex items-start gap-3 cursor-pointer group">
-                <input type="checkbox" id="optExclude" checked class="mt-0.5 accent-teal-500 shrink-0" />
+                <input type="checkbox" id="optExclude" checked class="mt-0.5 accent-amber-500 shrink-0" />
                 <span class="text-sm text-slate-500 group-hover:text-slate-700 transition-colors">
                   <strong class="text-slate-700">Exclude iNaturalist &amp; BugGuide</strong> records
                 </span>
               </label>
               <label class="flex items-start gap-3 cursor-pointer group">
-                <input type="checkbox" id="optDropCoords" class="mt-0.5 accent-teal-500 shrink-0" />
+                <input type="checkbox" id="optDropCoords" class="mt-0.5 accent-amber-500 shrink-0" />
                 <span class="text-sm text-slate-500 group-hover:text-slate-700 transition-colors">
                   <strong class="text-slate-700">Drop records</strong> missing coordinates
                 </span>
               </label>
               <label class="flex items-start gap-3 cursor-pointer group">
-                <input type="checkbox" id="optBuildDate" checked class="mt-0.5 accent-teal-500 shrink-0" />
+                <input type="checkbox" id="optBuildDate" checked class="mt-0.5 accent-amber-500 shrink-0" />
                 <span class="text-sm text-slate-500 group-hover:text-slate-700 transition-colors">
                   <strong class="text-slate-700">Build ISO date</strong> from year/month/day fields
                 </span>
               </label>
               <label class="flex items-start gap-3 cursor-pointer group">
-                <input type="checkbox" id="optNotes" checked class="mt-0.5 accent-teal-500 shrink-0" />
+                <input type="checkbox" id="optNotes" checked class="mt-0.5 accent-amber-500 shrink-0" />
                 <span class="text-sm text-slate-500 group-hover:text-slate-700 transition-colors">
                   <strong class="text-slate-700">Combine notes</strong> fields into one
                 </span>
@@ -198,11 +198,11 @@
           </div>
           <div class="flex-1">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-              <i class="fa-solid fa-circle-3 mr-1 text-teal-400"></i>Build Range Polygon
+              <i class="fa-solid fa-circle-3 mr-1 text-amber-500"></i>Build Range Polygon
             </p>
 
             <button id="runBtn" onclick="runPipeline()" disabled
-              class="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm uppercase tracking-widest px-6 py-3 rounded-lg transition-all shadow-sm active:scale-95">
+              class="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm uppercase tracking-widest px-6 py-3 rounded-lg transition-all shadow-sm active:scale-95">
               <i class="fa-solid fa-play"></i> Build Range
             </button>
 
@@ -226,7 +226,7 @@
           </div>
           <div class="flex-1">
             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-              <i class="fa-solid fa-circle-4 mr-1 text-teal-400"></i>Results &amp; Downloads
+              <i class="fa-solid fa-circle-4 mr-1 text-amber-500"></i>Results &amp; Downloads
             </p>
 
             <!-- Stat chips -->
@@ -235,28 +235,28 @@
             <!-- Download buttons -->
             <div class="space-y-2">
               <button class="dl-btn" id="dlGeoJSON" onclick="dlGeoJSON()" disabled>
-                <i class="fa-solid fa-map text-teal-500 text-base w-5 text-center"></i>
+                <i class="fa-solid fa-map text-amber-500 text-base w-5 text-center"></i>
                 <div>
                   <div class="font-semibold text-xs">GeoJSON Range</div>
                   <div class="text-[10px] text-slate-400">Range polygon (.geojson)</div>
                 </div>
               </button>
               <button class="dl-btn" id="dlCSV" onclick="dlFile('csv')" disabled>
-                <i class="fa-solid fa-file-csv text-teal-500 text-base w-5 text-center"></i>
+                <i class="fa-solid fa-file-csv text-amber-500 text-base w-5 text-center"></i>
                 <div>
                   <div class="font-semibold text-xs">Occurrence CSV</div>
                   <div class="text-[10px] text-slate-400">All records, custom format (.csv)</div>
                 </div>
               </button>
               <button class="dl-btn" id="dlTSV" onclick="dlFile('tsv')" disabled>
-                <i class="fa-solid fa-table text-teal-500 text-base w-5 text-center"></i>
+                <i class="fa-solid fa-table text-amber-500 text-base w-5 text-center"></i>
                 <div>
                   <div class="font-semibold text-xs">Occurrence TSV</div>
                   <div class="text-[10px] text-slate-400">Tab-separated (.tsv)</div>
                 </div>
               </button>
               <button class="dl-btn" id="dlJS" onclick="dlJS()" disabled>
-                <i class="fa-solid fa-code text-teal-500 text-base w-5 text-center"></i>
+                <i class="fa-solid fa-code text-amber-500 text-base w-5 text-center"></i>
                 <div>
                   <div class="font-semibold text-xs">Map JavaScript</div>
                   <div class="text-[10px] text-slate-400">Leaflet map with data baked in (.js)</div>
@@ -507,7 +507,7 @@ function addPointLayer(pts) {
 function showResults(data) {
   const sn = (data.species_name || 'Unknown').split(' ').slice(0, 2).join(' ');
   document.getElementById('statChips').innerHTML = `
-    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800">
+    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
       <i class="fa-solid fa-location-dot"></i>${data.record_count.toLocaleString()} records
     </span>
     <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 italic">
