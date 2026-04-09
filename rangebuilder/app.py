@@ -433,9 +433,36 @@ function zoomToRadius(zoom) {{
   return 2;
 }}
 
-function addPointLayer(geojson, color) {{
+// ─── Age-based color helpers ──────────────────────────────────────────────────
+function parseObservationYear(dateFound) {{
+  if (!dateFound || !dateFound.trim()) return null;
+  const match = dateFound.trim().match(/(\d{{4}})/);
+  return match ? parseInt(match[1], 10) : null;
+}}
+
+function darkenHex(hex, factor) {{
+  const f = Math.max(0, Math.min(1, factor));
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return "#" +
+    Math.round(r * (1 - f)).toString(16).padStart(2, "0") +
+    Math.round(g * (1 - f)).toString(16).padStart(2, "0") +
+    Math.round(b * (1 - f)).toString(16).padStart(2, "0");
+}}
+
+function ageBasedColor(dateFound, baseColor) {{
+  const year = parseObservationYear(dateFound);
+  if (year === null) return darkenHex(baseColor, 0.6);
+  const age = new Date().getFullYear() - year;
+  const period = Math.floor(age / 20);
+  return darkenHex(baseColor, Math.min(period * 0.20, 0.80));
+}}
+
+function addPointLayer(geojson, baseColor) {{
   const layer = L.geoJSON(geojson, {{
     pointToLayer: (feature, latlng) => {{
+      const color = ageBasedColor(feature.properties.dateFound, baseColor);
       const marker = L.circleMarker(latlng, {{
         radius: zoomToRadius(map.getZoom()),
         color: color,
@@ -453,6 +480,34 @@ function addPointLayer(geojson, color) {{
   }});
 
   return layer;
+}}
+
+// ─── Age legend ───────────────────────────────────────────────────────────────
+function addAgeLegend(baseColor) {{
+  const legend = L.control({{ position: "bottomright" }});
+  legend.onAdd = function() {{
+    const div = L.DomUtil.create("div");
+    div.style.cssText = "background:white;padding:10px 14px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-family:sans-serif;font-size:12px;line-height:1.7;min-width:170px;";
+    const entries = [
+      {{ label: "Last 20 years",   factor: 0.00 }},
+      {{ label: "20–39 years ago", factor: 0.20 }},
+      {{ label: "40–59 years ago", factor: 0.40 }},
+      {{ label: "60–79 years ago", factor: 0.60 }},
+      {{ label: "80+ years ago",   factor: 0.80 }},
+      {{ label: "Date unknown",    factor: 0.60, dashed: true }},
+    ];
+    div.innerHTML = `<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#475569;margin-bottom:6px;">Observation Age</div>` +
+      entries.map(e => {{
+        const c = darkenHex(baseColor, e.factor);
+        const border = e.dashed ? `border:2px dashed ${{c}};background:transparent;` : `background:${{c}};`;
+        return `<div style="display:flex;align-items:center;gap:8px;">
+          <span style="display:inline-block;width:12px;height:12px;border-radius:50%;${{border}}flex-shrink:0;"></span>
+          <span style="color:#475569;">${{e.label}}</span>
+        </div>`;
+      }}).join("") ;
+    return div;
+  }};
+  legend.addTo(map);
 }}
 
 // ─── PASTE GEOJSON HERE (AUTOMATED) ──────────────────────────────────────────
@@ -474,6 +529,7 @@ if (speciesRangeGeoJSON) {{
 
 // ─── Draw points (on top of polygon) ─────────────────────────────────────────
 const pointLayer = addPointLayer(melissodesData, "#ff6600");
+addAgeLegend("#ff6600");
 
 // ─── Fit bounds to all valid points ──────────────────────────────────────────
 if (melissodesData.features.length > 0) {{
