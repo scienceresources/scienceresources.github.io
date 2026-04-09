@@ -451,24 +451,25 @@ function darkenHex(hex, factor) {{
     Math.round(b * (1 - f)).toString(16).padStart(2, "0");
 }}
 
-function ageBasedColor(dateFound, baseColor) {{
+// Returns full Leaflet circleMarker options based on observation age.
+// Unknown dates get a dashed stroke so they are visually distinct from any age band.
+function ageMarkerOptions(dateFound, baseColor, radius) {{
   const year = parseObservationYear(dateFound);
-  if (year === null) return darkenHex(baseColor, 0.6);
+  if (year === null) {{
+    const c = darkenHex(baseColor, 0.55);
+    return {{ radius, color: c, fillColor: c, fillOpacity: 0.35, weight: 2, dashArray: "5,4" }};
+  }}
   const age = new Date().getFullYear() - year;
   const period = Math.floor(age / 20);
-  return darkenHex(baseColor, Math.min(period * 0.20, 0.80));
+  const c = darkenHex(baseColor, Math.min(period * 0.20, 0.80));
+  return {{ radius, color: c, fillColor: c, fillOpacity: 0.9, weight: 1 }};
 }}
 
 function addPointLayer(geojson, baseColor) {{
   const layer = L.geoJSON(geojson, {{
     pointToLayer: (feature, latlng) => {{
-      const color = ageBasedColor(feature.properties.dateFound, baseColor);
-      const marker = L.circleMarker(latlng, {{
-        radius: zoomToRadius(map.getZoom()),
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.9,
-      }});
+      const opts = ageMarkerOptions(feature.properties.dateFound, baseColor, zoomToRadius(map.getZoom()));
+      const marker = L.circleMarker(latlng, opts);
       marker.bindPopup(buildPopup(feature.properties));
       return marker;
     }},
@@ -494,7 +495,7 @@ function addAgeLegend(baseColor) {{
       {{ label: "40–59 years ago", factor: 0.40 }},
       {{ label: "60–79 years ago", factor: 0.60 }},
       {{ label: "80+ years ago",   factor: 0.80 }},
-      {{ label: "Date unknown",    factor: 0.60, dashed: true }},
+      { label: "Date unknown",    factor: 0.55, dashed: true },
     ];
     div.innerHTML = `<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#475569;margin-bottom:6px;">Observation Age</div>` +
       entries.map(e => {{
