@@ -12,6 +12,7 @@ import pandas as pd
 import geopandas as gpd
 import shapely
 from shapely.geometry import Polygon, MultiPolygon
+from shapely.ops import unary_union
 
 app = Flask(__name__, static_folder="rangebuild")
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
@@ -172,8 +173,25 @@ def build_range(df, buffer_deg=1.2, concave_ratio=0.25, simplify_tol=0.12, smoot
     land     = get_land_mask()
     clipped  = smoothed.intersection(land)
     if isinstance(clipped, MultiPolygon):
-        valid   = [p for p in clipped.geoms if gdf.geometry.intersects(p).any()]
-        clipped = MultiPolygon(valid) if len(valid) > 1 else (valid[0] if valid else clipped)
+        valid = [p for p in clipped.geoms if gdf.geometry.intersects(p).any()]
+        if len(valid) > 1:
+            # Reconnect orphaned land fragments (e.g. Baja tip cut off by Gulf of California).
+            # Strategy: take the convex hull of all valid sub-polygons, clip it back to land.
+            # The convex hull spans the gap; land-clipping then traces the actual coastal
+            # route around any intervening water body — exactly the natural connection path.
+            hull_on_land = unary_union(valid).convex_hull.intersection(land)
+            if not isinstance(hull_on_land, MultiPolygon):
+                # Clipping produced a single connected polygon — land bridge found.
+                # Re-smooth the result so the new coastal edges aren't jagged.
+                clipped = apply_smoothing(
+                    hull_on_land.simplify(simplify_tol), iterations=max(smooth_iter // 2, 2)
+                )
+            else:
+                # Still disconnected after hull+clip (genuinely ocean-separated, e.g. Hawaii).
+                # Keep as MultiPolygon of only occurrence-bearing fragments.
+                clipped = MultiPolygon(valid) if len(valid) > 1 else valid[0]
+        elif len(valid) == 1:
+            clipped = valid[0]
     return clipped, df
 
 
