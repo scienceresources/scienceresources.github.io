@@ -515,35 +515,40 @@ function addAgeLegend(baseColor, layerObj) {{
       {{ key: "unknown", label: "Date unknown",    color: "#888888",                  dashed: true  }},
     ];
 
-    div.innerHTML = `<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#475569;margin-bottom:6px;">Observation Age</div>`;
+    const title = document.createElement("div");
+    title.style.cssText = "font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#475569;margin-bottom:6px;";
+    title.textContent = "Observation Age";
+    div.appendChild(title);
 
     entries.forEach(e => {{
+      let active = true;
+
       const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;";
+      row.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:2px 4px;border-radius:6px;border:1.5px solid transparent;transition:border-color 0.15s,opacity 0.15s;";
+      row.style.borderColor = "#d97706";
 
       const dot = document.createElement("span");
-      dot.style.cssText = `display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;` +
-        (e.dashed ? `border:2px dashed ${{e.color}};background:transparent;` : `background:${{e.color}};`);
-
-      const cb = document.createElement("input");
-      cb.type = "checkbox"; cb.checked = true;
-      cb.style.cssText = "accent-color:#d97706;cursor:pointer;margin:0;flex-shrink:0;";
+      const baseDotStyle = `display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;`;
+      dot.style.cssText = baseDotStyle + (e.dashed ? `border:2px dashed ${{e.color}};background:transparent;` : `background:${{e.color}};`);
 
       const lbl = document.createElement("span");
       lbl.textContent = e.label;
-      lbl.style.color = "#475569";
+      lbl.style.cssText = "color:#475569;";
 
-      cb.addEventListener("change", () => {{
+      function setActive(on) {{
+        active = on;
+        row.style.borderColor = on ? "#d97706" : "transparent";
+        row.style.opacity = on ? "1" : "0.35";
+        dot.style.cssText = baseDotStyle + (on
+          ? (e.dashed ? `border:2px dashed ${{e.color}};background:transparent;` : `background:${{e.color}};`)
+          : "border:2px solid #aaa;background:#ddd;");
         const band = layerObj.bands[e.key];
-        if (cb.checked) {{ band.addTo(map); }} else {{ map.removeLayer(band); }}
-        dot.style.opacity = cb.checked ? "1" : "0.3";
-        lbl.style.opacity = cb.checked ? "1" : "0.4";
-      }});
+        if (on) {{ band.addTo(map); }} else {{ map.removeLayer(band); }}
+      }}
 
+      row.addEventListener("click", () => setActive(!active));
       row.appendChild(dot);
-      row.appendChild(cb);
       row.appendChild(lbl);
-      row.addEventListener("click", ev => {{ if (ev.target !== cb) cb.click(); }});
       div.appendChild(row);
     }});
 
