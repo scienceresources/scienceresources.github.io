@@ -452,12 +452,11 @@ function darkenHex(hex, factor) {{
 }}
 
 // Returns full Leaflet circleMarker options based on observation age.
-// Unknown dates get a dashed stroke so they are visually distinct from any age band.
+// Unknown dates → gray dashed outline, transparent fill.
 function ageMarkerOptions(dateFound, baseColor, radius) {{
   const year = parseObservationYear(dateFound);
   if (year === null) {{
-    const c = darkenHex(baseColor, 0.55);
-    return {{ radius, color: c, fillColor: c, fillOpacity: 0.35, weight: 2, dashArray: "5,4" }};
+    return {{ radius, color: "#888888", fillColor: "#888888", fillOpacity: 0.15, weight: 2, dashArray: "5,4" }};
   }}
   const age = new Date().getFullYear() - year;
   const period = Math.floor(age / 20);
@@ -465,50 +464,93 @@ function ageMarkerOptions(dateFound, baseColor, radius) {{
   return {{ radius, color: c, fillColor: c, fillOpacity: 0.9, weight: 1 }};
 }}
 
-function addPointLayer(geojson, baseColor) {{
-  const layer = L.geoJSON(geojson, {{
-    pointToLayer: (feature, latlng) => {{
-      const opts = ageMarkerOptions(feature.properties.dateFound, baseColor, zoomToRadius(map.getZoom()));
-      const marker = L.circleMarker(latlng, opts);
-      marker.bindPopup(buildPopup(feature.properties));
-      return marker;
-    }},
-  }}).addTo(map);
-
-  map.on("zoomend", () => {{
-    const r = zoomToRadius(map.getZoom());
-    layer.eachLayer(m => m.setRadius(r));
-  }});
-
-  return layer;
+// Returns the band key (0–4 for age periods, "unknown" for no date).
+function ageBand(dateFound) {{
+  const year = parseObservationYear(dateFound);
+  if (year === null) return "unknown";
+  return Math.min(Math.floor((new Date().getFullYear() - year) / 20), 4);
 }}
 
-// ─── Age legend ───────────────────────────────────────────────────────────────
-function addAgeLegend(baseColor) {{
-  const legend = L.control({{ position: "bottomright" }});
+function addPointLayer(geojson, baseColor) {{
+  // Build a sub-layer per band so toggles are instant.
+  const bands = {{ 0: L.layerGroup(), 1: L.layerGroup(), 2: L.layerGroup(), 3: L.layerGroup(), 4: L.layerGroup(), unknown: L.layerGroup() }};
+  const r = zoomToRadius(map.getZoom());
+
+  L.geoJSON(geojson, {{
+    pointToLayer: (feature, latlng) => {{
+      const opts = ageMarkerOptions(feature.properties.dateFound, baseColor, r);
+      const marker = L.circleMarker(latlng, opts);
+      marker.bindPopup(buildPopup(feature.properties));
+      bands[ageBand(feature.properties.dateFound)].addLayer(marker);
+      return null;
+    }},
+  }});
+
+  const wrapper = L.layerGroup(Object.values(bands)).addTo(map);
+  Object.values(bands).forEach(b => b.addTo(map));
+
+  map.on("zoomend", () => {{
+    const nr = zoomToRadius(map.getZoom());
+    Object.values(bands).forEach(b => b.eachLayer(m => {{ if (m.setRadius) m.setRadius(nr); }}));
+  }});
+
+  return {{ wrapper, bands }};
+}}
+
+// ─── Age legend with toggles ──────────────────────────────────────────────────
+function addAgeLegend(baseColor, layerObj) {{
+  if (window._ageLegend) {{ window._ageLegend.remove(); }}
+  const legend = L.control({{ position: "topright" }});
   legend.onAdd = function() {{
     const div = L.DomUtil.create("div");
-    div.style.cssText = "background:white;padding:10px 14px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-family:sans-serif;font-size:12px;line-height:1.7;min-width:170px;";
+    div.style.cssText = "background:white;padding:10px 14px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-family:sans-serif;font-size:12px;line-height:1.8;min-width:180px;";
+    L.DomEvent.disableClickPropagation(div);
+
     const entries = [
-      {{ label: "Last 20 years",   factor: 0.00 }},
-      {{ label: "20–39 years ago", factor: 0.20 }},
-      {{ label: "40–59 years ago", factor: 0.40 }},
-      {{ label: "60–79 years ago", factor: 0.60 }},
-      {{ label: "80+ years ago",   factor: 0.80 }},
-      {{ label: "Date unknown",    factor: 0.55, dashed: true }},
+      {{ key: 0,         label: "Last 20 years",   color: darkenHex(baseColor, 0.00), dashed: false }},
+      {{ key: 1,         label: "20–39 years ago", color: darkenHex(baseColor, 0.20), dashed: false }},
+      {{ key: 2,         label: "40–59 years ago", color: darkenHex(baseColor, 0.40), dashed: false }},
+      {{ key: 3,         label: "60–79 years ago", color: darkenHex(baseColor, 0.60), dashed: false }},
+      {{ key: 4,         label: "80+ years ago",   color: darkenHex(baseColor, 0.80), dashed: false }},
+      {{ key: "unknown", label: "Date unknown",    color: "#888888",                  dashed: true  }},
     ];
-    div.innerHTML = `<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#475569;margin-bottom:6px;">Observation Age</div>` +
-      entries.map(e => {{
-        const c = darkenHex(baseColor, e.factor);
-        const border = e.dashed ? `border:2px dashed ${{c}};background:transparent;` : `background:${{c}};`;
-        return `<div style="display:flex;align-items:center;gap:8px;">
-          <span style="display:inline-block;width:12px;height:12px;border-radius:50%;${{border}}flex-shrink:0;"></span>
-          <span style="color:#475569;">${{e.label}}</span>
-        </div>`;
-      }}).join("") ;
+
+    div.innerHTML = `<div style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#475569;margin-bottom:6px;">Observation Age</div>`;
+
+    entries.forEach(e => {{
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;";
+
+      const dot = document.createElement("span");
+      dot.style.cssText = `display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;` +
+        (e.dashed ? `border:2px dashed ${{e.color}};background:transparent;` : `background:${{e.color}};`);
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = true;
+      cb.style.cssText = "accent-color:#d97706;cursor:pointer;margin:0;flex-shrink:0;";
+
+      const lbl = document.createElement("span");
+      lbl.textContent = e.label;
+      lbl.style.color = "#475569";
+
+      cb.addEventListener("change", () => {{
+        const band = layerObj.bands[e.key];
+        if (cb.checked) {{ band.addTo(map); }} else {{ map.removeLayer(band); }}
+        dot.style.opacity = cb.checked ? "1" : "0.3";
+        lbl.style.opacity = cb.checked ? "1" : "0.4";
+      }});
+
+      row.appendChild(dot);
+      row.appendChild(cb);
+      row.appendChild(lbl);
+      row.addEventListener("click", ev => {{ if (ev.target !== cb) cb.click(); }});
+      div.appendChild(row);
+    }});
+
     return div;
   }};
   legend.addTo(map);
+  window._ageLegend = legend;
 }}
 
 // ─── PASTE GEOJSON HERE (AUTOMATED) ──────────────────────────────────────────
@@ -530,7 +572,7 @@ if (speciesRangeGeoJSON) {{
 
 // ─── Draw points (on top of polygon) ─────────────────────────────────────────
 const pointLayer = addPointLayer(melissodesData, "#ff6600");
-addAgeLegend("#ff6600");
+addAgeLegend("#ff6600", pointLayer);
 
 // ─── Fit bounds to all valid points ──────────────────────────────────────────
 if (melissodesData.features.length > 0) {{
