@@ -12,7 +12,6 @@ import pandas as pd
 import geopandas as gpd
 import shapely
 from shapely.geometry import Polygon, MultiPolygon
-from shapely.ops import unary_union
 
 app = Flask(__name__, static_folder="rangebuild")
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB
@@ -153,31 +152,6 @@ def apply_smoothing(geom, iterations=6):
     return geom
 
 
-# ── Fragment reconnection ──────────────────────────────────────────────────────
-def _merge_via_buffer(polys, land, step=0.2, max_buf=8.0):
-    """
-    Grow fragments outward in `step`-degree increments until they physically
-    overlap (even across water), union them, then clip back to land.
-
-    Why this works for Baja vs convex-hull:
-      The Gulf of California is ~200 km wide.  A convex hull clipped to land
-      still yields a MultiPolygon because the hull's interior is mostly ocean.
-      Buffering past the gulf width forces a single merged blob; the land clip
-      then carves the real coastal outline — Baja peninsula coast north to the
-      top of the gulf, then south along Sonora — exactly the natural land route.
-
-    Falls back to the original MultiPolygon if no land connection is found
-    within max_buf degrees (genuinely ocean-separated, e.g. Hawaii).
-    """
-    buf = step
-    while buf <= max_buf:
-        grown = unary_union([p.buffer(buf) for p in polys])
-        if not isinstance(grown, MultiPolygon):
-            return grown.intersection(land)
-        buf = round(buf + step, 6)   # avoid float drift
-    return MultiPolygon(polys)
-
-
 # ── Range builder ──────────────────────────────────────────────────────────────
 def build_range(df, buffer_deg=1.2, concave_ratio=0.25, simplify_tol=0.12, smooth_iter=6):
     df = df.copy()
@@ -198,17 +172,8 @@ def build_range(df, buffer_deg=1.2, concave_ratio=0.25, simplify_tol=0.12, smoot
     land     = get_land_mask()
     clipped  = smoothed.intersection(land)
     if isinstance(clipped, MultiPolygon):
-        valid = [p for p in clipped.geoms if gdf.geometry.intersects(p).any()]
-        if len(valid) > 1:
-            merged = _merge_via_buffer(valid, land)
-            if not isinstance(merged, MultiPolygon):
-                clipped = apply_smoothing(
-                    merged.simplify(simplify_tol), iterations=max(smooth_iter // 2, 2)
-                )
-            else:
-                clipped = MultiPolygon(valid) if len(valid) > 1 else valid[0]
-        elif len(valid) == 1:
-            clipped = valid[0]
+        valid   = [p for p in clipped.geoms if gdf.geometry.intersects(p).any()]
+        clipped = MultiPolygon(valid) if len(valid) > 1 else (valid[0] if valid else clipped)
     return clipped, df
 
 
