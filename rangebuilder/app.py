@@ -524,12 +524,13 @@ function addAgeLegend(baseColor, layerObj) {{
       let active = true;
 
       const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:2px 4px;border-radius:6px;border:1.5px solid transparent;transition:border-color 0.15s,opacity 0.15s;";
-      row.style.borderColor = "#d97706";
+      row.style.cssText = "display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:2px 4px;border-radius:6px;";
 
       const dot = document.createElement("span");
       const baseDotStyle = `display:inline-block;width:12px;height:12px;border-radius:50%;flex-shrink:0;`;
-      dot.style.cssText = baseDotStyle + (e.dashed ? `border:2px dashed ${{e.color}};background:transparent;` : `background:${{e.color}};`);
+      dot.style.cssText = baseDotStyle + (e.dashed
+        ? `border:2px dashed ${{e.color}};background:transparent;outline:2px solid ${{e.color}};outline-offset:2px;`
+        : `background:${{e.color}};outline:2px solid ${{e.color}};outline-offset:2px;`);
 
       const lbl = document.createElement("span");
       lbl.textContent = e.label;
@@ -537,11 +538,16 @@ function addAgeLegend(baseColor, layerObj) {{
 
       function setActive(on) {{
         active = on;
-        row.style.borderColor = on ? "#d97706" : "transparent";
         row.style.opacity = on ? "1" : "0.35";
-        dot.style.cssText = baseDotStyle + (on
-          ? (e.dashed ? `border:2px dashed ${{e.color}};background:transparent;` : `background:${{e.color}};`)
-          : "border:2px solid #aaa;background:#ddd;");
+        if (on) {{
+          dot.style.cssText = baseDotStyle + (e.dashed
+            ? `border:2px dashed ${{e.color}};background:transparent;outline:2px solid ${{e.color}};outline-offset:2px;`
+            : `background:${{e.color}};outline:2px solid ${{e.color}};outline-offset:2px;`);
+        }} else {{
+          dot.style.cssText = baseDotStyle + (e.dashed
+            ? `border:2px dashed ${{e.color}};background:transparent;`
+            : `background:${{e.color}};`);
+        }}
         const band = layerObj.bands[e.key];
         if (on) {{ band.addTo(map); }} else {{ map.removeLayer(band); }}
       }}
