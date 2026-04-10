@@ -565,8 +565,12 @@ window.addEventListener("resize", () => {{
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
+@app.route("/ping")
+def ping():
+    return "OK", 200
+
+
 @app.route("/")
-def index():
     return send_from_directory("rangebuild", "index.html")
 
 
