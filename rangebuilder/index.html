@@ -622,7 +622,10 @@ function showResults(data) {
     </span>`;
 
   if (rangeLayer) { mapInst.removeLayer(rangeLayer); rangeLayer = null; }
-  if (ptLayer)    { mapInst.removeLayer(ptLayer);    ptLayer    = null; }
+  if (ptLayer) {
+    Object.values(ptLayer.bands).forEach(b => mapInst.removeLayer(b));
+    ptLayer = null;
+  }
 
   rangeLayer = L.geoJSON(data.geojson, {
     style: { color: '#0d9488', weight: 2, fillColor: '#2dd4bf', fillOpacity: 0.2, smoothFactor: 1 },
