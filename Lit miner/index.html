@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Literature Miner</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  [x-cloak]{display:none!important}
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-track{background:#f1f5f9}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+  .seq-mono{font-family:'Courier New',monospace;font-size:11px;white-space:pre-wrap;letter-spacing:0.03em}
+  .tab-active{border-bottom:2px solid #d97706;color:#b45309!important;background:#fffbeb}
+  .tab-inactive{border-bottom:2px solid transparent}
+  .tab-inactive:hover{color:#334155;background:#f8fafc}
+  .suggest-item{padding:8px 14px;cursor:pointer;font-size:12px;transition:background 0.1s;border-bottom:1px solid #f1f5f9}
+  .suggest-item:hover{background:#fffbeb}
+  .suggest-item:last-child{border-bottom:none}
+  .fade-in{animation:fadeIn 0.25s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .check-option{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:all 0.15s;background:white}
+  .check-option:has(input:checked){border-color:#d97706;background:#fffbeb}
+  .check-option input{accent-color:#d97706;margin-top:2px}
+  .progress-bar{transition:width 0.4s ease}
+  .phase-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase}
+  .terminal-line{font-family:'Courier New',monospace;font-size:11.5px;padding:1.5px 0;line-height:1.55;border-bottom:1px solid rgba(255,255,255,0.03)}
+  .terminal-line.info{color:#94a3b8}
+  .terminal-line.warn{color:#fbbf24}
+  .terminal-line.error{color:#f87171}
+  .terminal-line.checkpoint{color:#34d399}
+  .terminal-line.milestone{color:#f0abfc;font-weight:700;font-size:12px}
+  .terminal-line.req-ok{color:#60a5fa}
+  .terminal-line.req-err{color:#f87171}
+  .req-ticker{font-family:'Courier New',monospace;font-size:10px;padding:2px 6px;border-radius:4px;animation:reqFlash 0.3s ease}
+  @keyframes reqFlash{0%{opacity:0.3;transform:scale(0.95)}100%{opacity:1;transform:scale(1)}}
+  .stat-box{background:white;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;text-align:center;transition:all 0.2s}
+  .stat-box:hover{border-color:#d97706;box-shadow:0 4px 20px rgba(217,119,6,0.08)}
+  .data-table{width:100%;border-collapse:collapse;font-size:11px}
+  .data-table th{background:#1e293b;color:#94a3b8;padding:9px 12px;text-align:left;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;border-bottom:1px solid #334155;position:sticky;top:0;z-index:5;font-family:'Courier New',monospace;white-space:nowrap}
+  .data-table td{padding:7px 12px;border-bottom:1px solid #f8fafc;color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace;font-size:10.5px}
+  .data-table tr:hover td{background:#fffbeb}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 1s linear infinite;display:inline-block}
+  @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
+  .pulse-dot{animation:pulse-dot 1.2s ease-in-out infinite;display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e}
+  .litminer-badge{background:linear-gradient(135deg,#f59e0b,#d97706);color:white;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:0.1em;font-family:'Courier New',monospace}
+  canvas{max-height:260px!important}
+  .source-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-family:'Courier New',monospace}
+  .src-openalex{background:#dbeafe;color:#1d4ed8}
+  .src-crossref{background:#dcfce7;color:#166534}
+  .src-s2{background:#f3e8ff;color:#7e22ce}
+  .src-pubmed{background:#fce7f3;color:#9d174d}
+  .src-bhl{background:#fef3c7;color:#92400e}
+  .prey-term-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid #d97706;background:#fffbeb;border-radius:6px;font-size:11px;font-family:'Courier New',monospace;color:#92400e;font-weight:600}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col" x-data="app">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-[500] shadow-sm">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+    <div class="flex items-center gap-3">
+      <div class="bg-amber-100 p-2 rounded-lg"><i class="fa-solid fa-book-open-reader text-amber-600 text-xl"></i></div>
+      <div>
+        <h1 class="text-lg font-bold text-slate-900 leading-tight">Literature Miner</h1>
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">BHL · OpenAlex · Crossref · S2 · PubMed · Live Checkpoints</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="litminer-badge">.litminer</span>
+      <p class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">Biodiversity Heritage Library · GBIF Taxon Verification</p>
+    </div>
+  </div>
+  <div class="max-w-6xl mx-auto px-4 flex gap-1 flex-wrap">
+    <button @click="showTab('setup')" :class="tab==='setup'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-sliders mr-1.5 opacity-70"></i>Setup</button>
+    <button @click="showTab('run')" :class="tab==='run'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-terminal mr-1.5 opacity-70"></i>Run <span x-show="jobId" class="ml-1.5 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">LIVE</span></button>
+    <button @click="showTab('results')" :class="tab==='results'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-table mr-1.5 opacity-70"></i>Results <span x-show="rows.length>0" class="ml-1.5 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full" x-text="rows.length"></span></button>
+    <button @click="showTab('charts')" :class="tab==='charts'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-chart-bar mr-1.5 opacity-70"></i>Charts</button>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-5 flex-1 w-full">
+
+<!-- ═══════════════ SETUP TAB ═══════════════ -->
+<div id="panel-setup" x-show="tab==='setup'" class="space-y-5 fade-in">
+
+  <!-- Taxon Selection -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-1 mr-1 text-amber-400"></i>Target Taxon</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-4">Search any taxon — GBIF will validate it and automatically determine predator-prey query terms (e.g. <em>Melissodes</em> → "prey bees", <em>Morpho</em> → "prey butterflies").</p>
+
+    <div class="relative mb-4">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-magnifying-glass mr-1 text-amber-400"></i>Search Taxon Name</label>
+      <div class="flex gap-3">
+        <input x-model="taxonQuery" @input.debounce.350ms="searchTaxon()" @keydown.escape="taxonSuggestions=[]"
+               type="text" placeholder="e.g. Melissodes, Morpho, Philanthus, Apis…"
+               class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        <button @click="searchTaxon()" :disabled="taxonSearching"
+                class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid text-xs" :class="taxonSearching?'fa-circle-notch spin':'fa-search'"></i>Search
+        </button>
+      </div>
+      <div x-show="taxonSuggestions.length>0" x-cloak @click.away="taxonSuggestions=[]"
+           class="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+        <template x-for="s in taxonSuggestions" :key="s.key">
+          <div class="suggest-item" @click="selectTaxon(s)">
+            <span class="font-mono italic text-slate-800 font-semibold" x-text="s.canonicalName||s.scientificName"></span>
+            <span class="text-slate-400 ml-2 text-[10px]" x-text="(s.rank||'')+(s.family?' · '+s.family:'')+(s.order?' · '+s.order:'')"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Selected taxon card -->
+    <template x-if="selectedTaxon">
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 fade-in">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 flex-wrap mb-2">
+              <span class="text-lg font-bold italic text-amber-900" x-text="selectedTaxon.canonical_name"></span>
+              <span class="phase-pill bg-amber-100 text-amber-700" x-text="selectedTaxon.rank||'?'"></span>
+              <template x-if="resolvingTaxon">
+                <span class="text-amber-500 text-xs"><i class="fa-solid fa-circle-notch spin mr-1"></i>Resolving…</span>
+              </template>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-3 text-xs text-slate-600 font-mono">
+              <div><span class="text-slate-400">Order:</span> <span x-text="selectedTaxon.order||'—'"></span></div>
+              <div><span class="text-slate-400">Family:</span> <span x-text="selectedTaxon.family||'—'"></span></div>
+              <div><span class="text-slate-400">Common name:</span> <span x-text="selectedTaxon.taxon_common||'—'"></span></div>
+              <div><span class="text-slate-400">GBIF key:</span> <span x-text="selectedTaxon.key||'—'"></span></div>
+            </div>
+          </div>
+          <button @click="selectedTaxon=null;preyTerms={}" class="text-slate-400 hover:text-red-500 text-xl px-2">×</button>
+        </div>
+
+        <!-- Prey terms display -->
+        <template x-if="preyTerms.prey_order_term">
+          <div class="mt-3 pt-3 border-t border-amber-200">
+            <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2"><i class="fa-solid fa-crosshairs mr-1"></i>Auto-generated predator query terms</p>
+            <div class="flex flex-wrap gap-2">
+              <span class="prey-term-pill"><i class="fa-solid fa-circle-dot text-[9px]"></i><span x-text="preyTerms.prey_order_term"></span></span>
+              <span class="prey-term-pill"><i class="fa-solid fa-circle-dot text-[9px]"></i><span x-text="preyTerms.prey_common_term"></span></span>
+            </div>
+            <p class="text-[10px] text-amber-600 mt-2">These terms replace "prey bees" / "prey Hymenoptera" in all predator queries.</p>
+          </div>
+        </template>
+
+        <!-- Override terms -->
+        <div class="mt-3 pt-3 border-t border-amber-200 grid sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Override prey order term</label>
+            <input x-model="preyOrderOverride" type="text" placeholder="e.g. prey Lepidoptera"
+                   class="w-full p-2 bg-white border border-amber-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Override prey common term</label>
+            <input x-model="preyCommonOverride" type="text" placeholder="e.g. prey butterflies"
+                   class="w-full p-2 bg-white border border-amber-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-amber-400 outline-none">
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- API Credentials -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-2 mr-1 text-amber-400"></i>API Credentials</p>
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div class="sm:col-span-3">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-envelope mr-1 text-amber-400"></i>Email <span class="text-red-400">*</span></label>
+        <input x-model="email" type="email" placeholder="you@university.edu"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><span class="source-tag src-s2">S2</span> Semantic Scholar key</label>
+        <input x-model="s2Key" type="text" placeholder="Optional — 10 req/s with key"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><span class="source-tag src-pubmed">PubMed</span> NCBI API key</label>
+        <input x-model="pubmedKey" type="text" placeholder="Optional — 10 req/s with key"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><span class="source-tag src-bhl">BHL</span> BHL API key</label>
+        <input x-model="bhlKey" type="password" placeholder="Required for BHL searches"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+      </div>
+    </div>
+  </div>
+
+  <!-- Sources -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3"><i class="fa-solid fa-circle-3 mr-1 text-amber-400"></i>Data Sources</p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <label class="check-option">
+        <input type="checkbox" x-model="srcOpenalex"><div>
+          <p class="font-bold text-sm text-slate-700"><span class="source-tag src-openalex mr-1">OA</span> OpenAlex</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">~10 req/s · open access URLs · massive corpus</p>
+        </div>
+      </label>
+      <label class="check-option">
+        <input type="checkbox" x-model="srcCrossref"><div>
+          <p class="font-bold text-sm text-slate-700"><span class="source-tag src-crossref mr-1">CR</span> Crossref</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">~50 req/s · DOI metadata · abstracts</p>
+        </div>
+      </label>
+      <label class="check-option">
+        <input type="checkbox" x-model="srcS2"><div>
+          <p class="font-bold text-sm text-slate-700"><span class="source-tag src-s2 mr-1">S2</span> Semantic Scholar</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">1–10 req/s · AI-extracted abstracts · PDF links</p>
+        </div>
+      </label>
+      <label class="check-option">
+        <input type="checkbox" x-model="srcPubmed"><div>
+          <p class="font-bold text-sm text-slate-700"><span class="source-tag src-pubmed mr-1">PM</span> PubMed / NCBI</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">3–10 req/s · biomedical literature</p>
+        </div>
+      </label>
+      <label class="check-option">
+        <input type="checkbox" x-model="srcBHL"><div>
+          <p class="font-bold text-sm text-slate-700"><span class="source-tag src-bhl mr-1">BHL</span> Biodiversity Heritage Library</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">OCR fulltext · historical literature · Internet Archive</p>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Taxa List -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-4 mr-1 text-amber-400"></i>Predator / Parasite Taxa List</p>
+    <p class="text-sm text-slate-500 mb-4">Enter one genus per line (or comma-separated). These generate the predator-centric queries.</p>
+    <textarea x-model="taxaText" rows="8"
+              placeholder="Philanthus&#10;Cerceris&#10;Physocephala&#10;Stylops&#10;Bombylius"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all resize-y"></textarea>
+    <div class="flex items-center gap-3 mt-3 flex-wrap">
+      <button @click="loadSampleTaxa()" class="text-xs text-amber-600 hover:text-amber-800 font-semibold underline">Load sample taxa</button>
+      <span class="text-[10px] text-slate-400 font-mono" x-text="taxaCount + ' taxa'"></span>
+    </div>
+  </div>
+
+  <!-- AI Classification (OpenRouter) -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-5 mr-1 text-amber-400"></i>AI Taxon Classification <span class="ml-2 bg-violet-100 text-violet-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">OpenRouter</span></p>
+    <p class="text-sm text-slate-500 mb-4">Let an AI model identify what each predator/parasite <em>actually is</em> (e.g. spider wasp, bee fly, mite) and generate precise prey/host search terms — solving the "prey bees" ambiguity automatically. Runs once before the main job starts and overrides GBIF-derived terms.</p>
+
+    <div class="grid sm:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-key mr-1 text-violet-400"></i>OpenRouter API key</label>
+        <input x-model="openrouterKey" type="password" placeholder="sk-or-v1-…"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-violet-400 outline-none transition-all">
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-robot mr-1 text-violet-400"></i>Model</label>
+        <select x-model="openrouterModel"
+                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-violet-400 outline-none transition-all">
+          <option value="openai/gpt-4o-mini:free">GPT-4o Mini — Free tier ✓ (default)</option>
+          <option value="google/gemini-flash-1.5:free">Gemini Flash 1.5 — Free tier ✓</option>
+          <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B — Free tier ✓</option>
+          <option value="openai/gpt-4o-mini">GPT-4o Mini (paid, higher limits)</option>
+          <option value="google/gemini-pro-1.5">Gemini Pro 1.5 (paid)</option>
+          <option value="openai/gpt-4o">GPT-4o (paid, most accurate)</option>
+          <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (paid)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Classify button and status -->
+    <div class="flex items-center gap-3 flex-wrap mb-4">
+      <button @click="runAiClassification()"
+              :disabled="!openrouterKey || !selectedTaxon || aiClassifying"
+              class="bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 px-5 rounded-lg text-sm flex items-center gap-2 transition-all shadow-sm">
+        <i class="fa-solid text-xs" :class="aiClassifying ? 'fa-circle-notch spin' : 'fa-wand-magic-sparkles'"></i>
+        <span x-text="aiClassifying ? 'Classifying…' : 'Classify Target Taxon with AI'"></span>
+      </button>
+      <template x-if="!openrouterKey">
+        <span class="text-[11px] text-slate-400 font-mono">Add OpenRouter key above to enable</span>
+      </template>
+      <template x-if="openrouterKey && !selectedTaxon">
+        <span class="text-[11px] text-slate-400 font-mono">Select a taxon first</span>
+      </template>
+    </div>
+
+    <!-- AI result card -->
+    <template x-if="aiClassification">
+      <div class="bg-violet-50 border border-violet-200 rounded-xl p-4 fade-in">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fa-solid fa-wand-magic-sparkles text-violet-500"></i>
+          <p class="text-[10px] font-bold text-violet-600 uppercase tracking-widest">AI Classification Result</p>
+          <span class="ml-auto text-[9px] text-violet-400 font-mono" x-text="openrouterModel"></span>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-3 mb-3">
+          <div class="bg-white rounded-lg p-3 border border-violet-100">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Animal Type</p>
+            <p class="text-sm font-bold text-slate-800 capitalize" x-text="aiClassification.animal_type || '—'"></p>
+          </div>
+          <div class="bg-white rounded-lg p-3 border border-violet-100">
+            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ecological Role</p>
+            <div class="flex gap-1.5 flex-wrap">
+              <template x-if="aiClassification.is_predator">
+                <span class="phase-pill bg-red-100 text-red-700">Predator</span>
+              </template>
+              <template x-if="aiClassification.is_parasite">
+                <span class="phase-pill bg-orange-100 text-orange-700">Parasite</span>
+              </template>
+              <template x-if="aiClassification.is_kleptoparasite">
+                <span class="phase-pill bg-amber-100 text-amber-700">Kleptoparasite</span>
+              </template>
+              <template x-if="!aiClassification.is_predator && !aiClassification.is_parasite && !aiClassification.is_kleptoparasite">
+                <span class="text-slate-400 text-xs font-mono">—</span>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI-generated prey/host terms -->
+        <div class="bg-white rounded-lg p-3 border border-violet-100 mb-3">
+          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">AI-Generated Search Terms (applied automatically)</p>
+          <div class="flex flex-wrap gap-2">
+            <span class="prey-term-pill" style="border-color:#7c3aed;background:#f5f3ff;color:#5b21b6">
+              <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
+              <span x-text="aiClassification.prey_order_term"></span>
+            </span>
+            <span class="prey-term-pill" style="border-color:#7c3aed;background:#f5f3ff;color:#5b21b6">
+              <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
+              <span x-text="aiClassification.prey_common_term"></span>
+            </span>
+            <template x-if="aiClassification.host_term">
+              <span class="prey-term-pill" style="border-color:#7c3aed;background:#f5f3ff;color:#5b21b6">
+                <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
+                <span x-text="aiClassification.host_term"></span>
+              </span>
+            </template>
+          </div>
+        </div>
+
+        <template x-if="aiClassification.rationale">
+          <p class="text-xs text-violet-700 italic mb-2" x-text="'💬 ' + aiClassification.rationale"></p>
+        </template>
+        <template x-if="aiClassification.notes">
+          <p class="text-[11px] text-slate-500 font-mono" x-text="'⚠ ' + aiClassification.notes"></p>
+        </template>
+
+        <p class="text-[10px] text-violet-500 mt-3"><i class="fa-solid fa-check-circle mr-1"></i>These terms will override GBIF-derived prey terms when the miner runs.</p>
+      </div>
+    </template>
+
+    <!-- AI error -->
+    <template x-if="aiError">
+      <div class="bg-red-50 border border-red-200 rounded-xl p-3 text-red-600 text-xs fade-in"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i><span x-text="aiError"></span></div>
+    </template>
+  </div>
+
+
+  <!-- Resume from checkpoint (collapsible) -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <button @click="showResumeSection = !showResumeSection"
+            class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-slate-50 transition-all">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-circle-6 mr-1 text-amber-400 text-[10px]"></i>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resume from Checkpoint</p>
+        <span class="ml-2 text-[9px] text-slate-400 font-mono">(optional)</span>
+      </div>
+      <i class="fa-solid text-slate-400 text-xs" :class="showResumeSection ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+    </button>
+    <div x-show="showResumeSection" x-cloak class="px-6 pb-5 border-t border-slate-100 pt-4 fade-in">
+      <p class="text-sm text-slate-500 mb-4">Upload a <span class="litminer-badge text-[9px]">.litminer</span> checkpoint file to resume exactly where you left off.</p>
+      <div class="flex gap-3 items-center flex-wrap">
+        <input type="file" accept=".litminer" @change="handleCheckpointUpload($event)"
+               class="text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200 cursor-pointer">
+        <span x-show="checkpointFile" class="text-xs text-green-600 font-semibold"><i class="fa-solid fa-check mr-1"></i><span x-text="checkpointFile"></span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification toggle -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <div class="flex items-center gap-3">
+        <i class="fa-solid fa-bell text-amber-400"></i>
+        <div>
+          <p class="text-sm font-bold text-slate-700">Checkpoint Notifications</p>
+          <p class="text-[11px] text-slate-400">Get a browser notification at each phase milestone reminding you to download a checkpoint.</p>
+        </div>
+      </div>
+      <button @click="toggleNotifications()"
+              :class="notificationsEnabled ? 'bg-green-500 hover:bg-green-600' : 'bg-slate-200 hover:bg-slate-300'"
+              class="relative inline-flex h-7 w-14 items-center rounded-full transition-colors flex-shrink-0">
+        <span :class="notificationsEnabled ? 'translate-x-8' : 'translate-x-1'"
+              class="inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform"></span>
+      </button>
+    </div>
+    <template x-if="notifPermission === 'denied'">
+      <p class="text-[11px] text-red-500 mt-2"><i class="fa-solid fa-ban mr-1"></i>Notifications blocked in browser settings. Enable them to use this feature.</p>
+    </template>
+    <template x-if="notifPermission === 'granted' && notificationsEnabled">
+      <p class="text-[11px] text-green-600 mt-2"><i class="fa-solid fa-check-circle mr-1"></i>Notifications active — you'll be alerted at each phase milestone.</p>
+    </template>
+  </div>
+
+  <!-- Start button -->
+  <div class="flex gap-3">
+    <button @click="startJob()" :disabled="running||!selectedTaxon||!email"
+            class="flex-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 px-6 rounded-xl shadow transition-all text-base flex items-center justify-center gap-2">
+      <i class="fa-solid" :class="running?'fa-circle-notch spin':'fa-play'"></i>
+      <span x-text="running?'Queued / Running…':'Start Literature Miner'"></span>
+    </button>
+    <button x-show="checkpointFile" @click="resumeJob()"
+            :disabled="running||!email"
+            class="bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white font-bold py-3.5 px-6 rounded-xl shadow transition-all flex items-center gap-2">
+      <i class="fa-solid fa-rotate-right"></i>Resume
+    </button>
+  </div>
+
+  <template x-if="startError">
+    <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm fade-in"><i class="fa-solid fa-triangle-exclamation mr-2"></i><span x-text="startError"></span></div>
+  </template>
+</div>
+
+<!-- ═══════════════ RUN TAB ═══════════════ -->
+<div id="panel-run" x-show="tab==='run'" class="space-y-5 fade-in">
+
+  <!-- Queue waiting banner -->
+  <template x-if="jobQueueStatus === 'queued' && jobId">
+    <div class="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-center gap-3 fade-in">
+      <i class="fa-solid fa-hourglass-half text-amber-500 text-xl spin"></i>
+      <div>
+        <p class="font-bold text-amber-800 text-sm">Your job is queued</p>
+        <p class="text-xs text-amber-600">Another job is currently running. Yours will start automatically when it finishes. You can safely leave this tab open.</p>
+      </div>
+    </div>
+  </template>
+
+  <!-- Status bar -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3">
+        <template x-if="jobQueueStatus === 'queued'">
+          <span class="flex items-center gap-2 text-amber-600 font-bold text-sm">
+            <i class="fa-solid fa-hourglass-half"></i>QUEUED
+          </span>
+        </template>
+        <template x-if="running && jobQueueStatus !== 'queued'">
+          <span class="flex items-center gap-2 text-green-600 font-bold text-sm">
+            <span class="pulse-dot"></span>RUNNING
+          </span>
+        </template>
+        <template x-if="!running && jobStatus==='done'">
+          <span class="flex items-center gap-2 text-green-600 font-bold text-sm"><i class="fa-solid fa-circle-check"></i>COMPLETE</span>
+        </template>
+        <template x-if="!running && jobStatus==='stopped'">
+          <span class="flex items-center gap-2 text-amber-600 font-bold text-sm"><i class="fa-solid fa-stop-circle"></i>STOPPED</span>
+        </template>
+        <template x-if="!running && jobStatus==='error'">
+          <span class="flex items-center gap-2 text-red-600 font-bold text-sm"><i class="fa-solid fa-triangle-exclamation"></i>ERROR</span>
+        </template>
+        <template x-if="!running && !jobStatus">
+          <span class="text-slate-400 text-sm font-mono">No job running</span>
+        </template>
+        <template x-if="currentPhase">
+          <span class="phase-pill" :class="phaseColor(currentPhase)" x-text="phaseLabel(currentPhase)"></span>
+        </template>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button x-show="running && jobQueueStatus !== 'queued'" @click="stopJob()"
+                class="bg-red-100 hover:bg-red-200 text-red-700 font-bold text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-stop"></i>Stop
+        </button>
+        <!-- Always-available checkpoint download: shows any time we have a job -->
+        <button x-show="jobId"
+                @click="downloadCheckpoint()"
+                :class="lastMilestone ? 'bg-amber-400 hover:bg-amber-500 text-white ring-2 ring-amber-300' : 'bg-amber-100 hover:bg-amber-200 text-amber-700'"
+                class="font-bold text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-download"></i>
+          <span class="litminer-badge text-[9px] ml-0.5">.litminer</span>
+          <span x-show="lastMilestone" class="ml-1 text-[9px] uppercase tracking-wider">Save now!</span>
+        </button>
+        <button x-show="jobStatus==='done'||jobStatus==='stopped'" @click="downloadCSV()"
+                class="bg-green-100 hover:bg-green-200 text-green-700 font-bold text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-file-csv"></i>Download CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Taxon info banner -->
+    <template x-if="currentTaxon">
+      <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-4 text-xs">
+        <span class="text-slate-400">Target: <span class="font-bold italic text-slate-700" x-text="currentTaxon.canonical_name"></span></span>
+        <span class="text-slate-400" x-show="currentTaxon.order">Order: <span class="font-mono text-slate-600" x-text="currentTaxon.order"></span></span>
+        <span class="text-slate-400" x-show="currentTaxon.taxon_common">Common: <span class="font-mono text-slate-600" x-text="currentTaxon.taxon_common"></span></span>
+        <span x-show="preyTermsDisplay.order" class="prey-term-pill" x-text="preyTermsDisplay.order"></span>
+        <span x-show="preyTermsDisplay.common" class="prey-term-pill" x-text="preyTermsDisplay.common"></span>
+      </div>
+    </template>
+  </div>
+
+  <!-- Progress bars -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Progress</p>
+    <div class="space-y-3">
+      <template x-for="bar in progressBars" :key="bar.key">
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="font-mono text-slate-500" x-text="bar.label"></span>
+            <span class="font-mono text-slate-600 font-bold" x-text="bar.done+' / '+bar.total"></span>
+          </div>
+          <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-full rounded-full progress-bar" :class="bar.color"
+                 :style="'width:'+Math.min(100,bar.total?Math.round(bar.done/bar.total*100):0)+'%'"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-slate-800" x-text="stats.total_hits||0"></p>
+      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Total Hits</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-green-600" x-text="stats.check_hits||0"></p>
+      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">CHECK</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-amber-500" x-text="stats.noise_hits||0"></p>
+      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">NOISE</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-blue-600" x-text="stats.api_calls||0"></p>
+      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">API Calls</p>
+    </div>
+  </div>
+
+  <!-- Live request ticker -->
+  <div class="bg-slate-900 rounded-xl border border-slate-700 p-4">
+    <div class="flex items-center justify-between mb-3">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-satellite-dish mr-1.5 text-blue-400"></i>Live Requests</p>
+      <span class="text-[9px] text-slate-500 font-mono">last 10</span>
+    </div>
+    <div class="space-y-1 min-h-[60px]">
+      <template x-for="(r,i) in reqLog" :key="i">
+        <div class="flex items-center gap-2 text-[10px] font-mono req-ticker" :class="r.status>=400||String(r.status).startsWith('ERR')?'text-red-400':'text-blue-300'">
+          <span class="w-20 truncate opacity-60" x-text="r.source"></span>
+          <span class="flex-1 truncate text-slate-400" x-text="r.query"></span>
+          <span class="font-bold px-1.5 py-0.5 rounded text-[9px]"
+                :class="r.status>=400||String(r.status).startsWith('ERR')?'bg-red-900 text-red-300':'bg-blue-900 text-blue-300'"
+                x-text="r.status"></span>
+        </div>
+      </template>
+      <template x-if="reqLog.length===0">
+        <p class="text-slate-600 text-xs font-mono">Waiting for requests…</p>
+      </template>
+    </div>
+  </div>
+
+  <!-- Mini realtime chart -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Real-time Hits</p>
+    <canvas id="liveChart" height="120"></canvas>
+  </div>
+
+  <!-- Terminal -->
+  <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-700">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+        <div class="w-3 h-3 rounded-full bg-amber-400"></div>
+        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+        <span class="ml-2 text-slate-400 text-xs font-mono">litminer.log</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <template x-if="running">
+          <span class="flex items-center gap-1.5 text-green-400 text-xs font-mono"><span class="pulse-dot w-2 h-2"></span>LIVE</span>
+        </template>
+        <button @click="terminalLines=[]" class="text-slate-600 hover:text-slate-400 text-xs px-2 py-1 rounded transition-colors">Clear</button>
+      </div>
+    </div>
+    <div id="terminal" class="p-4 h-72 overflow-y-auto scroll-smooth" x-ref="terminal">
+      <template x-if="terminalLines.length===0">
+        <p class="text-slate-600 text-xs font-mono">Waiting for job to start…</p>
+      </template>
+      <template x-for="(line,i) in terminalLines" :key="i">
+        <div class="terminal-line" :class="line.level||'info'">
+          <span class="text-slate-600 mr-2 select-none" x-text="formatTs(line.ts)"></span><span x-text="line.msg"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ RESULTS TAB ═══════════════ -->
+<div id="panel-results" x-show="tab==='results'" class="space-y-5 fade-in">
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Results</p>
+        <p class="text-sm text-slate-500" x-text="rows.length+' records found'+(selectedTaxon?' for '+selectedTaxon.canonical_name:'')"></p>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button @click="filterVerdict=''" :class="filterVerdict===''?'bg-slate-800 text-white':'bg-slate-100 text-slate-600'" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-all">All</button>
+        <button @click="filterVerdict='CHECK'" :class="filterVerdict==='CHECK'?'bg-green-600 text-white':'bg-green-50 text-green-700'" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-all">CHECK</button>
+        <button @click="filterVerdict='NOISE'" :class="filterVerdict==='NOISE'?'bg-amber-500 text-white':'bg-amber-50 text-amber-700'" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-all">NOISE</button>
+        <select x-model="filterSource" class="text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-amber-400 outline-none">
+          <option value="">All sources</option>
+          <option value="openalex">OpenAlex</option>
+          <option value="crossref">Crossref</option>
+          <option value="semantic_scholar">S2</option>
+          <option value="pubmed">PubMed</option>
+          <option value="bhl">BHL</option>
+          <option value="bhl_ocr">BHL OCR</option>
+        </select>
+        <button x-show="jobId" @click="downloadCSV()"
+                class="bg-green-100 hover:bg-green-200 text-green-700 font-bold text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-file-csv"></i>CSV
+        </button>
+      </div>
+    </div>
+    <div class="overflow-auto max-h-[60vh] rounded-lg border border-slate-200">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Verdict</th><th>Source</th><th>Year</th><th>Title</th><th>Author</th><th>Keyword</th><th>Trigger snippet</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(row,i) in filteredRows" :key="i">
+            <tr @click="openRow(row)" class="cursor-pointer">
+              <td>
+                <span class="phase-pill text-[9px]"
+                      :class="row.pre_verdict==='CHECK'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'"
+                      x-text="row.pre_verdict||'?'"></span>
+              </td>
+              <td><span class="source-tag" :class="sourceTag(row.source)" x-text="row.source||'?'"></span></td>
+              <td x-text="row.year||'—'"></td>
+              <td :title="row.title" x-text="(row.title||'').slice(0,60)+(row.title&&row.title.length>60?'…':'')"></td>
+              <td x-text="(row.author||'').slice(0,30)"></td>
+              <td x-text="row.matched_keyword||'—'"></td>
+              <td :title="row.trigger" x-text="(row.trigger||'').slice(0,80)+(row.trigger&&row.trigger.length>80?'…':'')"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <template x-if="filteredRows.length===0">
+        <div class="p-8 text-center text-slate-400 text-sm font-mono">No results yet.</div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Row detail modal -->
+  <template x-if="selectedRow">
+    <div class="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/50" @click.self="selectedRow=null">
+      <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <span class="phase-pill" :class="selectedRow.pre_verdict==='CHECK'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'" x-text="selectedRow.pre_verdict"></span>
+            <span class="source-tag ml-2" :class="sourceTag(selectedRow.source)" x-text="selectedRow.source"></span>
+          </div>
+          <button @click="selectedRow=null" class="text-slate-400 hover:text-slate-700 text-xl px-2">×</button>
+        </div>
+        <h2 class="text-base font-bold text-slate-800 mb-2" x-text="selectedRow.title"></h2>
+        <p class="text-xs text-slate-500 font-mono mb-4" x-text="(selectedRow.author||'')+(selectedRow.year?' · '+selectedRow.year:'')+(selectedRow.doi?' · DOI:'+selectedRow.doi:'')"></p>
+        <div class="bg-slate-900 rounded-xl p-4">
+          <p class="text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">Trigger Snippet</p>
+          <p class="seq-mono text-green-300" x-text="selectedRow.trigger"></p>
+        </div>
+        <div class="mt-3 flex gap-2 text-xs flex-wrap">
+          <span class="bg-slate-100 px-2 py-1 rounded font-mono" x-text="'kw: '+selectedRow.matched_keyword"></span>
+          <span x-show="selectedRow.noise_reason" class="bg-red-50 text-red-600 px-2 py-1 rounded font-mono" x-text="'noise: '+selectedRow.noise_reason"></span>
+          <span x-show="selectedRow.mel_count>1" class="bg-blue-50 text-blue-600 px-2 py-1 rounded font-mono" x-text="selectedRow.mel_count+' occurrences'"></span>
+        </div>
+        <div class="mt-3" x-show="selectedRow.url">
+          <a :href="selectedRow.url" target="_blank" class="text-xs text-blue-600 hover:underline font-mono" x-text="selectedRow.url"></a>
+        </div>
+      </div>
+    </div>
+  </template>
+</div>
+
+<!-- ═══════════════ CHARTS TAB ═══════════════ -->
+<div id="panel-charts" x-show="tab==='charts'" class="space-y-5 fade-in">
+  <div class="grid sm:grid-cols-2 gap-5">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Verdict Distribution</p>
+      <canvas id="verdictChart"></canvas>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Source Distribution</p>
+      <canvas id="sourceChart"></canvas>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Hits by Year</p>
+      <canvas id="yearChart"></canvas>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Query Type Breakdown</p>
+      <canvas id="qtypeChart"></canvas>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    apiBase: 'https://testing45323-lit-miner.hf.space',
+    tab: 'setup',
+    // Setup
+    email: '', s2Key: '', pubmedKey: '', bhlKey: '',
+    openrouterKey: '', openrouterModel: 'openai/gpt-4o-mini:free',
+    aiClassifying: false, aiClassification: null, aiError: '',
+    taxonQuery: '', taxonSearching: false, taxonSuggestions: [],
+    selectedTaxon: null, resolvingTaxon: false,
+    preyTerms: {}, preyOrderOverride: '', preyCommonOverride: '',
+    srcOpenalex: true, srcCrossref: true, srcS2: true, srcPubmed: true, srcBHL: true,
+    taxaText: '',
+    checkpointFile: null, checkpointData: null,
+    showResumeSection: false,
+    notificationsEnabled: false,
+    notifPermission: Notification.permission,
+    startError: '',
+    // Job
+    jobId: null, running: false, jobStatus: '', jobQueueStatus: '',
+    currentPhase: '', currentTaxon: null,
+    terminalLines: [], reqLog: [],
+    stats: { total_hits: 0, check_hits: 0, noise_hits: 0, api_calls: 0 },
+    progress: {},
+    rows: [],
+    filterVerdict: '', filterSource: '',
+    selectedRow: null,
+    lastMilestone: null,       // text of last milestone message (drives pulse on button)
+    // Charts
+    liveChart: null, verdictChart: null, sourceChart: null, yearChart: null, qtypeChart: null,
+    liveData: { labels: [], hits: [], calls: [] },
+    chartTick: 0,
+
+    get taxaCount() {
+      return this.taxaText.split(/[\n,]+/).filter(t=>t.trim()).length;
+    },
+    get preyTermsDisplay() {
+      return {
+        order: this.preyOrderOverride || this.preyTerms.prey_order_term || '',
+        common: this.preyCommonOverride || this.preyTerms.prey_common_term || '',
+      };
+    },
+    get filteredRows() {
+      return this.rows.filter(r =>
+        (this.filterVerdict==='' || r.pre_verdict===this.filterVerdict) &&
+        (this.filterSource==='' || (r.source||'').includes(this.filterSource))
+      );
+    },
+    get progressBars() {
+      const p = this.progress;
+      return [
+        { key:'std', label:'Literature std queries', done: p.std_done||0, total: p.std_total||0, color:'bg-blue-400' },
+        { key:'pred', label:'Literature pred queries', done: p.pred_done||0, total: p.pred_total||0, color:'bg-violet-400' },
+        { key:'bhl_std', label:'BHL std queries', done: p.bhl_std_done||0, total: p.bhl_std_total||0, color:'bg-amber-400' },
+        { key:'bhl_pred', label:'BHL pred queries', done: p.bhl_pred_done||0, total: p.bhl_pred_total||0, color:'bg-orange-400' },
+        { key:'ft', label:'Full-text scan', done: p.ft_done||0, total: p.ft_total||0, color:'bg-green-400' },
+        { key:'ocr', label:'BHL OCR scan', done: p.ocr_done||0, total: p.ocr_total||0, color:'bg-red-400' },
+      ];
+    },
+
+    showTab(t) { this.tab = t; if(t==='charts') this.$nextTick(()=>this.renderCharts()); },
+
+    async searchTaxon() {
+      if (!this.taxonQuery || this.taxonQuery.length < 2) { this.taxonSuggestions=[]; return; }
+      this.taxonSearching = true;
+      try {
+        const r = await fetch(`${this.apiBase}/api/taxon/suggest?q=${encodeURIComponent(this.taxonQuery)}`);
+        const data = await r.json();
+        this.taxonSuggestions = Array.isArray(data) ? data.slice(0,10) : [];
+      } catch(e) { this.taxonSuggestions=[]; }
+      this.taxonSearching = false;
+    },
+
+    async selectTaxon(s) {
+      this.taxonSuggestions = [];
+      this.taxonQuery = s.canonicalName || s.scientificName || '';
+      this.resolvingTaxon = true;
+      this.selectedTaxon = {
+        canonical_name: s.canonicalName || s.scientificName,
+        rank: s.rank || '',
+        family: s.family || '',
+        order: s.order || '',
+        key: s.key,
+      };
+      // Resolve full taxon info including prey terms
+      try {
+        const r = await fetch(this.apiBase + '/api/taxon/resolve', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ taxon_key: s.key, taxon_name: s.canonicalName||s.scientificName })
+        });
+        const info = await r.json();
+        if (!info.error) {
+          this.selectedTaxon = { ...this.selectedTaxon, ...info };
+          this.preyTerms = info;
+        }
+      } catch(e) {}
+      this.resolvingTaxon = false;
+    },
+
+    loadSampleTaxa() {
+      this.taxaText = `Philanthus\nCerceris\nPhysocephala\nStylops\nBombylius\nSphex\nCrabro\nLarra\nMelittobia\nSepedon\nConops\nVelvet ant\nSisyra`;
+    },
+
+    async runAiClassification() {
+      if (!this.openrouterKey || !this.selectedTaxon) return;
+      this.aiClassifying = true;
+      this.aiError = '';
+      this.aiClassification = null;
+      try {
+        const r = await fetch(this.apiBase + '/api/ai/classify', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            taxon_name: this.selectedTaxon.canonical_name,
+            openrouter_key: this.openrouterKey,
+            model: this.openrouterModel,
+          })
+        });
+        const data = await r.json();
+        if (data.error) { this.aiError = data.error; return; }
+        this.aiClassification = data;
+        // Auto-apply AI terms to the override fields if not already set by user
+        if (!this.preyOrderOverride) this.preyOrderOverride = data.prey_order_term || '';
+        if (!this.preyCommonOverride) this.preyCommonOverride = data.prey_common_term || '';
+      } catch(e) { this.aiError = String(e); }
+      this.aiClassifying = false;
+    },
+
+    handleCheckpointUpload(ev) {
+      const file = ev.target.files[0];
+      if (!file) return;
+      this.checkpointFile = file.name;
+      const reader = new FileReader();
+      reader.onload = e => { this.checkpointData = e.target.result; };
+      reader.readAsArrayBuffer(file);
+    },
+
+    async startJob() {
+      this.startError = '';
+      if (!this.email || !this.email.includes('@')) { this.startError='Valid email required'; return; }
+      if (!this.selectedTaxon) { this.startError='Select a taxon first'; return; }
+      if (!this.taxaText.trim()) { this.startError='Enter at least one predator/parasite taxon'; return; }
+
+      const aiTerms = this.aiClassification || {};
+      const body = {
+        email: this.email, s2_key: this.s2Key, pubmed_key: this.pubmedKey, bhl_key: this.bhlKey,
+        taxa: this.taxaText,
+        taxon_info: { ...this.selectedTaxon, ...this.preyTerms },
+        query_terms: {
+          prey_order: this.preyOrderOverride || aiTerms.prey_order_term || '',
+          prey_common: this.preyCommonOverride || aiTerms.prey_common_term || '',
+        },
+        src_openalex: this.srcOpenalex, src_crossref: this.srcCrossref,
+        src_s2: this.srcS2, src_pubmed: this.srcPubmed, src_bhl: this.srcBHL,
+      };
+
+      try {
+        const r = await fetch(this.apiBase + '/start', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(body)
+        });
+        const data = await r.json();
+        if (data.error) { this.startError = data.error; return; }
+        this.jobId = data.job_id;
+        this.currentTaxon = body.taxon_info;
+        this.jobQueueStatus = data.queue_position > 0 ? 'queued' : 'running';
+        this.running = true; this.jobStatus = 'running';
+        this.lastMilestone = null;
+        this.rows = []; this.terminalLines = [];
+        this.tab = 'run';
+        this.listenSSE();
+      } catch(e) { this.startError = String(e); }
+    },
+
+    async resumeJob() {
+      if (!this.checkpointData || !this.email) return;
+      const formData = new FormData();
+      formData.append('email', this.email);
+      formData.append('s2_key', this.s2Key);
+      formData.append('pubmed_key', this.pubmedKey);
+      formData.append('bhl_key', this.bhlKey);
+      formData.append('taxa', this.taxaText || ' ');
+      const blob = new Blob([this.checkpointData], {type:'application/zip'});
+      formData.append('checkpoint', blob, 'checkpoint.litminer');
+      try {
+        const r = await fetch(this.apiBase + '/resume', { method: 'POST', body: formData });
+        const data = await r.json();
+        if (data.error) { this.startError = data.error; return; }
+        this.jobId = data.job_id;
+        this.jobQueueStatus = data.queue_position > 0 ? 'queued' : 'running';
+        this.running = true; this.jobStatus = 'running';
+        this.lastMilestone = null;
+        this.terminalLines = []; this.rows = [];
+        this.tab = 'run';
+        this.listenSSE();
+      } catch(e) { this.startError = String(e); }
+    },
+
+    listenSSE() {
+      if (!this.jobId) return;
+      const evtSource = new EventSource(`${this.apiBase}/stream/${this.jobId}`);
+      evtSource.onmessage = (ev) => {
+        const data = JSON.parse(ev.data);
+        if (data.heartbeat) {
+          if (data.progress) this.progress = data.progress;
+          if (data.stats) this.stats = data.stats;
+          if (data.queue_status) this.jobQueueStatus = data.queue_status;
+          if (data.queue_status === 'running') this.jobQueueStatus = 'running';
+          return;
+        }
+        if (data.status) {
+          this.jobStatus = data.status;
+          this.jobQueueStatus = data.status;
+          this.running = false;
+          if (data.progress) this.progress = data.progress;
+          evtSource.close();
+          this.fetchRows();
+          return;
+        }
+        if (data.log !== undefined) {
+          this.terminalLines.push({ msg: data.log, level: data.level||'info', ts: data.ts||Date.now()/1000 });
+          if (this.terminalLines.length > 3000) this.terminalLines.splice(0, 500);
+          this.$nextTick(() => {
+            const el = this.$refs.terminal;
+            if (el) el.scrollTop = el.scrollHeight;
+          });
+          // Handle milestone: pulse download button + send browser notification
+          if (data.is_milestone) {
+            this.lastMilestone = data.log;
+            this.sendNotification(data.log);
+            // Clear the pulse after 60 s so it doesn't stay lit forever
+            setTimeout(() => { if (this.lastMilestone === data.log) this.lastMilestone = null; }, 60000);
+          }
+          // When queued job actually starts running, clear queued status
+          if (data.queue_status === 'running') this.jobQueueStatus = 'running';
+        }
+        if (data.progress) this.progress = data.progress;
+        if (data.stats) { this.stats = data.stats; }
+        if (data.req_log) { this.reqLog = data.req_log; }
+        if (data.phase) this.currentPhase = data.phase;
+        this.tickLiveChart();
+      };
+      evtSource.onerror = () => {
+        if (this.running) setTimeout(() => this.listenSSE(), 3000);
+        evtSource.close();
+      };
+    },
+
+    async toggleNotifications() {
+      if (this.notificationsEnabled) {
+        this.notificationsEnabled = false;
+        return;
+      }
+      if (!('Notification' in window)) {
+        alert('This browser does not support desktop notifications.');
+        return;
+      }
+      if (Notification.permission === 'granted') {
+        this.notificationsEnabled = true;
+        this.notifPermission = 'granted';
+      } else if (Notification.permission !== 'denied') {
+        const perm = await Notification.requestPermission();
+        this.notifPermission = perm;
+        if (perm === 'granted') {
+          this.notificationsEnabled = true;
+          new Notification('Melissodes Literature Miner', {
+            body: 'Notifications enabled! You\'ll be alerted at each checkpoint milestone.',
+            icon: '/static/favicon.ico',
+          });
+        }
+      } else {
+        this.notifPermission = 'denied';
+      }
+    },
+
+    sendNotification(msg) {
+      if (!this.notificationsEnabled) return;
+      if (Notification.permission !== 'granted') return;
+      try {
+        new Notification('📍 Literature Miner — Checkpoint', {
+          body: msg,
+          icon: '/static/favicon.ico',
+          tag: 'litminer-milestone',     // replaces previous notification rather than stacking
+          requireInteraction: false,
+        });
+      } catch(e) { /* ignore notification errors silently */ }
+    },
+
+    async stopJob() {
+      if (!this.jobId) return;
+      await fetch(`${this.apiBase}/stop/${this.jobId}`, { method: 'POST' });
+    },
+
+    async fetchRows() {
+      if (!this.jobId) return;
+      try {
+        const r = await fetch(`${this.apiBase}/status/${this.jobId}`);
+        const d = await r.json();
+        if (d.progress) this.progress = d.progress;
+        if (d.stats) this.stats = d.stats;
+        // Fetch CSV and parse rows
+        const cr = await fetch(`${this.apiBase}/download/csv/${this.jobId}`);
+        if (cr.ok && cr.headers.get('content-type').includes('csv')) {
+          const txt = await cr.text();
+          this.rows = this.parseCSV(txt);
+        }
+      } catch(e) {}
+    },
+
+    parseCSV(txt) {
+      const lines = txt.split('\n');
+      if (lines.length < 2) return [];
+      const headers = lines[0].split(',').map(h=>h.replace(/^"|"$/g,''));
+      return lines.slice(1).filter(l=>l.trim()).map(l=>{
+        const vals = [];
+        let cur='',inQ=false;
+        for(let c of l){if(c==='"'){inQ=!inQ}else if(c===','&&!inQ){vals.push(cur);cur=''}else{cur+=c}}
+        vals.push(cur);
+        const obj={};
+        headers.forEach((h,i)=>{ obj[h]=(vals[i]||'').replace(/^"|"$/g,''); });
+        return obj;
+      });
+    },
+
+    downloadCSV() {
+      if (!this.jobId) return;
+      window.location.href = `${this.apiBase}/download/csv/${this.jobId}`;
+    },
+
+    downloadCheckpoint() {
+      if (!this.jobId) return;
+      window.location.href = `${this.apiBase}/download/checkpoint/${this.jobId}`;
+    },
+
+    openRow(row) { this.selectedRow = row; },
+
+    formatTs(ts) {
+      if (!ts) return '';
+      const d = new Date(ts * 1000);
+      return d.toTimeString().slice(0,8);
+    },
+
+    phaseLabel(p) {
+      const map = {
+        search:'Phase 1: Lit Search', fulltext:'Phase 2: Full-text',
+        bhl_search:'Phase 3: BHL Search', bhl_ocr:'Phase 4: BHL OCR',
+        export:'Phase 5: Export', done:'Complete',
+      };
+      return map[p] || p;
+    },
+
+    phaseColor(p) {
+      const map = {
+        search:'bg-blue-100 text-blue-700', fulltext:'bg-violet-100 text-violet-700',
+        bhl_search:'bg-amber-100 text-amber-700', bhl_ocr:'bg-orange-100 text-orange-700',
+        export:'bg-slate-100 text-slate-600', done:'bg-green-100 text-green-700',
+      };
+      return map[p] || 'bg-slate-100 text-slate-600';
+    },
+
+    sourceTag(src) {
+      const map = {
+        openalex:'src-openalex', crossref:'src-crossref',
+        semantic_scholar:'src-s2', pubmed:'src-pubmed',
+        bhl:'src-bhl', bhl_ocr:'src-bhl',
+        standard_bhl:'src-bhl', predator_centric_bhl:'src-bhl',
+      };
+      return map[src] || 'bg-slate-100 text-slate-600';
+    },
+
+    // ── Charts ──────────────────────────────────────────────────────────────
+    initLiveChart() {
+      const ctx = document.getElementById('liveChart');
+      if (!ctx || this.liveChart) return;
+      this.liveChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label:'Hits', data:[], borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.08)', tension:0.4, fill:true, pointRadius:2 },
+            { label:'API Calls / 10', data:[], borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.08)', tension:0.4, fill:true, pointRadius:2 },
+          ]
+        },
+        options: {
+          animation:false, responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ labels:{ font:{size:10}, color:'#94a3b8' }}},
+          scales:{
+            x:{ ticks:{color:'#94a3b8',font:{size:9}}, grid:{color:'rgba(0,0,0,0.04)'} },
+            y:{ ticks:{color:'#94a3b8',font:{size:9}}, grid:{color:'rgba(0,0,0,0.04)'}, beginAtZero:true }
+          }
+        }
+      });
+    },
+
+    tickLiveChart() {
+      this.chartTick++;
+      if (this.chartTick % 3 !== 0) return;
+      if (!this.liveChart) this.initLiveChart();
+      if (!this.liveChart) return;
+      const label = new Date().toTimeString().slice(0,8);
+      this.liveChart.data.labels.push(label);
+      this.liveChart.data.datasets[0].data.push(this.stats.total_hits||0);
+      this.liveChart.data.datasets[1].data.push(Math.round((this.stats.api_calls||0)/10));
+      if (this.liveChart.data.labels.length > 60) {
+        this.liveChart.data.labels.shift();
+        this.liveChart.data.datasets.forEach(d=>d.data.shift());
+      }
+      this.liveChart.update('none');
+    },
+
+    renderCharts() {
+      const rows = this.rows;
+      if (!rows.length) return;
+
+      // Verdict
+      const verdicts = {};
+      rows.forEach(r=>{ verdicts[r.pre_verdict||'?']=(verdicts[r.pre_verdict||'?']||0)+1; });
+      const vCtx = document.getElementById('verdictChart');
+      if (vCtx) {
+        if (this.verdictChart) this.verdictChart.destroy();
+        this.verdictChart = new Chart(vCtx, {
+          type:'doughnut',
+          data:{ labels:Object.keys(verdicts), datasets:[{ data:Object.values(verdicts), backgroundColor:['#22c55e','#f59e0b','#94a3b8'], borderWidth:1 }] },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ font:{size:10}, color:'#475569' }}}}
+        });
+      }
+
+      // Source
+      const sources = {};
+      rows.forEach(r=>{ const s=r.source||'?'; sources[s]=(sources[s]||0)+1; });
+      const sCtx = document.getElementById('sourceChart');
+      if (sCtx) {
+        if (this.sourceChart) this.sourceChart.destroy();
+        const colors = ['#3b82f6','#22c55e','#a855f7','#ec4899','#f59e0b','#ef4444'];
+        this.sourceChart = new Chart(sCtx, {
+          type:'bar',
+          data:{ labels:Object.keys(sources), datasets:[{ data:Object.values(sources), backgroundColor:colors, borderRadius:6 }] },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{font:{size:9},color:'#94a3b8'}}, y:{ticks:{font:{size:9},color:'#94a3b8'},beginAtZero:true} }}
+        });
+      }
+
+      // Year
+      const years = {};
+      rows.forEach(r=>{ const y=r.year||'?'; if(y&&y.match(/\d{4}/)) years[y]=(years[y]||0)+1; });
+      const sortedYears = Object.keys(years).sort();
+      const yCtx = document.getElementById('yearChart');
+      if (yCtx) {
+        if (this.yearChart) this.yearChart.destroy();
+        this.yearChart = new Chart(yCtx, {
+          type:'bar',
+          data:{ labels:sortedYears, datasets:[{ label:'Hits', data:sortedYears.map(y=>years[y]), backgroundColor:'rgba(96,165,250,0.7)', borderRadius:4 }] },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{font:{size:8},color:'#94a3b8'}}, y:{ticks:{font:{size:9},color:'#94a3b8'},beginAtZero:true} }}
+        });
+      }
+
+      // Query type
+      const qtypes = {};
+      rows.forEach(r=>{ const q=r.query_type||'?'; qtypes[q]=(qtypes[q]||0)+1; });
+      const qCtx = document.getElementById('qtypeChart');
+      if (qCtx) {
+        if (this.qtypeChart) this.qtypeChart.destroy();
+        this.qtypeChart = new Chart(qCtx, {
+          type:'pie',
+          data:{ labels:Object.keys(qtypes), datasets:[{ data:Object.values(qtypes), backgroundColor:['#3b82f6','#f59e0b','#22c55e','#a855f7','#ef4444'], borderWidth:1 }] },
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:9},color:'#475569'}}} }
+        });
+      }
+    },
+
+    init() {
+      this.$nextTick(() => this.initLiveChart());
+    }
+  }));
+});
+</script>
+</body>
+</html>
