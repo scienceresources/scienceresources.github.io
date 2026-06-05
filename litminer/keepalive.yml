@@ -1,0 +1,22 @@
+name: Keep HuggingFace Space Alive
+
+on:
+  schedule:
+    # Runs every 5 minutes. GitHub Actions minimum is 5 min.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:   # allow manual trigger from Actions UI
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Space /ping endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://${{ secrets.HF_SPACE_SUBDOMAIN }}.hf.space/ping")
+          echo "Response status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "WARNING: Space returned $STATUS — it may be starting up."
+            exit 0   # don't fail the workflow; Space will wake on next request
+          fi
+          echo "Space is alive."
