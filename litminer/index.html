@@ -568,6 +568,33 @@
     <canvas id="liveChart" height="120"></canvas>
   </div>
 
+  <!-- ETA widget -->
+  <template x-if="running && eta && eta.phase">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-2">
+          <span class="pulse-dot w-2 h-2 bg-amber-400 rounded-full"></span>
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estimated Time Remaining</span>
+        </div>
+        <span class="text-xs text-slate-400 font-mono" x-text="eta.phase"></span>
+      </div>
+      <div class="mt-3 flex items-end gap-4 flex-wrap">
+        <p class="text-2xl font-bold text-amber-500 font-mono leading-none" x-text="fmtEta(eta.est_secs)"></p>
+        <div class="flex-1 min-w-0">
+          <div class="flex justify-between text-[9px] text-slate-400 font-mono mb-1">
+            <span x-text="eta.total - eta.remaining + ' done'"></span>
+            <span x-text="eta.remaining + ' remaining'"></span>
+          </div>
+          <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-full bg-amber-400 rounded-full transition-all duration-700"
+                 :style="`width:${eta.total>0?Math.round(100*(eta.total-eta.remaining)/eta.total):0}%`"></div>
+          </div>
+        </div>
+      </div>
+      <p class="text-[9px] text-slate-300 font-mono mt-2">Based on rolling average of actual API response times across all sources and phases.</p>
+    </div>
+  </template>
+
   <!-- Terminal -->
   <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
     <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-700">
@@ -794,6 +821,7 @@ document.addEventListener('alpine:init', () => {
     liveData: { labels: [], hits: [], calls: [] },
     chartTick: 0,
     _pendingRender: false,
+    eta: {},
 
     get taxaCount() {
       return this.taxaText.split(/[\n,]+/).filter(t=>t.trim()).length;
@@ -1015,6 +1043,7 @@ document.addEventListener('alpine:init', () => {
         if (data.stats) { this.stats = data.stats; }
         if (data.req_log) { this.reqLog = data.req_log; }
         if (data.phase) this.currentPhase = data.phase;
+        if (data.eta && data.eta.phase) this.eta = data.eta;
         this.tickLiveChart();
       };
       evtSource.onerror = () => {
@@ -1119,6 +1148,15 @@ document.addEventListener('alpine:init', () => {
       if (!ts) return '';
       const d = new Date(ts * 1000);
       return d.toTimeString().slice(0,8);
+    },
+
+    fmtEta(secs) {
+      if (!secs || secs <= 0) return '—';
+      if (secs < 60) return `~${secs}s`;
+      if (secs < 3600) return `~${Math.floor(secs/60)}m ${secs%60}s`;
+      const h = Math.floor(secs/3600);
+      const m = Math.floor((secs%3600)/60);
+      return `~${h}h ${m}m`;
     },
 
     phaseLabel(p) {
