@@ -42,7 +42,8 @@
   .stat-box:hover{border-color:#d97706;box-shadow:0 4px 20px rgba(217,119,6,0.08)}
   .data-table{width:100%;border-collapse:collapse;font-size:11px}
   .data-table th{background:#1e293b;color:#94a3b8;padding:9px 12px;text-align:left;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;border-bottom:1px solid #334155;position:sticky;top:0;z-index:5;font-family:'Courier New',monospace;white-space:nowrap}
-  .data-table td{padding:7px 12px;border-bottom:1px solid #f8fafc;color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace;font-size:10.5px}
+  .data-table td{padding:7px 12px;border-bottom:1px solid #f8fafc;color:#475569;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace;font-size:10.5px}
+  .data-table td:first-child{max-width:300px;white-space:normal;overflow:visible;text-overflow:unset}
   .data-table tr:hover td{background:#fffbeb}
   @keyframes spin{to{transform:rotate(360deg)}}
   .spin{animation:spin 1s linear infinite;display:inline-block}
@@ -169,7 +170,28 @@
 
   <!-- API Credentials -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-2 mr-1 text-amber-400"></i>API Credentials</p>
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+      <div>
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-2 mr-1 text-amber-400"></i>API Credentials</p>
+      </div>
+      <!-- .litminerapi save/load buttons -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-[10px] text-slate-400 font-mono hidden sm:inline">Save or load all keys:</span>
+        <button @click="exportApiKeys()"
+                class="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-700 font-bold text-xs px-3 py-1.5 rounded-lg transition-all">
+          <i class="fa-solid fa-download text-[10px]"></i>
+          Save <span class="litminer-badge text-[9px] ml-0.5">.litminerapi</span>
+        </button>
+        <label class="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold text-xs px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+          <i class="fa-solid fa-upload text-[10px]"></i>
+          Load <span class="litminer-badge text-[9px] ml-0.5">.litminerapi</span>
+          <input type="file" accept=".litminerapi,.json" class="hidden" @change="importApiKeys($event)">
+        </label>
+        <template x-if="apiKeyMsg">
+          <span class="text-[10px] font-mono" :class="apiKeyMsg.ok ? 'text-green-600' : 'text-red-500'" x-text="apiKeyMsg.text"></span>
+        </template>
+      </div>
+    </div>
     <div class="grid sm:grid-cols-3 gap-4">
       <div class="sm:col-span-3">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-envelope mr-1 text-amber-400"></i>Email <span class="text-red-400">*</span></label>
@@ -190,6 +212,26 @@
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><span class="source-tag src-bhl">BHL</span> BHL API key</label>
         <input x-model="bhlKey" type="password" placeholder="Required for BHL searches"
                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+      </div>
+      <div class="sm:col-span-2">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-key mr-1 text-fuchsia-400"></i>OpenRouter API key <span class="ml-1 bg-fuchsia-100 text-fuchsia-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">AI record classification</span></label>
+        <input x-model="openrouterKey" type="password" placeholder="sk-or-v1-… (optional — enables AI verdict scoring after search)"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-fuchsia-400 outline-none transition-all">
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-robot mr-1 text-fuchsia-400"></i>AI classifier model</label>
+        <select x-model="openrouterModel"
+                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-fuchsia-400 outline-none transition-all">
+          <option value="openai/gpt-oss-20b:free">GPT-OSS 20B (Free)</option>
+          <option value="nvidia/nemotron-3-super-120b-a12b:free">Nemotron 3 Super 120B (Free)</option>
+          <option value="moonshotai/kimi-k2.6:free">Kimi K2.6 (Free)</option>
+          <option value="google/gemma-4-26b-a4b-it:free">Gemma 4 26B (Free)</option>
+          <option value="qwen/qwen3-next-80b-a3b-instruct:free">Qwen3 Next 80B Instruct (Free)</option>
+          <option value="openai/gpt-oss-120b:free">GPT-OSS 120B (Free)</option>
+          <option value="qwen/qwen3-coder:free">Qwen3 Coder (Free)</option>
+          <option value="nousresearch/hermes-3-llama-3.1-405b:free">Hermes 3 Llama 3.1 405B (Free)</option>
+        </select>
+        <p class="text-[10px] text-slate-400 mt-1.5">Used only for Phase 5b AI record classification — not taxon lookup.</p>
       </div>
     </div>
   </div>
@@ -244,127 +286,12 @@
     </div>
   </div>
 
-  <!-- AI Classification (OpenRouter) -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-5 mr-1 text-amber-400"></i>AI Taxon Classification <span class="ml-2 bg-violet-100 text-violet-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">OpenRouter</span></p>
-    <p class="text-sm text-slate-500 mb-4">Let an AI model identify what each predator/parasite <em>actually is</em> (e.g. spider wasp, bee fly, mite) and generate precise prey/host search terms — solving the "prey bees" ambiguity automatically. Runs once before the main job starts and overrides GBIF-derived terms.</p>
-
-    <div class="grid sm:grid-cols-2 gap-4 mb-4">
-      <div>
-        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-key mr-1 text-violet-400"></i>OpenRouter API key</label>
-        <input x-model="openrouterKey" type="password" placeholder="sk-or-v1-…"
-               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-violet-400 outline-none transition-all">
-      </div>
-      <div>
-        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-robot mr-1 text-violet-400"></i>Model</label>
-        <select x-model="openrouterModel"
-                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-violet-400 outline-none transition-all">
-          <option value="openai/gpt-oss-20b:free">GPT-OSS 20B (Free)</option>
-          <option value="nvidia/nemotron-3-super-120b-a12b:free">Nemotron 3 Super 120B (Free)</option>
-          <option value="moonshotai/kimi-k2.6:free">Kimi K2.6 (Free)</option>
-          <option value="google/gemma-4-26b-a4b-it:free">Gemma 4 26B (Free)</option>
-          <option value="qwen/qwen3-next-80b-a3b-instruct:free">Qwen3 Next 80B Instruct (Free)</option>
-          <option value="openai/gpt-oss-120b:free">GPT-OSS 120B (Free)</option>
-          <option value="qwen/qwen3-coder:free">Qwen3 Coder (Free)</option>
-          <option value="nousresearch/hermes-3-llama-3.1-405b:free">Hermes 3 Llama 3.1 405B (Free)</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Classify button and status -->
-    <div class="flex items-center gap-3 flex-wrap mb-4">
-      <button @click="runAiClassification()"
-              :disabled="!openrouterKey || !selectedTaxon || aiClassifying"
-              class="bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 px-5 rounded-lg text-sm flex items-center gap-2 transition-all shadow-sm">
-        <i class="fa-solid text-xs" :class="aiClassifying ? 'fa-circle-notch spin' : 'fa-wand-magic-sparkles'"></i>
-        <span x-text="aiClassifying ? 'Classifying…' : 'Classify Target Taxon with AI'"></span>
-      </button>
-      <template x-if="!openrouterKey">
-        <span class="text-[11px] text-slate-400 font-mono">Add OpenRouter key above to enable</span>
-      </template>
-      <template x-if="openrouterKey && !selectedTaxon">
-        <span class="text-[11px] text-slate-400 font-mono">Select a taxon first</span>
-      </template>
-    </div>
-
-    <!-- AI result card -->
-    <template x-if="aiClassification">
-      <div class="bg-violet-50 border border-violet-200 rounded-xl p-4 fade-in">
-        <div class="flex items-center gap-2 mb-3">
-          <i class="fa-solid fa-wand-magic-sparkles text-violet-500"></i>
-          <p class="text-[10px] font-bold text-violet-600 uppercase tracking-widest">AI Classification Result</p>
-          <span class="ml-auto text-[9px] text-violet-400 font-mono" x-text="openrouterModel"></span>
-        </div>
-
-        <div class="grid sm:grid-cols-2 gap-3 mb-3">
-          <div class="bg-white rounded-lg p-3 border border-violet-100">
-            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Animal Type</p>
-            <p class="text-sm font-bold text-slate-800 capitalize" x-text="aiClassification.animal_type || '—'"></p>
-          </div>
-          <div class="bg-white rounded-lg p-3 border border-violet-100">
-            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Ecological Role</p>
-            <div class="flex gap-1.5 flex-wrap">
-              <template x-if="aiClassification.is_predator">
-                <span class="phase-pill bg-red-100 text-red-700">Predator</span>
-              </template>
-              <template x-if="aiClassification.is_parasite">
-                <span class="phase-pill bg-orange-100 text-orange-700">Parasite</span>
-              </template>
-              <template x-if="aiClassification.is_kleptoparasite">
-                <span class="phase-pill bg-amber-100 text-amber-700">Kleptoparasite</span>
-              </template>
-              <template x-if="!aiClassification.is_predator && !aiClassification.is_parasite && !aiClassification.is_kleptoparasite">
-                <span class="text-slate-400 text-xs font-mono">—</span>
-              </template>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI-generated prey/host terms -->
-        <div class="bg-white rounded-lg p-3 border border-violet-100 mb-3">
-          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">AI-Generated Search Terms (applied automatically)</p>
-          <div class="flex flex-wrap gap-2">
-            <span class="prey-term-pill" style="border-color:#7c3aed;background:#f5f3ff;color:#5b21b6">
-              <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
-              <span x-text="aiClassification.prey_order_term"></span>
-            </span>
-            <span class="prey-term-pill" style="border-color:#7c3aed;background:#f5f3ff;color:#5b21b6">
-              <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
-              <span x-text="aiClassification.prey_common_term"></span>
-            </span>
-            <template x-if="aiClassification.host_term">
-              <span class="prey-term-pill" style="border-color:#7c3aed;background:#f5f3ff;color:#5b21b6">
-                <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
-                <span x-text="aiClassification.host_term"></span>
-              </span>
-            </template>
-          </div>
-        </div>
-
-        <template x-if="aiClassification.rationale">
-          <p class="text-xs text-violet-700 italic mb-2" x-text="'💬 ' + aiClassification.rationale"></p>
-        </template>
-        <template x-if="aiClassification.notes">
-          <p class="text-[11px] text-slate-500 font-mono" x-text="'⚠ ' + aiClassification.notes"></p>
-        </template>
-
-        <p class="text-[10px] text-violet-500 mt-3"><i class="fa-solid fa-check-circle mr-1"></i>These terms will override GBIF-derived prey terms when the miner runs.</p>
-      </div>
-    </template>
-
-    <!-- AI error -->
-    <template x-if="aiError">
-      <div class="bg-red-50 border border-red-200 rounded-xl p-3 text-red-600 text-xs fade-in"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i><span x-text="aiError"></span></div>
-    </template>
-  </div>
-
-
   <!-- Resume from checkpoint (collapsible) -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     <button @click="showResumeSection = !showResumeSection"
             class="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-slate-50 transition-all">
       <div class="flex items-center gap-2">
-        <i class="fa-solid fa-circle-6 mr-1 text-amber-400 text-[10px]"></i>
+        <i class="fa-solid fa-circle-5 mr-1 text-amber-400 text-[10px]"></i>
         <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resume from Checkpoint</p>
         <span class="ml-2 text-[9px] text-slate-400 font-mono">(optional)</span>
       </div>
@@ -656,16 +583,14 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>Pre-verdict</th><th>AI Verdict</th><th>Source</th><th>Year</th><th>Title</th><th>Author</th><th>Keyword</th><th>Trigger snippet</th>
+            <th>Trigger Snippet</th><th>AI Verdict</th><th>Pre-verdict</th><th>Source</th><th>Year</th><th>Title</th><th>Author</th><th>Keyword</th>
           </tr>
         </thead>
         <tbody>
           <template x-for="(row,i) in filteredRows" :key="i">
             <tr @click="openRow(row)" class="cursor-pointer">
-              <td>
-                <span class="phase-pill text-[9px]"
-                      :class="row.pre_verdict==='CHECK'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'"
-                      x-text="row.pre_verdict||'?'"></span>
+              <td style="max-width:280px;white-space:normal;line-height:1.4" :title="row.trigger">
+                <span class="seq-mono text-slate-700" x-text="(row.trigger||'').slice(0,120)+((row.trigger||'').length>120?'…':'')"></span>
               </td>
               <td>
                 <template x-if="row.ai_verdict">
@@ -676,12 +601,16 @@
                 </template>
                 <template x-if="!row.ai_verdict"><span class="text-slate-300 text-[9px] font-mono">—</span></template>
               </td>
+              <td>
+                <span class="phase-pill text-[9px]"
+                      :class="row.pre_verdict==='CHECK'?'bg-green-100 text-green-700':'bg-amber-100 text-amber-700'"
+                      x-text="row.pre_verdict||'?'"></span>
+              </td>
               <td><span class="source-tag" :class="sourceTag(row.source)" x-text="row.source||'?'"></span></td>
               <td x-text="row.year||'—'"></td>
-              <td :title="row.title" x-text="(row.title||'').slice(0,60)+(row.title&&row.title.length>60?'…':'')"></td>
-              <td x-text="(row.author||'').slice(0,30)"></td>
+              <td :title="row.title" x-text="(row.title||'').slice(0,55)+(row.title&&row.title.length>55?'…':'')"></td>
+              <td x-text="(row.author||'').slice(0,25)"></td>
               <td x-text="row.matched_keyword||'—'"></td>
-              <td :title="row.trigger" x-text="(row.trigger||'').slice(0,80)+(row.trigger&&row.trigger.length>80?'…':'')"></td>
             </tr>
           </template>
         </tbody>
@@ -795,7 +724,6 @@ document.addEventListener('alpine:init', () => {
     // Setup
     email: '', s2Key: '', pubmedKey: '', bhlKey: '',
     openrouterKey: '', openrouterModel: 'openai/gpt-oss-20b:free',
-    aiClassifying: false, aiClassification: null, aiError: '',
     taxonQuery: '', taxonSearching: false, taxonSuggestions: [],
     selectedTaxon: null, resolvingTaxon: false,
     preyTerms: {}, preyOrderOverride: '', preyCommonOverride: '',
@@ -806,6 +734,7 @@ document.addEventListener('alpine:init', () => {
     notificationsEnabled: false,
     notifPermission: Notification.permission,
     startError: '',
+    apiKeyMsg: null,
     // Job
     jobId: null, running: false, jobStatus: '', jobQueueStatus: '',
     currentPhase: '', currentTaxon: null,
@@ -903,29 +832,55 @@ document.addEventListener('alpine:init', () => {
       this.taxaText = `Philanthus\nCerceris\nPhysocephala\nStylops\nBombylius\nSphex\nCrabro\nLarra\nMelittobia\nSepedon\nConops\nVelvet ant\nSisyra`;
     },
 
-    async runAiClassification() {
-      if (!this.openrouterKey || !this.selectedTaxon) return;
-      this.aiClassifying = true;
-      this.aiError = '';
-      this.aiClassification = null;
+    async exportApiKeys() {
+      this.apiKeyMsg = null;
       try {
-        const r = await fetch(this.apiBase + '/api/ai/classify', {
+        const r = await fetch(this.apiBase + '/api/keys/export', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
-            taxon_name: this.selectedTaxon.canonical_name,
+            email: this.email,
+            s2_key: this.s2Key,
+            pubmed_key: this.pubmedKey,
+            bhl_key: this.bhlKey,
             openrouter_key: this.openrouterKey,
-            model: this.openrouterModel,
+            openrouter_model: this.openrouterModel,
           })
         });
+        if (!r.ok) { this.apiKeyMsg = {ok:false, text:'Export failed'}; return; }
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'litminer_keys.litminerapi';
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        this.apiKeyMsg = {ok:true, text:'✓ Keys saved!'};
+        setTimeout(() => { this.apiKeyMsg = null; }, 4000);
+      } catch(e) { this.apiKeyMsg = {ok:false, text:'Export error: ' + e}; }
+    },
+
+    async importApiKeys(ev) {
+      this.apiKeyMsg = null;
+      const file = ev.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const r = await fetch(this.apiBase + '/api/keys/import', { method: 'POST', body: formData });
         const data = await r.json();
-        if (data.error) { this.aiError = data.error; return; }
-        this.aiClassification = data;
-        // Auto-apply AI terms to the override fields if not already set by user
-        if (!this.preyOrderOverride) this.preyOrderOverride = data.prey_order_term || '';
-        if (!this.preyCommonOverride) this.preyCommonOverride = data.prey_common_term || '';
-      } catch(e) { this.aiError = String(e); }
-      this.aiClassifying = false;
+        if (data.error) { this.apiKeyMsg = {ok:false, text:'Error: ' + data.error}; return; }
+        if (data.email)           this.email          = data.email;
+        if (data.s2_key)          this.s2Key          = data.s2_key;
+        if (data.pubmed_key)      this.pubmedKey      = data.pubmed_key;
+        if (data.bhl_key)         this.bhlKey         = data.bhl_key;
+        if (data.openrouter_key)  this.openrouterKey  = data.openrouter_key;
+        if (data.openrouter_model) this.openrouterModel = data.openrouter_model;
+        this.apiKeyMsg = {ok:true, text:'✓ Keys loaded!'};
+        setTimeout(() => { this.apiKeyMsg = null; }, 4000);
+      } catch(e) { this.apiKeyMsg = {ok:false, text:'Import error: ' + e}; }
+      // reset file input so same file can be re-uploaded if needed
+      ev.target.value = '';
     },
 
     handleCheckpointUpload(ev) {
@@ -943,15 +898,14 @@ document.addEventListener('alpine:init', () => {
       if (!this.selectedTaxon) { this.startError='Select a taxon first'; return; }
       if (!this.taxaText.trim()) { this.startError='Enter at least one predator/parasite taxon'; return; }
 
-      const aiTerms = this.aiClassification || {};
       const body = {
         email: this.email, s2_key: this.s2Key, pubmed_key: this.pubmedKey, bhl_key: this.bhlKey,
         openrouter_key: this.openrouterKey, openrouter_model: this.openrouterModel,
         taxa: this.taxaText,
         taxon_info: { ...this.selectedTaxon, ...this.preyTerms },
         query_terms: {
-          prey_order: this.preyOrderOverride || aiTerms.prey_order_term || '',
-          prey_common: this.preyCommonOverride || aiTerms.prey_common_term || '',
+          prey_order: this.preyOrderOverride || '',
+          prey_common: this.preyCommonOverride || '',
         },
         src_openalex: this.srcOpenalex, src_crossref: this.srcCrossref,
         src_s2: this.srcS2, src_pubmed: this.srcPubmed, src_bhl: this.srcBHL,
