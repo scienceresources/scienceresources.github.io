@@ -60,6 +60,7 @@
   .src-s2{background:#f3e8ff;color:#7e22ce}
   .src-pubmed{background:#fce7f3;color:#9d174d}
   .src-bhl{background:#fef3c7;color:#92400e}
+  .src-core{background:#ecfdf5;color:#065f46}
   .prey-term-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid #d97706;background:#fffbeb;border-radius:6px;font-size:11px;font-family:'Courier New',monospace;color:#92400e;font-weight:600}
 </style>
 </head>
@@ -72,7 +73,7 @@
       <div class="bg-amber-100 p-2 rounded-lg"><i class="fa-solid fa-book-open-reader text-amber-600 text-xl"></i></div>
       <div>
         <h1 class="text-lg font-bold text-slate-900 leading-tight">Literature Miner</h1>
-        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">BHL · OpenAlex · Crossref · S2 · PubMed · Live Checkpoints</p>
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">BHL · OpenAlex · Crossref · S2 · PubMed · CORE · Live Checkpoints</p>
       </div>
     </div>
     <div class="flex items-center gap-3">
@@ -216,6 +217,12 @@
         <input x-model="bhlKey" type="password" placeholder="Required for BHL searches"
                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
       </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><span class="source-tag src-core">CORE</span> CORE API key</label>
+        <input x-model="coreKey" type="password" placeholder="Optional — higher rate limit with key"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        <p class="text-[10px] text-slate-400 mt-1">Free key at <a href="https://core.ac.uk/services/api" target="_blank" class="text-amber-600 underline">core.ac.uk/services/api</a></p>
+      </div>
       <div class="sm:col-span-2">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-key mr-1 text-fuchsia-400"></i>OpenRouter API key <span class="ml-1 bg-fuchsia-100 text-fuchsia-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">AI record classification</span></label>
         <input x-model="openrouterKey" type="password" placeholder="sk-or-v1-… (optional — enables AI verdict scoring after search)"
@@ -271,6 +278,12 @@
         <input type="checkbox" x-model="srcBHL"><div>
           <p class="font-bold text-sm text-slate-700"><span class="source-tag src-bhl mr-1">BHL</span> Biodiversity Heritage Library</p>
           <p class="text-[11px] text-slate-400 mt-0.5">OCR fulltext · historical literature · Internet Archive</p>
+        </div>
+      </label>
+      <label class="check-option">
+        <input type="checkbox" x-model="srcCore"><div>
+          <p class="font-bold text-sm text-slate-700"><span class="source-tag src-core mr-1">CORE</span> CORE</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Open access · 200M+ papers · full-text links</p>
         </div>
       </label>
     </div>
@@ -492,38 +505,73 @@
     </div>
   </div>
 
-  <!-- Mini realtime chart -->
+  <!-- Real-time Timing Estimates -->
   <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Real-time Hits</p>
-    <canvas id="liveChart" height="120"></canvas>
-  </div>
-
-  <!-- ETA widget -->
-  <template x-if="running && eta && eta.phase">
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-      <div class="flex items-center justify-between flex-wrap gap-2">
-        <div class="flex items-center gap-2">
-          <span class="pulse-dot w-2 h-2 bg-amber-400 rounded-full"></span>
-          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estimated Time Remaining</span>
-        </div>
-        <span class="text-xs text-slate-400 font-mono" x-text="eta.phase"></span>
-      </div>
-      <div class="mt-3 flex items-end gap-4 flex-wrap">
-        <p class="text-2xl font-bold text-amber-500 font-mono leading-none" x-text="fmtEta(eta.est_secs)"></p>
-        <div class="flex-1 min-w-0">
-          <div class="flex justify-between text-[9px] text-slate-400 font-mono mb-1">
-            <span x-text="eta.total - eta.remaining + ' done'"></span>
-            <span x-text="eta.remaining + ' remaining'"></span>
-          </div>
-          <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div class="h-full bg-amber-400 rounded-full transition-all duration-700"
-                 :style="`width:${eta.total>0?Math.round(100*(eta.total-eta.remaining)/eta.total):0}%`"></div>
-          </div>
-        </div>
-      </div>
-      <p class="text-[9px] text-slate-300 font-mono mt-2">Based on rolling average of actual API response times across all sources and phases.</p>
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-stopwatch mr-1.5 text-amber-400"></i>Real-time Timing Estimates</p>
+      <span class="text-[9px] text-slate-400 font-mono">Updates as more API data arrives — estimates improve over time</span>
     </div>
-  </template>
+
+    <!-- Per-source timing table -->
+    <div class="overflow-x-auto mb-4">
+      <table class="w-full text-[10px] font-mono">
+        <thead>
+          <tr class="border-b border-slate-100">
+            <th class="text-left py-1.5 px-2 text-slate-400 font-bold uppercase tracking-widest text-[9px]">Source</th>
+            <th class="text-right py-1.5 px-2 text-slate-400 font-bold uppercase tracking-widest text-[9px]">Avg response</th>
+            <th class="text-right py-1.5 px-2 text-slate-400 font-bold uppercase tracking-widest text-[9px]">Avg backoff</th>
+            <th class="text-right py-1.5 px-2 text-slate-400 font-bold uppercase tracking-widest text-[9px]">Effective rate</th>
+            <th class="text-right py-1.5 px-2 text-slate-400 font-bold uppercase tracking-widest text-[9px]">Sample N</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="row in timingRows" :key="row.source">
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+              <td class="py-1.5 px-2">
+                <span class="source-tag" :class="sourceTag(row.source)" x-text="row.source"></span>
+              </td>
+              <td class="py-1.5 px-2 text-right" :class="row.samples > 0 ? 'text-slate-700' : 'text-slate-300'" x-text="row.avgResp"></td>
+              <td class="py-1.5 px-2 text-right" :class="row.samples > 0 ? 'text-amber-600' : 'text-slate-300'" x-text="row.avgBackoff"></td>
+              <td class="py-1.5 px-2 text-right font-bold" :class="row.samples > 0 ? 'text-green-600' : 'text-slate-300'" x-text="row.effRate"></td>
+              <td class="py-1.5 px-2 text-right text-slate-400" x-text="row.samples > 0 ? row.samples : '—'"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ETA progress per phase -->
+    <template x-if="eta && eta.phase">
+      <div class="border-t border-slate-100 pt-4 mt-2">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="pulse-dot w-2 h-2 bg-amber-400 rounded-full"></span>
+          <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Current Phase ETA</span>
+        </div>
+        <div class="flex items-end gap-4 flex-wrap">
+          <div>
+            <p class="text-3xl font-bold text-amber-500 font-mono leading-none" x-text="fmtEta(eta.est_secs)"></p>
+            <p class="text-[9px] text-slate-400 font-mono mt-1" x-text="eta.phase"></p>
+          </div>
+          <div class="flex-1 min-w-[160px]">
+            <div class="flex justify-between text-[9px] text-slate-400 font-mono mb-1">
+              <span x-text="(eta.total - eta.remaining) + ' done'"></span>
+              <span x-text="eta.remaining + ' remaining'"></span>
+            </div>
+            <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div class="h-full bg-amber-400 rounded-full transition-all duration-700"
+                   :style="`width:${eta.total>0?Math.round(100*(eta.total-eta.remaining)/eta.total):0}%`"></div>
+            </div>
+          </div>
+        </div>
+        <p class="text-[9px] text-slate-300 font-mono mt-2">
+          Estimate: <span class="text-slate-400" x-text="etaFormula"></span>
+        </p>
+      </div>
+    </template>
+    <template x-if="!eta || !eta.phase">
+      <p class="text-slate-400 text-xs font-mono text-center py-3">Timing data will populate once API calls begin…</p>
+    </template>
+  </div>
 
   <!-- Terminal -->
   <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
@@ -582,6 +630,7 @@
           <option value="pubmed">PubMed</option>
           <option value="bhl">BHL</option>
           <option value="bhl_ocr">BHL OCR</option>
+          <option value="core">CORE</option>
         </select>
         <button x-show="jobId" @click="downloadCSV()"
                 class="bg-green-100 hover:bg-green-200 text-green-700 font-bold text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5">
@@ -763,12 +812,12 @@ document.addEventListener('alpine:init', () => {
     apiBase: 'https://testing45323-lit-miner.hf.space',
     tab: 'setup',
     // Setup
-    email: '', s2Key: '', pubmedKey: '', bhlKey: '',
+    email: '', s2Key: '', pubmedKey: '', bhlKey: '', coreKey: '',
     openrouterKey: '', openrouterModel: 'openai/gpt-oss-20b:free',
     taxonQuery: '', taxonSearching: false, taxonSuggestions: [],
     selectedTaxon: null, resolvingTaxon: false,
     preyTerms: {}, preyOrderOverride: '', preyCommonOverride: '',
-    srcOpenalex: true, srcCrossref: true, srcS2: true, srcPubmed: true, srcBHL: true,
+    srcOpenalex: true, srcCrossref: true, srcS2: true, srcPubmed: true, srcBHL: true, srcCore: false,
     taxaText: '',
     checkpointFile: null, checkpointData: null,
     showResumeSection: false,
@@ -791,6 +840,9 @@ document.addEventListener('alpine:init', () => {
     liveData: { labels: [], hits: [], calls: [], errors: [], retryQ: [] },
     chartTick: 0,
     eta: {},
+    // Per-source timing tracking (rolling stats from req_log)
+    sourceTiming: {},   // { source: { totalResp: 0, backoffTotal: 0, n: 0, lastBackoffTs: 0 } }
+    _reqLogSeen: new Set(),  // de-dup so we don't double-count the same req_log entries
 
     get taxaCount() {
       return this.taxaText.split(/[\n,]+/).filter(t=>t.trim()).length;
@@ -819,6 +871,51 @@ document.addEventListener('alpine:init', () => {
         { key:'ocr', label:'BHL OCR scan', done: p.ocr_done||0, total: p.ocr_total||0, color:'bg-red-400' },
         { key:'ai', label:'AI classification', done: p.ai_done||0, total: p.ai_total||0, color:'bg-fuchsia-400' },
       ];
+    },
+
+    // Per-source timing summary rows for the Real-time Timing Estimates panel.
+    // Derived from sourceTiming which is updated by ingestReqLog() on every SSE message.
+    get timingRows() {
+      const SOURCES = ['openalex','crossref','semantic_scholar','pubmed','core','bhl'];
+      // Gap constants mirror the backend SOURCE_LIMITERS min_gap values
+      const GAPS = { openalex:0.12, crossref:0.05, semantic_scholar:0.55, pubmed:0.15, core:0.20, bhl:0.25 };
+      const CONC = { openalex:8, crossref:10, semantic_scholar:2, pubmed:3, core:5, bhl:1 };
+      return SOURCES.map(src => {
+        const t = this.sourceTiming[src] || {};
+        const n = t.n || 0;
+        if (n === 0) {
+          return { source: src, avgResp:'—', avgBackoff:'—', effRate:'—', samples: 0 };
+        }
+        const avgResp   = t.totalResp / n;
+        const backoffN  = t.backoffN  || 0;
+        const avgBackoff = backoffN > 0 ? (t.backoffTotal / backoffN) : 0;
+        const gap        = GAPS[src] || 0.2;
+        const conc       = CONC[src] || 1;
+        // Effective throughput accounting for backoff: when a 429 fires we add a backoff
+        // penalty spread across conc workers. Conservative model: effective cycle time
+        // is meanResp + gap + (avgBackoff * backoffRate / conc)
+        const backoffRate = n > 0 ? backoffN / n : 0;
+        const cycleSecs   = avgResp + gap + (avgBackoff * backoffRate / Math.max(conc, 1));
+        const reqPerSec   = conc / Math.max(cycleSecs, 0.001);
+        return {
+          source:     src,
+          avgResp:    avgResp.toFixed(2) + 's',
+          avgBackoff: avgBackoff > 0 ? avgBackoff.toFixed(1) + 's' : '0s',
+          effRate:    reqPerSec.toFixed(2) + ' req/s',
+          samples:    n,
+        };
+      });
+    },
+
+    // Human-readable formula string showing how current ETA was computed
+    get etaFormula() {
+      if (!this.eta || !this.eta.est_secs) return '—';
+      const remaining = this.eta.remaining || 0;
+      const total     = this.eta.total     || 0;
+      const est       = this.eta.est_secs  || 0;
+      if (total <= 0) return '—';
+      const perReq = remaining > 0 ? (est / remaining).toFixed(2) : '?';
+      return `${remaining} remaining × ${perReq}s/req = ${this.fmtEta(est)}`;
     },
 
     showTab(t) {
@@ -881,6 +978,7 @@ document.addEventListener('alpine:init', () => {
             s2_key: this.s2Key,
             pubmed_key: this.pubmedKey,
             bhl_key: this.bhlKey,
+            core_key: this.coreKey,
             openrouter_key: this.openrouterKey,
             openrouter_model: this.openrouterModel,
           })
@@ -912,6 +1010,7 @@ document.addEventListener('alpine:init', () => {
         if (data.s2_key)          this.s2Key          = data.s2_key;
         if (data.pubmed_key)      this.pubmedKey      = data.pubmed_key;
         if (data.bhl_key)         this.bhlKey         = data.bhl_key;
+        if (data.core_key)        this.coreKey        = data.core_key;
         if (data.openrouter_key)  this.openrouterKey  = data.openrouter_key;
         if (data.openrouter_model) this.openrouterModel = data.openrouter_model;
         this.apiKeyMsg = {ok:true, text:'✓ Keys loaded!'};
@@ -930,6 +1029,54 @@ document.addEventListener('alpine:init', () => {
       reader.readAsArrayBuffer(file);
     },
 
+    // Ingest req_log entries from SSE to update per-source timing.
+    // The req_log from the backend includes {source, query, status, ts}.
+    // We use the arrival time delta between consecutive entries for the same source
+    // as a proxy for response time, and flag 429 entries to accumulate backoff estimates.
+    ingestReqLog(reqLog) {
+      if (!reqLog || reqLog.length === 0) return;
+      reqLog.forEach(entry => {
+        // Build a de-dup key from source+ts
+        const dedupKey = `${entry.source}:${entry.ts}`;
+        if (this._reqLogSeen.has(dedupKey)) return;
+        this._reqLogSeen.add(dedupKey);
+
+        const src = entry.source || 'unknown';
+        if (!this.sourceTiming[src]) {
+          this.sourceTiming[src] = { totalResp: 0, n: 0, backoffTotal: 0, backoffN: 0, lastTs: 0 };
+        }
+        const t = this.sourceTiming[src];
+        const ts = entry.ts || 0;
+
+        // Estimate response time from gap between successive entries for this source
+        if (t.lastTs > 0 && ts > t.lastTs) {
+          const gap = ts - t.lastTs;
+          // Only count gaps that look like single request times (< 60s)
+          if (gap > 0.01 && gap < 60) {
+            t.totalResp += gap;
+            t.n += 1;
+          }
+        }
+        t.lastTs = ts;
+
+        // Accumulate backoff estimates from 429 entries
+        const s = String(entry.status || '');
+        if (s.startsWith('429')) {
+          // Extract backoff value from status like "429-backoff-30" if present
+          const bm = s.match(/backoff-(\d+)/);
+          const backoffSecs = bm ? parseInt(bm[1]) : 30; // default 30s for plain 429
+          t.backoffTotal += backoffSecs;
+          t.backoffN     += 1;
+        }
+      });
+
+      // Cap de-dup set to avoid memory growth over very long runs
+      if (this._reqLogSeen.size > 5000) {
+        const arr = [...this._reqLogSeen];
+        this._reqLogSeen = new Set(arr.slice(arr.length - 2500));
+      }
+    },
+
     async startJob() {
       this.startError = '';
       if (!this.email || !this.email.includes('@')) { this.startError='Valid email required'; return; }
@@ -938,6 +1085,7 @@ document.addEventListener('alpine:init', () => {
 
       const body = {
         email: this.email, s2_key: this.s2Key, pubmed_key: this.pubmedKey, bhl_key: this.bhlKey,
+        core_key: this.coreKey,
         openrouter_key: this.openrouterKey, openrouter_model: this.openrouterModel,
         taxa: this.taxaText,
         taxon_info: { ...this.selectedTaxon, ...this.preyTerms },
@@ -947,6 +1095,7 @@ document.addEventListener('alpine:init', () => {
         },
         src_openalex: this.srcOpenalex, src_crossref: this.srcCrossref,
         src_s2: this.srcS2, src_pubmed: this.srcPubmed, src_bhl: this.srcBHL,
+        src_core: this.srcCore,
       };
 
       try {
@@ -961,6 +1110,7 @@ document.addEventListener('alpine:init', () => {
         this.jobQueueStatus = data.queue_position > 0 ? 'queued' : 'running';
         this.running = true; this.jobStatus = 'running';
         this.lastMilestone = null;
+        this.sourceTiming = {}; this._reqLogSeen = new Set();
         this.rows = []; this.terminalLines = []; this.liveRowOffset = 0; this.liveNewRowIds = new Set(); if(this.liveRowPollTimer) clearTimeout(this.liveRowPollTimer);
         this.tab = 'run';
         this.listenSSE();
@@ -974,6 +1124,7 @@ document.addEventListener('alpine:init', () => {
       formData.append('s2_key', this.s2Key);
       formData.append('pubmed_key', this.pubmedKey);
       formData.append('bhl_key', this.bhlKey);
+      formData.append('core_key', this.coreKey);
       formData.append('openrouter_key', this.openrouterKey);
       formData.append('openrouter_model', this.openrouterModel);
       formData.append('taxa', this.taxaText || ' ');
@@ -1033,7 +1184,7 @@ document.addEventListener('alpine:init', () => {
         }
         if (data.progress) this.progress = data.progress;
         if (data.stats) { this.stats = data.stats; }
-        if (data.req_log) { this.reqLog = data.req_log; }
+        if (data.req_log) { this.reqLog = data.req_log; this.ingestReqLog(data.req_log); }
         if (data.phase) this.currentPhase = data.phase;
         if (data.eta && data.eta.phase) this.eta = data.eta;
         if (data.retry_queue_depth !== undefined) this.retryQueueDepth = data.retry_queue_depth;
@@ -1208,6 +1359,7 @@ document.addEventListener('alpine:init', () => {
         semantic_scholar:'src-s2', pubmed:'src-pubmed',
         bhl:'src-bhl', bhl_ocr:'src-bhl',
         standard_bhl:'src-bhl', predator_centric_bhl:'src-bhl',
+        core:'src-core',
       };
       return map[src] || 'bg-slate-100 text-slate-600';
     },
