@@ -203,6 +203,12 @@
                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none transition-all">
       </div>
       <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><span class="source-tag src-openalex">OA</span> OpenAlex API key</label>
+        <input x-model="oaKey" type="password" placeholder="Optional — eliminates 429 rate limits"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
+        <p class="text-[10px] text-slate-400 mt-1">Free key at <a href="https://openalex.org/api-key" target="_blank" class="text-amber-600 underline">openalex.org/api-key</a></p>
+      </div>
+      <div>
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><span class="source-tag src-s2">S2</span> Semantic Scholar key</label>
         <input x-model="s2Key" type="text" placeholder="Optional — 10 req/s with key"
                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none transition-all">
@@ -849,7 +855,7 @@ document.addEventListener('alpine:init', () => {
     apiBase: 'https://testing45323-lit-miner.hf.space',
     tab: 'setup',
     // Setup
-    email: '', s2Key: '', pubmedKey: '', bhlKey: '', coreKey: '',
+    email: '', oaKey: '', s2Key: '', pubmedKey: '', bhlKey: '', coreKey: '',
     openrouterKey: '', openrouterModel: 'openai/gpt-oss-20b:free',
     taxonQuery: '', taxonSearching: false, taxonSuggestions: [],
     selectedTaxon: null, resolvingTaxon: false,
@@ -1012,6 +1018,7 @@ document.addEventListener('alpine:init', () => {
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
             email: this.email,
+            oa_key: this.oaKey,
             s2_key: this.s2Key,
             pubmed_key: this.pubmedKey,
             bhl_key: this.bhlKey,
@@ -1044,6 +1051,7 @@ document.addEventListener('alpine:init', () => {
         const data = await r.json();
         if (data.error) { this.apiKeyMsg = {ok:false, text:'Error: ' + data.error}; return; }
         if (data.email)           this.email          = data.email;
+        if (data.oa_key)          this.oaKey          = data.oa_key;
         if (data.s2_key)          this.s2Key          = data.s2_key;
         if (data.pubmed_key)      this.pubmedKey      = data.pubmed_key;
         if (data.bhl_key)         this.bhlKey         = data.bhl_key;
@@ -1121,7 +1129,7 @@ document.addEventListener('alpine:init', () => {
       if (!this.taxaText.trim()) { this.startError='Enter at least one predator/parasite taxon'; return; }
 
       const body = {
-        email: this.email, s2_key: this.s2Key, pubmed_key: this.pubmedKey, bhl_key: this.bhlKey,
+        email: this.email, oa_key: this.oaKey, s2_key: this.s2Key, pubmed_key: this.pubmedKey, bhl_key: this.bhlKey,
         core_key: this.coreKey,
         openrouter_key: this.openrouterKey, openrouter_model: this.openrouterModel,
         taxa: this.taxaText,
@@ -1158,6 +1166,7 @@ document.addEventListener('alpine:init', () => {
       if (!this.checkpointData || !this.email) return;
       const formData = new FormData();
       formData.append('email', this.email);
+      formData.append('oa_key', this.oaKey);
       formData.append('s2_key', this.s2Key);
       formData.append('pubmed_key', this.pubmedKey);
       formData.append('bhl_key', this.bhlKey);
