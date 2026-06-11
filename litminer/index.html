@@ -86,6 +86,7 @@
     <button @click="showTab('run')" :class="tab==='run'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-terminal mr-1.5 opacity-70"></i>Run <span x-show="jobId" class="ml-1.5 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">LIVE</span></button>
     <button @click="showTab('results')" :class="tab==='results'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-table mr-1.5 opacity-70"></i>Results <span x-show="rows.length>0" class="ml-1.5 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full" x-text="rows.length"></span></button>
     <button @click="showTab('charts')" :class="tab==='charts'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-chart-bar mr-1.5 opacity-70"></i>Charts <span x-show="running" class="ml-1.5 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">LIVE</span></button>
+    <button @click="showTab('aiparse')" :class="tab==='aiparse'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-robot mr-1.5 opacity-70"></i>AI Parse <span x-show="aiParseRunning" class="ml-1.5 bg-fuchsia-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">LIVE</span></button>
   </div>
 </header>
 
@@ -847,6 +848,124 @@
 
 </div>
 
+<!-- ═══════════════ AI PARSE TAB ═══════════════ -->
+<div id="panel-aiparse" x-show="tab==='aiparse'" class="space-y-5 fade-in">
+
+  <!-- Config card -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><i class="fa-solid fa-robot mr-1 text-fuchsia-400"></i>AI Parse — upload a CSV and run classification</p>
+    <p class="text-sm text-slate-500">Upload a CSV from a previous run (e.g. <code class="bg-slate-100 px-1 rounded text-xs">Melissodes_hits6.csv</code>). Any rows with a blank or ERROR <code class="bg-slate-100 px-1 rounded text-xs">ai_verdict</code> will be classified. Already-classified rows are skipped.</p>
+
+    <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"><i class="fa-solid fa-file-csv mr-1 text-amber-400"></i>CSV file</label>
+      <input type="file" accept=".csv" @change="aiParseHandleFile($event)"
+             class="text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200 cursor-pointer">
+      <template x-if="aiParseFileName">
+        <p class="text-xs text-green-600 font-semibold mt-2"><i class="fa-solid fa-check mr-1"></i><span x-text="aiParseFileName"></span></p>
+      </template>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-key mr-1 text-fuchsia-400"></i>OpenRouter API key <span class="text-red-400">*</span></label>
+        <input x-model="openrouterKey" type="password" placeholder="sk-or-v1-…"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-fuchsia-400 outline-none transition-all">
+        <p class="text-[10px] text-slate-400 mt-1">Shared with the main Setup tab.</p>
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5"><i class="fa-solid fa-robot mr-1 text-fuchsia-400"></i>Model</label>
+        <select x-model="openrouterModel"
+                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-fuchsia-400 outline-none transition-all">
+          <option value="openai/gpt-oss-20b:free">GPT-OSS 20B (Free)</option>
+          <option value="nvidia/nemotron-3-super-120b-a12b:free">Nemotron 3 Super 120B (Free)</option>
+          <option value="moonshotai/kimi-k2.6:free">Kimi K2.6 (Free)</option>
+          <option value="google/gemma-4-26b-a4b-it:free">Gemma 4 26B (Free)</option>
+          <option value="qwen/qwen3-next-80b-a3b-instruct:free">Qwen3 Next 80B Instruct (Free)</option>
+          <option value="openai/gpt-oss-120b:free">GPT-OSS 120B (Free)</option>
+          <option value="nousresearch/hermes-3-llama-3.1-405b:free">Hermes 3 Llama 3.1 405B (Free)</option>
+        </select>
+      </div>
+    </div>
+
+    <template x-if="aiParseError">
+      <div class="bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm fade-in"><i class="fa-solid fa-triangle-exclamation mr-2"></i><span x-text="aiParseError"></span></div>
+    </template>
+
+    <button @click="aiParseStart()"
+            :disabled="aiParseRunning || !aiParseFile || !openrouterKey"
+            class="w-full bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl shadow transition-all flex items-center justify-center gap-2">
+      <i class="fa-solid" :class="aiParseRunning ? 'fa-circle-notch spin' : 'fa-play'"></i>
+      <span x-text="aiParseRunning ? 'Running…' : 'Start AI Classification'"></span>
+    </button>
+  </div>
+
+  <!-- Progress card (shown once job starts) -->
+  <template x-if="aiParseJobId">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 fade-in">
+
+      <!-- Counters -->
+      <div class="grid grid-cols-4 gap-3">
+        <div class="stat-box">
+          <p class="text-xl font-bold font-mono text-fuchsia-600" x-text="aiParseDone"></p>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Classified</p>
+        </div>
+        <div class="stat-box">
+          <p class="text-xl font-bold font-mono text-green-600" x-text="aiParseReal"></p>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">REAL</p>
+        </div>
+        <div class="stat-box">
+          <p class="text-xl font-bold font-mono text-slate-500" x-text="aiParseNoise"></p>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">NOISE</p>
+        </div>
+        <div class="stat-box">
+          <p class="text-xl font-bold font-mono text-red-500" x-text="aiParseErrors"></p>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Errors</p>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div>
+        <div class="flex justify-between text-xs mb-1">
+          <span class="font-mono text-slate-500">AI classification</span>
+          <span class="font-mono text-slate-600 font-bold" x-text="aiParseDone + ' / ' + aiParseTotal"></span>
+        </div>
+        <div class="h-3 bg-slate-100 rounded-full overflow-hidden">
+          <div class="h-full rounded-full bg-fuchsia-400 progress-bar"
+               :style="'width:' + (aiParseTotal ? Math.min(100, Math.round(aiParseDone/aiParseTotal*100)) : 0) + '%'"></div>
+        </div>
+        <p class="text-[10px] text-slate-400 font-mono mt-1"
+           x-text="aiParseTotal ? Math.min(100, Math.round(aiParseDone/aiParseTotal*100)) + '% complete' : ''"></p>
+      </div>
+
+      <!-- Status + download -->
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-2">
+          <template x-if="aiParseRunning">
+            <span class="flex items-center gap-2 text-fuchsia-600 font-bold text-sm"><span class="pulse-dot" style="background:#a855f7"></span>RUNNING</span>
+          </template>
+          <template x-if="!aiParseRunning && aiParseDone === aiParseTotal && aiParseTotal > 0">
+            <span class="flex items-center gap-2 text-green-600 font-bold text-sm"><i class="fa-solid fa-circle-check"></i>COMPLETE</span>
+          </template>
+        </div>
+        <button x-show="!aiParseRunning && aiParseDone === aiParseTotal && aiParseTotal > 0"
+                @click="aiParseDownload()"
+                class="bg-green-100 hover:bg-green-200 text-green-700 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-file-csv"></i>Download enriched CSV
+        </button>
+      </div>
+
+      <!-- Live log -->
+      <div x-ref="aiTerminal"
+           class="bg-slate-900 rounded-xl p-4 h-52 overflow-y-auto font-mono text-[11px] leading-relaxed">
+        <template x-for="(line, i) in aiParseLog" :key="i">
+          <div class="terminal-line" :class="line.level" x-text="line.msg"></div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+</div>
+
 </main>
 
 <script>
@@ -886,6 +1005,10 @@ document.addEventListener('alpine:init', () => {
     // Per-source timing tracking (rolling stats from req_log)
     sourceTiming: {},   // { source: { totalResp: 0, backoffTotal: 0, n: 0, lastBackoffTs: 0 } }
     _reqLogSeen: new Set(),  // de-dup so we don't double-count the same req_log entries
+    // AI Parse tab
+    aiParseFile: null, aiParseFileName: '', aiParseJobId: null, aiParseRunning: false,
+    aiParseTotal: 0, aiParseDone: 0, aiParseReal: 0, aiParseNoise: 0, aiParseErrors: 0,
+    aiParseLog: [], aiParseError: '', aiParseEvt: null,
 
     get taxaCount() {
       return this.taxaText.split(/[\n,]+/).filter(t=>t.trim()).length;
@@ -1548,6 +1671,77 @@ document.addEventListener('alpine:init', () => {
         }
         this.hitsChart.update('none');
       }
+    },
+
+    aiParseHandleFile(ev) {
+      const file = ev.target.files[0];
+      if (!file) return;
+      this.aiParseFile = file;
+      this.aiParseFileName = file.name;
+      this.aiParseError = '';
+    },
+
+    async aiParseStart() {
+      this.aiParseError = '';
+      if (!this.aiParseFile) { this.aiParseError = 'Select a CSV file first.'; return; }
+      if (!this.openrouterKey) { this.aiParseError = 'OpenRouter key is required.'; return; }
+
+      const formData = new FormData();
+      formData.append('file', this.aiParseFile);
+      formData.append('openrouter_key', this.openrouterKey);
+      formData.append('openrouter_model', this.openrouterModel);
+
+      this.aiParseRunning = true;
+      this.aiParseLog = [];
+      this.aiParseDone = 0; this.aiParseReal = 0; this.aiParseNoise = 0; this.aiParseErrors = 0;
+
+      try {
+        const r = await fetch(this.apiBase + '/api/ai/classify_csv', { method: 'POST', body: formData });
+        const data = await r.json();
+        if (data.error) { this.aiParseError = data.error; this.aiParseRunning = false; return; }
+        this.aiParseJobId = data.job_id;
+        this.aiParseTotal = data.total;
+        this.aiParseLog.push({ msg: `Job started — ${data.total} rows to classify.`, level: 'milestone' });
+        this.aiParseListenSSE();
+      } catch(e) { this.aiParseError = String(e); this.aiParseRunning = false; }
+    },
+
+    aiParseListenSSE() {
+      if (this.aiParseEvt) this.aiParseEvt.close();
+      const evtSource = new EventSource(`${this.apiBase}/api/ai/classify_csv/${this.aiParseJobId}/stream`);
+      this.aiParseEvt = evtSource;
+      evtSource.onmessage = (ev) => {
+        const d = JSON.parse(ev.data);
+        if (d.error) { this.aiParseLog.push({ msg: '❌ ' + d.error, level: 'error' }); evtSource.close(); this.aiParseRunning = false; return; }
+        this.aiParseDone   = d.done;
+        this.aiParseReal   = d.real;
+        this.aiParseNoise  = d.noise;
+        this.aiParseErrors = d.errors;
+        const pct = this.aiParseTotal ? Math.round(d.done / this.aiParseTotal * 100) : 0;
+        const msg = `  ${d.done}/${this.aiParseTotal} (${pct}%) — REAL: ${d.real} | NOISE: ${d.noise} | ERR: ${d.errors}`;
+        if (this.aiParseLog.length === 0 || this.aiParseLog[this.aiParseLog.length-1].msg !== msg) {
+          this.aiParseLog.push({ msg, level: 'info' });
+          if (this.aiParseLog.length > 500) this.aiParseLog.splice(0, 100);
+        }
+        this.$nextTick(() => {
+          const el = this.$refs.aiTerminal;
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+        if (d.status === 'done') {
+          this.aiParseRunning = false;
+          this.aiParseLog.push({ msg: `✓ Done — ${d.real} REAL, ${d.noise} NOISE, ${d.errors} errors.`, level: 'milestone' });
+          evtSource.close();
+        }
+      };
+      evtSource.onerror = () => {
+        if (this.aiParseRunning) setTimeout(() => this.aiParseListenSSE(), 3000);
+        evtSource.close();
+      };
+    },
+
+    aiParseDownload() {
+      if (!this.aiParseJobId) return;
+      window.location.href = `${this.apiBase}/api/ai/classify_csv/${this.aiParseJobId}/download`;
     },
 
     init() {
