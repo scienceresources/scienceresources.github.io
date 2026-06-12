@@ -436,6 +436,10 @@
                 class="bg-green-100 hover:bg-green-200 text-green-700 font-bold text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5">
           <i class="fa-solid fa-file-csv"></i>Download CSV
         </button>
+        <button x-show="jobStatus==='done'||jobStatus==='stopped'" @click="downloadReport()"
+                class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-3 py-2 rounded-lg transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-file-lines"></i>Download Report
+        </button>
       </div>
     </div>
 
@@ -947,11 +951,16 @@
             <span class="flex items-center gap-2 text-green-600 font-bold text-sm"><i class="fa-solid fa-circle-check"></i>COMPLETE</span>
           </template>
         </div>
-        <button x-show="!aiParseRunning && aiParseDone === aiParseTotal && aiParseTotal > 0"
-                @click="aiParseDownload()"
-                class="bg-green-100 hover:bg-green-200 text-green-700 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center gap-1.5">
-          <i class="fa-solid fa-file-csv"></i>Download enriched CSV
-        </button>
+        <div x-show="!aiParseRunning && aiParseDone === aiParseTotal && aiParseTotal > 0" class="flex gap-2 flex-wrap">
+          <button @click="aiParseDownload()"
+                  class="bg-green-100 hover:bg-green-200 text-green-700 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-file-csv"></i>Download enriched CSV
+          </button>
+          <button @click="aiParseDownloadReport()"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-file-lines"></i>Download Report
+          </button>
+        </div>
       </div>
 
       <!-- Live log -->
@@ -1481,6 +1490,11 @@ document.addEventListener('alpine:init', () => {
       window.location.href = `${this.apiBase}/download/csv/${this.jobId}`;
     },
 
+    downloadReport() {
+      if (!this.jobId) return;
+      window.location.href = `${this.apiBase}/download/report/${this.jobId}`;
+    },
+
     downloadCheckpoint() {
       if (!this.jobId) return;
       window.location.href = `${this.apiBase}/download/checkpoint/${this.jobId}`;
@@ -1742,6 +1756,11 @@ document.addEventListener('alpine:init', () => {
     aiParseDownload() {
       if (!this.aiParseJobId) return;
       window.location.href = `${this.apiBase}/api/ai/classify_csv/${this.aiParseJobId}/download`;
+    },
+
+    aiParseDownloadReport() {
+      if (!this.aiParseJobId) return;
+      window.location.href = `${this.apiBase}/api/ai/classify_csv/${this.aiParseJobId}/report`;
     },
 
     init() {
