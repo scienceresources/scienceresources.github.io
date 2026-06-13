@@ -961,6 +961,13 @@
             <i class="fa-solid fa-file-lines"></i>Download Report
           </button>
         </div>
+        <!-- Download mid-run — always available once a job has started -->
+        <div x-show="aiParseRunning && aiParseJobId" class="flex gap-2 flex-wrap">
+          <button @click="aiParseDownloadMidRun()"
+                  class="bg-amber-100 hover:bg-amber-200 text-amber-700 font-bold text-xs px-4 py-2 rounded-lg transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-file-csv"></i>Download CSV so far
+          </button>
+        </div>
       </div>
 
       <!-- Live log -->
@@ -1771,6 +1778,11 @@ document.addEventListener('alpine:init', () => {
     aiParseDownloadReport() {
       if (!this.aiParseJobId) return;
       window.location.href = `${this.apiBase}/api/ai/classify_csv/${this.aiParseJobId}/report`;
+    },
+
+    aiParseDownloadMidRun() {
+      if (!this.aiParseJobId) return;
+      window.location.href = `${this.apiBase}/api/ai/classify_csv/${this.aiParseJobId}/download?partial=1`;
     },
 
     init() {
