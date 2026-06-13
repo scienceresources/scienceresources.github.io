@@ -1716,6 +1716,7 @@ document.addEventListener('alpine:init', () => {
         this.aiParseJobId = data.job_id;
         this.aiParseTotal = data.total;
         this.aiParseLog.push({ msg: `Job started — ${data.total} rows to classify.`, level: 'milestone' });
+        this.aiParseLog.push({ msg: `  Target taxon : ${data.taxon}`, level: 'info' });
         this.aiParseListenSSE();
       } catch(e) { this.aiParseError = String(e); this.aiParseRunning = false; }
     },
