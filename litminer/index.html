@@ -1734,8 +1734,17 @@ document.addEventListener('alpine:init', () => {
         const pct = this.aiParseTotal ? Math.round(d.done / this.aiParseTotal * 100) : 0;
         const msg = `  ${d.done}/${this.aiParseTotal} (${pct}%) — REAL: ${d.real} | NOISE: ${d.noise} | ERR: ${d.errors}`;
         if (this.aiParseLog.length === 0 || this.aiParseLog[this.aiParseLog.length-1].msg !== msg) {
-          this.aiParseLog.push({ msg, level: 'info' });
+          this.aiParseLog.push({ msg, level: d.errors > 0 ? 'warn' : 'info' });
           if (this.aiParseLog.length > 500) this.aiParseLog.splice(0, 100);
+        }
+        // Surface the most recent error reason so it's visible in the terminal
+        if (d.last_errors && d.last_errors.length > 0) {
+          const lastErr = d.last_errors[d.last_errors.length - 1];
+          const errMsg = `  ⚠ Last error: ${lastErr}`;
+          const lastLine = this.aiParseLog[this.aiParseLog.length - 1];
+          if (!lastLine || lastLine.msg !== errMsg) {
+            this.aiParseLog.push({ msg: errMsg, level: 'error' });
+          }
         }
         this.$nextTick(() => {
           const el = this.$refs.aiTerminal;
