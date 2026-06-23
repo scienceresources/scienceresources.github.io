@@ -182,11 +182,25 @@
     </div>
   </div>
 
-  <!-- Custom keywords -->
+  <!-- Keywords -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-3 mr-1 text-emerald-400"></i>Extra Keywords <span class="text-slate-300 font-normal normal-case">(optional)</span></p>
-    <p class="text-sm text-slate-500 mb-3">Add extra search terms beyond the built-in set. One per line.</p>
-    <textarea x-model="customTerms" rows="3" placeholder="foraging&#10;oviposit&#10;brood cell" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-400 outline-none resize-y"></textarea>
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-3 mr-1 text-emerald-400"></i>Search Keywords</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-3">Keywords used to query iNaturalist observations. One per line — fully editable. Load the preset to start from the default set, or write your own from scratch.</p>
+    <div class="flex items-center gap-2 mb-3">
+      <button @click="loadPresetKeywords()"
+              class="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold transition-all">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>Load Preset
+      </button>
+      <button @click="customTerms=''"
+              class="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 px-3 py-1.5 rounded-lg text-xs font-bold transition-all">
+        <i class="fa-solid fa-trash-can"></i>Clear
+      </button>
+      <span class="text-[10px] text-slate-400 font-mono ml-auto" x-text="customTerms.trim() ? customTerms.trim().split('\\n').filter(s=>s.trim()).length+' keywords' : 'empty — backend default will be used'"></span>
+    </div>
+    <textarea x-model="customTerms" rows="8"
+              placeholder="Leave empty to use backend defaults, or load the preset and edit from there…"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-400 outline-none resize-y leading-relaxed"></textarea>
+    <p class="text-[10px] text-slate-400 font-mono mt-2">If left empty, the backend's built-in keyword list is used automatically.</p>
   </div>
 
   <!-- Launch -->
@@ -549,6 +563,13 @@ document.addEventListener('alpine:init', () => {
     // ── Config
     apiBase: 'https://YOUR_USERNAME-inat-miner.hf.space',
 
+    PRESET_KEYWORDS: [
+      'predation','predator','prey','eaten','eating','killed','kill',
+      'parasite','parasitoid','cuckoo','mite','mites','attacked',
+      'attack','captured','caught','stolen','cleptoparasite','kleptoparasite',
+      'host','phoresy','phoretic','nest','brood','larval',
+    ],
+
     // ── Taxon search
     taxonQuery: '',
     taxonSearching: false,
@@ -620,6 +641,13 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ─────────────────────────────────────────────
+    // KEYWORDS
+    // ─────────────────────────────────────────────
+    loadPresetKeywords() {
+      this.customTerms = this.PRESET_KEYWORDS.join('\n');
+    },
+
+    // ─────────────────────────────────────────────
     // TAXON SEARCH
     // ─────────────────────────────────────────────
     async searchTaxon() {
@@ -660,7 +688,7 @@ document.addEventListener('alpine:init', () => {
 
       const customTermsList = this.customTerms.trim()
         ? this.customTerms.split('\n').map(s => s.trim()).filter(Boolean)
-        : [];
+        : [];  // empty = backend uses its built-in INTERACTION_TERMS
 
       const body = {
         taxon_id: taxonId,
