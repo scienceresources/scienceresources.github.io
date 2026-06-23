@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iNat Interaction Miner</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  [x-cloak]{display:none!important}
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-track{background:#f1f5f9}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+  .tab-active{border-bottom:2px solid #059669;color:#065f46!important;background:#ecfdf5}
+  .tab-inactive{border-bottom:2px solid transparent}
+  .tab-inactive:hover{color:#334155;background:#f8fafc}
+  .suggest-item{padding:8px 14px;cursor:pointer;font-size:12px;transition:background 0.1s;border-bottom:1px solid #f1f5f9}
+  .suggest-item:hover{background:#ecfdf5}
+  .suggest-item:last-child{border-bottom:none}
+  .fade-in{animation:fadeIn 0.25s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .terminal-line{font-family:'Courier New',monospace;font-size:11.5px;padding:1.5px 0;line-height:1.55;border-bottom:1px solid rgba(255,255,255,0.03)}
+  .terminal-line.info{color:#94a3b8}
+  .terminal-line.warn{color:#fbbf24}
+  .terminal-line.error{color:#f87171}
+  .terminal-line.checkpoint{color:#34d399}
+  .terminal-line.milestone{color:#6ee7b7;font-weight:700;font-size:12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 1s linear infinite;display:inline-block}
+  @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
+  .pulse-dot{animation:pulse-dot 1.2s ease-in-out infinite;display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e}
+  .inat-badge{background:linear-gradient(135deg,#059669,#047857);color:white;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:0.1em;font-family:'Courier New',monospace}
+  .data-table{width:100%;border-collapse:collapse;font-size:11px}
+  .data-table th{background:#1e293b;color:#94a3b8;padding:9px 12px;text-align:left;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;border-bottom:1px solid #334155;position:sticky;top:0;z-index:5;font-family:'Courier New',monospace;white-space:nowrap}
+  .data-table td{padding:7px 12px;border-bottom:1px solid #f8fafc;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace;font-size:10.5px}
+  .data-table tr:hover td{background:#f0fdf4}
+  /* Review card */
+  .review-card{background:white;border:2px solid #e2e8f0;border-radius:16px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s}
+  .review-card.verdict-yes{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,0.12)}
+  .review-card.verdict-no{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,0.1)}
+  .review-card.verdict-ambiguous{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,0.1)}
+  .review-card.verdict-keep{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,0.1)}
+  .verdict-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;border:2px solid transparent;letter-spacing:0.04em}
+  .verdict-btn.yes{border-color:#22c55e;color:#16a34a;background:#f0fdf4}
+  .verdict-btn.yes:hover,.verdict-btn.yes.active{background:#22c55e;color:white}
+  .verdict-btn.no{border-color:#ef4444;color:#dc2626;background:#fef2f2}
+  .verdict-btn.no:hover,.verdict-btn.no.active{background:#ef4444;color:white}
+  .verdict-btn.ambiguous{border-color:#f59e0b;color:#d97706;background:#fffbeb}
+  .verdict-btn.ambiguous:hover,.verdict-btn.ambiguous.active{background:#f59e0b;color:white}
+  .verdict-btn.keep{border-color:#8b5cf6;color:#7c3aed;background:#f5f3ff}
+  .verdict-btn.keep:hover,.verdict-btn.keep.active{background:#8b5cf6;color:white}
+  .photo-thumb{width:100%;height:180px;object-fit:cover;cursor:pointer;transition:opacity 0.15s}
+  .photo-thumb:hover{opacity:0.9}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-family:'Courier New',monospace}
+  .pill-research{background:#dcfce7;color:#166534}
+  .pill-needs{background:#fef9c3;color:#92400e}
+  .pill-casual{background:#f1f5f9;color:#475569}
+  /* Filter bar */
+  .filter-btn{padding:4px 12px;border-radius:9999px;font-size:11px;font-weight:700;border:1.5px solid;cursor:pointer;transition:all 0.15s}
+  .filter-btn.all{border-color:#64748b;color:#64748b}
+  .filter-btn.all.on{background:#64748b;color:white}
+  .filter-btn.unreviewed{border-color:#0ea5e9;color:#0ea5e9}
+  .filter-btn.unreviewed.on{background:#0ea5e9;color:white}
+  .filter-btn.f-yes{border-color:#22c55e;color:#16a34a}
+  .filter-btn.f-yes.on{background:#22c55e;color:white}
+  .filter-btn.f-no{border-color:#ef4444;color:#dc2626}
+  .filter-btn.f-no.on{background:#ef4444;color:white}
+  .filter-btn.f-ambiguous{border-color:#f59e0b;color:#d97706}
+  .filter-btn.f-ambiguous.on{background:#f59e0b;color:white}
+  .filter-btn.f-keep{border-color:#8b5cf6;color:#7c3aed}
+  .filter-btn.f-keep.on{background:#8b5cf6;color:white}
+  /* Lightbox */
+  .lightbox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center}
+  .lightbox img{max-width:92vw;max-height:90vh;border-radius:8px;box-shadow:0 25px 80px rgba(0,0,0,0.7)}
+  @keyframes rowFlash{0%{background:#d1fae5}100%{background:transparent}}
+  .row-new td{animation:rowFlash 2s ease-out}
+  .stat-box{background:white;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;text-align:center;transition:all 0.2s}
+  .stat-box:hover{border-color:#059669;box-shadow:0 4px 20px rgba(5,150,105,0.08)}
+  .progress-bar{transition:width 0.4s ease}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col" x-data="app">
+
+<!-- LIGHTBOX -->
+<div x-show="lightbox" x-cloak class="lightbox" @click="lightbox=null" @keydown.escape.window="lightbox=null">
+  <img :src="lightbox" alt="Observation photo">
+  <button class="absolute top-4 right-5 text-white text-3xl opacity-70 hover:opacity-100" @click="lightbox=null">&times;</button>
+</div>
+
+<!-- HEADER -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-[500] shadow-sm">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+    <div class="flex items-center gap-3">
+      <div class="bg-emerald-100 p-2 rounded-lg"><i class="fa-solid fa-bug text-emerald-600 text-xl"></i></div>
+      <div>
+        <h1 class="text-lg font-bold text-slate-900 leading-tight">iNat Interaction Miner</h1>
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">iNaturalist · Predation · Parasitism · Cleptoparasitism</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="inat-badge">.inat-miner</span>
+      <span class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">Melissodes Natural Enemy Discovery</span>
+    </div>
+  </div>
+  <div class="max-w-6xl mx-auto px-4 flex gap-1 flex-wrap">
+    <button @click="tab='setup'" :class="tab==='setup'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-sliders mr-1.5 opacity-70"></i>Setup</button>
+    <button @click="tab='run'" :class="tab==='run'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-terminal mr-1.5 opacity-70"></i>Run <span x-show="jobId && running" class="ml-1.5 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">LIVE</span></button>
+    <button @click="tab='results'" :class="tab==='results'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-table mr-1.5 opacity-70"></i>Results <span x-show="rows.length>0" class="ml-1.5 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full" x-text="rows.length"></span></button>
+    <button @click="tab='review'" :class="tab==='review'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-check-to-slot mr-1.5 opacity-70"></i>Review <span x-show="rows.length>0" class="ml-1.5 bg-slate-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full" x-text="reviewedCount+'/'+rows.length"></span></button>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-5 flex-1 w-full">
+
+<!-- ═══════════════ SETUP TAB ═══════════════ -->
+<div x-show="tab==='setup'" class="space-y-5 fade-in">
+
+  <!-- Target Taxon -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-1 mr-1 text-emerald-400"></i>Target Host / Prey Taxon</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-4">The genus or species you're studying (e.g. <em>Melissodes</em>). Observations will be filtered for interaction evidence mentioning this taxon.</p>
+    <div class="relative mb-3">
+      <div class="flex gap-3">
+        <input x-model="taxonQuery" @input.debounce.350ms="searchTaxon()" @keydown.escape="taxonSuggestions=[]"
+               type="text" placeholder="e.g. Melissodes, Philanthus, Misumena vatia…"
+               class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-emerald-400 outline-none">
+        <button @click="searchTaxon()" :disabled="taxonSearching"
+                class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid text-xs" :class="taxonSearching?'fa-circle-notch spin':'fa-search'"></i>Search
+        </button>
+      </div>
+      <div x-show="taxonSuggestions.length>0" x-cloak @click.away="taxonSuggestions=[]"
+           class="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+        <template x-for="s in taxonSuggestions" :key="s.id">
+          <div class="suggest-item" @click="selectTaxon(s)">
+            <span class="font-mono italic text-slate-800 font-semibold" x-text="s.name"></span>
+            <span class="text-slate-400 ml-2 text-[10px]" x-text="s.rank + (s.common_name?' · '+s.common_name:'')"></span>
+            <span class="text-slate-300 ml-2 text-[10px] font-mono" x-text="'ID: '+s.id"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+    <template x-if="selectedTaxon">
+      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 fade-in">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-bug text-emerald-600"></i>
+          </div>
+          <div>
+            <p class="font-bold italic text-slate-900 text-sm" x-text="selectedTaxon.name"></p>
+            <p class="text-[10px] text-slate-500 font-mono" x-text="'iNat ID: '+selectedTaxon.id+' · Rank: '+selectedTaxon.rank+(selectedTaxon.common_name?' · '+selectedTaxon.common_name:'')"></p>
+          </div>
+          <button @click="selectedTaxon=null;taxonQuery=''" class="ml-auto text-slate-300 hover:text-slate-500 text-lg">&times;</button>
+        </div>
+      </div>
+    </template>
+    <!-- Manual override -->
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Manual Taxon Name</label>
+        <input x-model="manualTaxonName" type="text" placeholder="Melissodes" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-emerald-400 outline-none">
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Manual iNat Taxon ID</label>
+        <input x-model="manualTaxonId" type="number" placeholder="52781" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-emerald-400 outline-none">
+      </div>
+    </div>
+  </div>
+
+  <!-- Predator List -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-2 mr-1 text-emerald-400"></i>Predator / Parasite Taxon List <span class="text-slate-300 font-normal normal-case">(optional)</span></p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-3">Paste your list of ~4,600 predator taxa — one per line, or comma/semicolon separated. Each will be looked up on iNaturalist and queried for host-bee observations.</p>
+    <textarea x-model="predatorList" rows="10"
+              placeholder="Philanthus triangulum&#10;Triepeolus pectoralis&#10;Holonomada&#10;Misumena vatia&#10;…one per line or comma-separated"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-400 outline-none resize-y leading-relaxed"></textarea>
+    <div class="flex items-center justify-between mt-2">
+      <p class="text-[10px] text-slate-400 font-mono" x-text="predatorList.trim() ? predatorListCount+' taxa detected' : 'No taxa pasted yet'"></p>
+      <button @click="predatorList=''" class="text-[10px] text-slate-400 hover:text-red-500 font-mono">clear</button>
+    </div>
+  </div>
+
+  <!-- Custom keywords -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-3 mr-1 text-emerald-400"></i>Extra Keywords <span class="text-slate-300 font-normal normal-case">(optional)</span></p>
+    <p class="text-sm text-slate-500 mb-3">Add extra search terms beyond the built-in set. One per line.</p>
+    <textarea x-model="customTerms" rows="3" placeholder="foraging&#10;oviposit&#10;brood cell" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-400 outline-none resize-y"></textarea>
+  </div>
+
+  <!-- Launch -->
+  <div class="flex gap-3">
+    <button @click="startJob()"
+            :disabled="running || (!selectedTaxon && !manualTaxonId)"
+            class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2">
+      <i class="fa-solid fa-play"></i>Start Mining
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ RUN TAB ═══════════════ -->
+<div x-show="tab==='run'" class="space-y-5 fade-in">
+
+  <!-- Stats row -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-emerald-600" x-text="rows.length"></p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Records Found</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-slate-700" x-text="doneTerms"></p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Keywords Scanned</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-slate-700" x-text="totalTerms"></p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total Keywords</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold" :class="running?'text-emerald-500':'text-slate-400'" x-text="running?'Running':'Idle'"></p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Status</p>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div x-show="jobId" class="bg-white rounded-xl border border-slate-200 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-bold text-slate-600">Progress</span>
+      <span class="text-xs font-mono text-slate-500" x-text="doneTerms+' / '+totalTerms+' keywords'"></span>
+    </div>
+    <div class="w-full bg-slate-100 rounded-full h-2">
+      <div class="progress-bar bg-emerald-500 h-2 rounded-full" :style="`width:${totalTerms>0?Math.round(doneTerms/totalTerms*100):0}%`"></div>
+    </div>
+  </div>
+
+  <!-- Terminal -->
+  <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-700">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+        <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+        <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+        <span class="text-slate-400 font-mono text-xs ml-2">inat-miner — <span x-text="jobId||'no job'"></span></span>
+        <span x-show="running" class="pulse-dot ml-2"></span>
+      </div>
+      <button @click="logLines=[]" class="text-slate-500 hover:text-slate-300 text-xs font-mono">clear</button>
+    </div>
+    <div x-ref="terminal" class="h-80 overflow-y-auto p-4 space-y-0.5">
+      <template x-if="logLines.length===0">
+        <p class="terminal-line info">Waiting for job to start…</p>
+      </template>
+      <template x-for="(line,i) in logLines" :key="i">
+        <p class="terminal-line" :class="line.level" x-text="line.msg"></p>
+      </template>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="flex gap-3 flex-wrap">
+    <button @click="tab='results'" x-show="rows.length>0"
+            class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-table"></i>View Results (<span x-text="rows.length"></span>)
+    </button>
+    <button @click="tab='review'" x-show="rows.length>0"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-check-to-slot"></i>Start Reviewing
+    </button>
+    <button @click="cancelJob()" x-show="running"
+            class="bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-stop"></i>Cancel
+    </button>
+    <button @click="downloadCsv()" x-show="rows.length>0"
+            class="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-download"></i>Download CSV
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ RESULTS TAB ═══════════════ -->
+<div x-show="tab==='results'" class="space-y-4 fade-in">
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <h2 class="text-sm font-bold text-slate-700"><i class="fa-solid fa-table mr-1.5 text-emerald-500"></i>Raw Results — <span x-text="rows.length"></span> records</h2>
+    <div class="flex gap-2">
+      <button @click="tab='review'" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
+        <i class="fa-solid fa-check-to-slot"></i>Review Cards
+      </button>
+      <button @click="downloadCsv()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
+        <i class="fa-solid fa-download"></i>CSV
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="overflow-auto max-h-[60vh]">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Taxon</th>
+            <th>Keyword</th>
+            <th>User</th>
+            <th>Date</th>
+            <th>Place</th>
+            <th>Quality</th>
+            <th>Struct. Fields</th>
+            <th>Tags</th>
+            <th>Desc. Preview</th>
+            <th>Review</th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-if="rows.length===0">
+            <tr><td colspan="11" class="text-center py-10 text-slate-400 font-mono text-xs">No records yet. Run a search first.</td></tr>
+          </template>
+          <template x-for="r in rows" :key="r.id">
+            <tr>
+              <td class="font-semibold italic text-slate-700" x-text="r.taxon_queried"></td>
+              <td x-text="r.keyword"></td>
+              <td x-text="r.user"></td>
+              <td x-text="r.created_at"></td>
+              <td x-text="r.place"></td>
+              <td>
+                <span class="pill" :class="r.quality_grade==='research'?'pill-research':r.quality_grade==='needs_id'?'pill-needs':'pill-casual'" x-text="r.quality_grade"></span>
+              </td>
+              <td :title="r.structured_fields" x-text="r.structured_fields||'—'"></td>
+              <td :title="r.matching_tags" x-text="r.matching_tags||'—'"></td>
+              <td :title="r.description" x-text="(r.description||'').slice(0,60)+'…'"></td>
+              <td>
+                <span x-show="r.review" class="pill" :class="r.review==='yes'?'bg-green-100 text-green-700':r.review==='no'?'bg-red-100 text-red-700':r.review==='ambiguous'?'bg-amber-100 text-amber-700':'bg-purple-100 text-purple-700'" x-text="r.review"></span>
+                <span x-show="!r.review" class="text-slate-300 font-mono text-[9px]">pending</span>
+              </td>
+              <td><a :href="r.url" target="_blank" class="text-emerald-600 hover:underline font-mono text-[10px]">→ iNat</a></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ REVIEW TAB ═══════════════ -->
+<div x-show="tab==='review'" class="space-y-5 fade-in">
+
+  <!-- Review header + filter bar -->
+  <div class="bg-white rounded-xl border border-slate-200 p-4">
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-3">
+      <div>
+        <h2 class="text-sm font-bold text-slate-700"><i class="fa-solid fa-check-to-slot mr-1.5 text-indigo-500"></i>Observation Review</h2>
+        <p class="text-[10px] text-slate-400 font-mono mt-0.5" x-text="reviewedCount+' reviewed · '+unreviewedCount+' remaining · '+rows.length+' total'"></p>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button @click="downloadCsv()" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
+          <i class="fa-solid fa-download"></i>Export CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Review progress bar -->
+    <div class="w-full bg-slate-100 rounded-full h-2 mb-3">
+      <div class="progress-bar bg-indigo-500 h-2 rounded-full" :style="`width:${rows.length>0?Math.round(reviewedCount/rows.length*100):0}%`"></div>
+    </div>
+
+    <!-- Verdict tally -->
+    <div class="grid grid-cols-4 gap-2 mb-4">
+      <div class="text-center p-2 bg-green-50 border border-green-200 rounded-lg">
+        <p class="text-lg font-bold text-green-600" x-text="verdictCounts.yes||0"></p>
+        <p class="text-[9px] font-bold uppercase tracking-widest text-green-500">Yes</p>
+      </div>
+      <div class="text-center p-2 bg-red-50 border border-red-200 rounded-lg">
+        <p class="text-lg font-bold text-red-500" x-text="verdictCounts.no||0"></p>
+        <p class="text-[9px] font-bold uppercase tracking-widest text-red-400">No</p>
+      </div>
+      <div class="text-center p-2 bg-amber-50 border border-amber-200 rounded-lg">
+        <p class="text-lg font-bold text-amber-500" x-text="verdictCounts.ambiguous||0"></p>
+        <p class="text-[9px] font-bold uppercase tracking-widest text-amber-400">Ambiguous</p>
+      </div>
+      <div class="text-center p-2 bg-purple-50 border border-purple-200 rounded-lg">
+        <p class="text-lg font-bold text-purple-500" x-text="verdictCounts.keep||0"></p>
+        <p class="text-[9px] font-bold uppercase tracking-widest text-purple-400">Keep</p>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="flex gap-2 flex-wrap items-center">
+      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Show:</span>
+      <button @click="reviewFilter='all'" :class="reviewFilter==='all'?'on':''" class="filter-btn all">All (<span x-text="rows.length"></span>)</button>
+      <button @click="reviewFilter='unreviewed'" :class="reviewFilter==='unreviewed'?'on':''" class="filter-btn unreviewed">Unreviewed (<span x-text="unreviewedCount"></span>)</button>
+      <button @click="reviewFilter='yes'" :class="reviewFilter==='yes'?'on':''" class="filter-btn f-yes">✓ Yes (<span x-text="verdictCounts.yes||0"></span>)</button>
+      <button @click="reviewFilter='no'" :class="reviewFilter==='no'?'on':''" class="filter-btn f-no">✗ No (<span x-text="verdictCounts.no||0"></span>)</button>
+      <button @click="reviewFilter='ambiguous'" :class="reviewFilter==='ambiguous'?'on':''" class="filter-btn f-ambiguous">? Ambiguous (<span x-text="verdictCounts.ambiguous||0"></span>)</button>
+      <button @click="reviewFilter='keep'" :class="reviewFilter==='keep'?'on':''" class="filter-btn f-keep">★ Keep (<span x-text="verdictCounts.keep||0"></span>)</button>
+
+      <!-- Search within review -->
+      <div class="ml-auto">
+        <input x-model="reviewSearch" type="text" placeholder="Filter by taxon, keyword, user…"
+               class="p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono w-52 focus:ring-2 focus:ring-indigo-400 outline-none">
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards grid -->
+  <template x-if="filteredReviewRows.length===0">
+    <div class="text-center py-16 text-slate-400">
+      <i class="fa-solid fa-inbox text-4xl mb-3 block"></i>
+      <p class="font-mono text-sm" x-text="rows.length===0?'Run a search first to populate observations.':'No records match this filter.'"></p>
+    </div>
+  </template>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+    <template x-for="r in filteredReviewRows" :key="r.id">
+      <div class="review-card" :class="r.review?'verdict-'+r.review:''">
+
+        <!-- Photo strip -->
+        <div class="bg-slate-100 relative" x-data="{photos: safeParsePhotos(r.photo_urls), photoIdx: 0}">
+          <template x-if="photos.length>0">
+            <div>
+              <img :src="photos[photoIdx]" @click="lightbox=photos[photoIdx]"
+                   class="photo-thumb" alt="Observation photo"
+                   @error="$event.target.src='https://www.inaturalist.org/assets/copyright-infringement-800-small.png'">
+              <!-- photo nav dots -->
+              <template x-if="photos.length>1">
+                <div class="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                  <template x-for="(p,pi) in photos" :key="pi">
+                    <button @click.stop="photoIdx=pi"
+                            class="w-2 h-2 rounded-full transition-all"
+                            :class="pi===photoIdx?'bg-white':'bg-white/50'"></button>
+                  </template>
+                </div>
+              </template>
+              <!-- expand icon -->
+              <button @click="lightbox=photos[photoIdx]" class="absolute top-2 right-2 bg-black/40 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-black/60">
+                <i class="fa-solid fa-expand text-xs"></i>
+              </button>
+            </div>
+          </template>
+          <template x-if="photos.length===0">
+            <div class="h-24 flex items-center justify-center">
+              <i class="fa-solid fa-image text-slate-300 text-3xl"></i>
+            </div>
+          </template>
+        </div>
+
+        <!-- Card body -->
+        <div class="p-4 space-y-3">
+
+          <!-- Taxon + meta row -->
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="font-bold italic text-slate-800 text-sm leading-tight" x-text="r.taxon_queried"></p>
+              <p class="text-[10px] text-slate-400 font-mono mt-0.5" x-text="'obs #'+r.id+' · '+r.created_at"></p>
+            </div>
+            <span class="pill flex-shrink-0 mt-0.5" :class="r.quality_grade==='research'?'pill-research':r.quality_grade==='needs_id'?'pill-needs':'pill-casual'" x-text="r.quality_grade"></span>
+          </div>
+
+          <!-- User & place -->
+          <div class="flex items-center gap-3 text-[10px] font-mono text-slate-500">
+            <span x-show="r.user"><i class="fa-solid fa-user mr-1 opacity-50"></i><span x-text="r.user"></span></span>
+            <span x-show="r.place"><i class="fa-solid fa-map-pin mr-1 opacity-50"></i><span x-text="r.place"></span></span>
+          </div>
+
+          <!-- Identifiers -->
+          <template x-if="r.identifiers">
+            <div class="bg-slate-50 rounded-lg p-2.5">
+              <p class="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1"><i class="fa-solid fa-id-badge mr-1"></i>Identifiers</p>
+              <template x-for="(ident, ii) in r.identifiers.split(' | ')" :key="ii">
+                <p class="text-[10px] font-mono text-slate-600" x-text="ident"></p>
+              </template>
+            </div>
+          </template>
+
+          <!-- Structured observation fields -->
+          <template x-if="r.structured_fields">
+            <div class="bg-blue-50 rounded-lg p-2.5">
+              <p class="text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-1"><i class="fa-solid fa-list-check mr-1"></i>Observation Fields</p>
+              <template x-for="(sf, si) in r.structured_fields.split(' | ')" :key="si">
+                <p class="text-[10px] font-mono text-blue-700" x-text="sf"></p>
+              </template>
+            </div>
+          </template>
+
+          <!-- Tags -->
+          <template x-if="r.matching_tags">
+            <div class="flex flex-wrap gap-1">
+              <template x-for="(tag, ti) in r.matching_tags.split(' | ')" :key="ti">
+                <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] font-bold font-mono" x-text="'#'+tag"></span>
+              </template>
+            </div>
+          </template>
+
+          <!-- Keyword trigger -->
+          <div class="flex items-center gap-2">
+            <span class="text-[9px] font-bold uppercase tracking-widest text-slate-400">Keyword:</span>
+            <span class="bg-slate-100 px-2 py-0.5 rounded font-mono text-[10px] text-slate-600" x-text="r.keyword"></span>
+            <span x-show="r.in_description==='yes'" class="text-[9px] font-bold text-slate-400">· in description</span>
+          </div>
+
+          <!-- Description -->
+          <template x-if="r.description">
+            <div class="bg-slate-50 border border-slate-100 rounded-lg p-2.5" x-data="{expanded:false}">
+              <p class="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1"><i class="fa-solid fa-align-left mr-1"></i>Description</p>
+              <p class="text-[10px] text-slate-600 leading-relaxed font-mono"
+                 x-text="expanded ? r.description : r.description.slice(0,200)+(r.description.length>200?'…':'')"></p>
+              <button x-show="r.description.length>200" @click="expanded=!expanded"
+                      class="text-[9px] font-bold text-emerald-600 hover:underline mt-1" x-text="expanded?'Show less':'Show more'"></button>
+            </div>
+          </template>
+
+          <!-- iNat link -->
+          <a :href="r.url" target="_blank"
+             class="block text-center text-[10px] font-bold text-emerald-600 hover:text-emerald-800 font-mono hover:underline">
+            <i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>View on iNaturalist →
+          </a>
+
+          <!-- Verdict buttons -->
+          <div class="grid grid-cols-4 gap-2 pt-1">
+            <button @click="setVerdict(r, 'yes')" class="verdict-btn yes" :class="r.review==='yes'?'active':''">
+              <i class="fa-solid fa-check"></i><span class="hidden sm:inline text-[9px]">Yes</span>
+            </button>
+            <button @click="setVerdict(r, 'no')" class="verdict-btn no" :class="r.review==='no'?'active':''">
+              <i class="fa-solid fa-xmark"></i><span class="hidden sm:inline text-[9px]">No</span>
+            </button>
+            <button @click="setVerdict(r, 'ambiguous')" class="verdict-btn ambiguous" :class="r.review==='ambiguous'?'active':''">
+              <i class="fa-solid fa-question"></i><span class="hidden sm:inline text-[9px]">Ambig.</span>
+            </button>
+            <button @click="setVerdict(r, 'keep')" class="verdict-btn keep" :class="r.review==='keep'?'active':''">
+              <i class="fa-solid fa-star"></i><span class="hidden sm:inline text-[9px]">Keep</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </template>
+  </div>
+
+</div>
+
+</main>
+
+<footer class="border-t border-slate-200 bg-white mt-8 py-4 text-center text-[10px] text-slate-400 font-mono tracking-wider">
+  iNat Interaction Miner · Backend: Hugging Face Spaces · Frontend: GitHub Pages · <a href="https://www.inaturalist.org" target="_blank" class="text-emerald-500 hover:underline">iNaturalist API</a>
+</footer>
+
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    // ── Nav
+    tab: 'setup',
+
+    // ── Config
+    apiBase: 'https://YOUR_USERNAME-inat-miner.hf.space',
+
+    // ── Taxon search
+    taxonQuery: '',
+    taxonSearching: false,
+    taxonSuggestions: [],
+    selectedTaxon: null,
+    manualTaxonName: '',
+    manualTaxonId: '',
+
+    // ── Predator list + extras
+    predatorList: '',
+    customTerms: '',
+
+    // ── Job state
+    jobId: null,
+    running: false,
+    doneTerms: 0,
+    totalTerms: 0,
+    logLines: [],
+    rows: [],
+    sseSource: null,
+    pollTimer: null,
+
+    // ── Review
+    reviewFilter: 'all',
+    reviewSearch: '',
+    lightbox: null,
+
+    // ─────────────────────────────────────────────
+    // COMPUTED-LIKE (via getters accessed in template)
+    // ─────────────────────────────────────────────
+    get predatorListCount() {
+      return this.predatorList.trim()
+        .split(/[\n,;]+/)
+        .map(s => s.trim())
+        .filter(Boolean).length;
+    },
+
+    get reviewedCount() {
+      return this.rows.filter(r => r.review).length;
+    },
+
+    get unreviewedCount() {
+      return this.rows.filter(r => !r.review).length;
+    },
+
+    get verdictCounts() {
+      const c = { yes: 0, no: 0, ambiguous: 0, keep: 0 };
+      for (const r of this.rows) if (r.review) c[r.review] = (c[r.review] || 0) + 1;
+      return c;
+    },
+
+    get filteredReviewRows() {
+      let arr = this.rows;
+      if (this.reviewFilter === 'unreviewed') arr = arr.filter(r => !r.review);
+      else if (this.reviewFilter !== 'all') arr = arr.filter(r => r.review === this.reviewFilter);
+      if (this.reviewSearch.trim()) {
+        const q = this.reviewSearch.toLowerCase();
+        arr = arr.filter(r =>
+          (r.taxon_queried||'').toLowerCase().includes(q) ||
+          (r.keyword||'').toLowerCase().includes(q) ||
+          (r.user||'').toLowerCase().includes(q) ||
+          (r.place||'').toLowerCase().includes(q) ||
+          (r.description||'').toLowerCase().includes(q) ||
+          (r.matching_tags||'').toLowerCase().includes(q) ||
+          (r.structured_fields||'').toLowerCase().includes(q)
+        );
+      }
+      return arr;
+    },
+
+    // ─────────────────────────────────────────────
+    // TAXON SEARCH
+    // ─────────────────────────────────────────────
+    async searchTaxon() {
+      const q = this.taxonQuery.trim();
+      if (!q) { this.taxonSuggestions = []; return; }
+      this.taxonSearching = true;
+      try {
+        const r = await fetch(`${this.apiBase}/api/taxon/search?q=${encodeURIComponent(q)}`);
+        this.taxonSuggestions = await r.json();
+      } catch(e) {
+        // If backend not reachable, try iNat directly
+        try {
+          const r = await fetch(`https://api.inaturalist.org/v1/taxa/autocomplete?q=${encodeURIComponent(q)}&per_page=10`);
+          const data = await r.json();
+          this.taxonSuggestions = (data.results || []).map(t => ({
+            id: t.id,
+            name: t.name,
+            rank: t.rank || '',
+            common_name: t.preferred_common_name || '',
+          }));
+        } catch(e2) { this.taxonSuggestions = []; }
+      } finally { this.taxonSearching = false; }
+    },
+
+    selectTaxon(s) {
+      this.selectedTaxon = s;
+      this.taxonQuery = s.name;
+      this.taxonSuggestions = [];
+    },
+
+    // ─────────────────────────────────────────────
+    // JOB MANAGEMENT
+    // ─────────────────────────────────────────────
+    async startJob() {
+      const taxonId = this.selectedTaxon?.id || parseInt(this.manualTaxonId) || 0;
+      const taxonName = this.selectedTaxon?.name || this.manualTaxonName || 'Unknown';
+      if (!taxonId) { alert('Select or enter a taxon first.'); return; }
+
+      const customTermsList = this.customTerms.trim()
+        ? this.customTerms.split('\n').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      const body = {
+        taxon_id: taxonId,
+        taxon_name: taxonName,
+        predator_list: this.predatorList,
+        custom_terms: customTermsList,
+      };
+
+      try {
+        const r = await fetch(`${this.apiBase}/api/mine/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (data.error) { alert('Error: ' + data.error); return; }
+        this.jobId = data.job_id;
+        this.rows = [];
+        this.logLines = [];
+        this.running = true;
+        this.doneTerms = 0;
+        this.tab = 'run';
+        this.listenSSE();
+      } catch(e) {
+        alert('Could not reach backend: ' + e.message + '\n\nCheck the Backend URL in Setup.');
+      }
+    },
+
+    listenSSE() {
+      if (this.sseSource) this.sseSource.close();
+      const src = new EventSource(`${this.apiBase}/api/mine/${this.jobId}/stream`);
+      this.sseSource = src;
+
+      src.onmessage = (ev) => {
+        const d = JSON.parse(ev.data);
+
+        if (d.heartbeat) {
+          this.doneTerms = d.done_terms;
+          this.totalTerms = d.total_terms;
+          // poll rows
+          this.pollRows();
+          if (d.status === 'done') { this.running = false; src.close(); }
+          return;
+        }
+
+        if (d.msg) {
+          this.logLines.push({ msg: d.msg, level: d.level || 'info' });
+          if (this.logLines.length > 800) this.logLines.splice(0, 200);
+          this.$nextTick(() => {
+            const el = this.$refs.terminal;
+            if (el) el.scrollTop = el.scrollHeight;
+          });
+        }
+
+        this.doneTerms = d.done_terms || this.doneTerms;
+        this.totalTerms = d.total_terms || this.totalTerms;
+
+        if (d.status === 'done') {
+          this.running = false;
+          this.pollRows();
+          src.close();
+        }
+      };
+
+      src.onerror = () => {
+        if (this.running) {
+          setTimeout(() => this.listenSSE(), 3000);
+        }
+        src.close();
+      };
+
+      // Also poll rows every 5s regardless
+      this.pollTimer = setInterval(() => {
+        if (this.running) this.pollRows();
+        else clearInterval(this.pollTimer);
+      }, 5000);
+    },
+
+    async pollRows() {
+      if (!this.jobId) return;
+      try {
+        const r = await fetch(`${this.apiBase}/api/mine/${this.jobId}/rows`);
+        const data = await r.json();
+        if (Array.isArray(data)) this.rows = data;
+      } catch(e) {}
+    },
+
+    async cancelJob() {
+      if (!this.jobId) return;
+      await fetch(`${this.apiBase}/api/mine/${this.jobId}/cancel`, { method: 'POST' });
+      this.running = false;
+      if (this.sseSource) this.sseSource.close();
+      clearInterval(this.pollTimer);
+    },
+
+    // ─────────────────────────────────────────────
+    // REVIEW
+    // ─────────────────────────────────────────────
+    async setVerdict(row, verdict) {
+      // Toggle off if same
+      const newVerdict = row.review === verdict ? '' : verdict;
+      row.review = newVerdict;
+
+      // Persist to backend
+      if (this.jobId) {
+        try {
+          await fetch(`${this.apiBase}/api/mine/${this.jobId}/review`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: row.id, review: newVerdict }),
+          });
+        } catch(e) {}
+      }
+    },
+
+    safeParsePhotos(raw) {
+      if (!raw) return [];
+      try { return JSON.parse(raw) || []; }
+      catch(e) { return []; }
+    },
+
+    // ─────────────────────────────────────────────
+    // EXPORT
+    // ─────────────────────────────────────────────
+    downloadCsv() {
+      if (this.jobId) {
+        window.open(`${this.apiBase}/api/mine/${this.jobId}/download`, '_blank');
+        return;
+      }
+      // Fallback: client-side CSV from rows array
+      if (!this.rows.length) { alert('No data to download.'); return; }
+      const cols = Object.keys(this.rows[0]);
+      const lines = [cols.join(',')];
+      for (const r of this.rows) {
+        lines.push(cols.map(c => {
+          let v = r[c] ?? '';
+          if (c === 'photo_urls') {
+            try { v = JSON.parse(v).join('; '); } catch(e) {}
+          }
+          return '"' + String(v).replace(/"/g, '""') + '"';
+        }).join(','));
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'inat_interactions.csv';
+      a.click();
+    },
+  }));
+});
+</script>
+</body>
+</html>
