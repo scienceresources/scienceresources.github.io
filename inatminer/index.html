@@ -366,6 +366,10 @@
         <button @click="downloadCsv()" class="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
           <i class="fa-solid fa-download"></i>Export CSV
         </button>
+        <button @click="if(confirm('Clear all saved verdicts from this browser?')){localStorage.removeItem(reviewStorageKey());rows.forEach(r=>r.review='')}"
+                class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-500 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
+          <i class="fa-solid fa-rotate-left"></i>Reset verdicts
+        </button>
       </div>
     </div>
 
@@ -561,7 +565,7 @@ document.addEventListener('alpine:init', () => {
     tab: 'setup',
 
     // ── Config
-    apiBase: 'https://testing45323-inatminer.hf.space',
+    apiBase: 'https://YOUR_USERNAME-inat-miner.hf.space',
 
     PRESET_KEYWORDS: [
       'predation','predator','prey','eaten','eating','killed','kill',
@@ -772,7 +776,15 @@ document.addEventListener('alpine:init', () => {
       try {
         const r = await fetch(`${this.apiBase}/api/mine/${this.jobId}/rows`);
         const data = await r.json();
-        if (Array.isArray(data)) this.rows = data;
+        if (Array.isArray(data)) {
+          // Reapply any locally-stored verdicts before setting rows,
+          // so a backend refresh never wipes what the user has clicked.
+          const saved = this.loadReviews();
+          for (const row of data) {
+            if (saved[row.id]) row.review = saved[row.id];
+          }
+          this.rows = data;
+        }
       } catch(e) {}
     },
 
@@ -785,22 +797,45 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ─────────────────────────────────────────────
-    // REVIEW
+    // REVIEW — verdicts stored in localStorage keyed by obs ID
+    // so they survive backend restarts, redeployments, and page refreshes
     // ─────────────────────────────────────────────
-    async setVerdict(row, verdict) {
-      // Toggle off if same
+    reviewStorageKey() {
+      // Namespace by job so different runs don't bleed into each other,
+      // but also keep a global store so imported CSVs can restore verdicts.
+      return `inat_reviews`;
+    },
+
+    loadReviews() {
+      try {
+        return JSON.parse(localStorage.getItem(this.reviewStorageKey()) || '{}');
+      } catch(e) { return {}; }
+    },
+
+    saveReview(obsId, verdict) {
+      try {
+        const store = this.loadReviews();
+        if (verdict) store[obsId] = verdict;
+        else delete store[obsId];
+        localStorage.setItem(this.reviewStorageKey(), JSON.stringify(store));
+      } catch(e) {}
+    },
+
+    setVerdict(row, verdict) {
+      // Toggle off if clicking the active verdict again
       const newVerdict = row.review === verdict ? '' : verdict;
       row.review = newVerdict;
 
-      // Persist to backend
+      // Persist locally — this is the source of truth
+      this.saveReview(row.id, newVerdict);
+
+      // Also fire-and-forget to backend (best effort, not relied upon)
       if (this.jobId) {
-        try {
-          await fetch(`${this.apiBase}/api/mine/${this.jobId}/review`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: row.id, review: newVerdict }),
-          });
-        } catch(e) {}
+        fetch(`${this.apiBase}/api/mine/${this.jobId}/review`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: row.id, review: newVerdict }),
+        }).catch(() => {});
       }
     },
 
