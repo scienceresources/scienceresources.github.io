@@ -169,9 +169,50 @@
     </div>
   </div>
 
-  <!-- Predator List -->
+  <!-- Scan Mode Toggle -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-2 mr-1 text-emerald-400"></i>Predator / Parasite Taxon List <span class="text-slate-300 font-normal normal-case">(optional)</span></p>
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-2 mr-1 text-emerald-400"></i>Scan Mode</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-4">Choose how to find natural enemy observations. Both modes can be combined — if a predator list is pasted in "All Records" mode, it is ignored.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <!-- Predator List mode -->
+      <button @click="allRecordsMode=false"
+              :class="!allRecordsMode ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'"
+              class="flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all cursor-pointer">
+        <div class="mt-0.5 w-9 h-9 flex-shrink-0 rounded-lg flex items-center justify-center" :class="!allRecordsMode ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'">
+          <i class="fa-solid fa-list text-sm"></i>
+        </div>
+        <div>
+          <p class="font-bold text-sm text-slate-800">Predator List Mode</p>
+          <p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">Query each taxon in your curated list against the target. Precise — only looks where you tell it to.</p>
+          <p class="text-[10px] text-emerald-600 font-mono mt-1.5" x-show="!allRecordsMode"><i class="fa-solid fa-check mr-1"></i>Active</p>
+        </div>
+      </button>
+      <!-- All Records mode -->
+      <button @click="allRecordsMode=true"
+              :class="allRecordsMode ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-200' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'"
+              class="flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all cursor-pointer">
+        <div class="mt-0.5 w-9 h-9 flex-shrink-0 rounded-lg flex items-center justify-center" :class="allRecordsMode ? 'bg-violet-500 text-white' : 'bg-slate-200 text-slate-500'">
+          <i class="fa-solid fa-globe text-sm"></i>
+        </div>
+        <div>
+          <p class="font-bold text-sm text-slate-800">All Records Mode</p>
+          <p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">Broad sweep — no list needed. Searches iNat globally for any taxon co-mentioned with the target. Plantae are automatically excluded.</p>
+          <p class="text-[10px] text-violet-600 font-mono mt-1.5" x-show="allRecordsMode"><i class="fa-solid fa-check mr-1"></i>Active</p>
+        </div>
+      </button>
+    </div>
+    <!-- All-records info banner -->
+    <div x-show="allRecordsMode" x-cloak class="mt-3 bg-violet-50 border border-violet-200 rounded-lg px-4 py-3 flex items-start gap-2.5 fade-in">
+      <i class="fa-solid fa-circle-info text-violet-400 mt-0.5 flex-shrink-0"></i>
+      <p class="text-[11px] text-violet-700 leading-relaxed font-mono">
+        Each keyword is combined with the target taxon name into a compound query (e.g. <em>"melissodes predation"</em>) and run against all of iNaturalist. Whatever organism is on each returned observation is saved as the interactor. Plantae are excluded at the API level and double-checked server-side.
+      </p>
+    </div>
+  </div>
+
+  <!-- Predator List (hidden in all-records mode) -->
+  <div x-show="!allRecordsMode" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-list mr-1 text-emerald-400"></i>Predator / Parasite Taxon List <span class="text-slate-300 font-normal normal-case">(optional)</span></p>
     <p class="text-sm text-slate-500 leading-relaxed mb-3">Paste your list of ~4,600 predator taxa — one per line, or comma/semicolon separated. Each will be looked up on iNaturalist and queried for host-bee observations.</p>
     <textarea x-model="predatorList" rows="10"
               placeholder="Philanthus triangulum&#10;Triepeolus pectoralis&#10;Holonomada&#10;Misumena vatia&#10;…one per line or comma-separated"
@@ -227,7 +268,7 @@
     <button @click="startJob()"
             :disabled="running || (!selectedTaxon && !manualTaxonId)"
             class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2">
-      <i class="fa-solid fa-play"></i><span x-text="checkpointLoaded ? 'Resume Mining' : 'Start Mining'"></span>
+      <i class="fa-solid fa-play"></i><span x-text="checkpointLoaded ? 'Resume Mining' : (allRecordsMode ? 'Start All-Records Sweep' : 'Start Mining')"></span>
     </button>
   </div>
 </div>
@@ -605,6 +646,7 @@ document.addEventListener('alpine:init', () => {
     // ── Predator list + extras
     predatorList: '',
     customTerms: '',
+    allRecordsMode: false,
 
     // ── Job state
     jobId: null,
@@ -721,8 +763,9 @@ document.addEventListener('alpine:init', () => {
       const body = {
         taxon_id: taxonId,
         taxon_name: taxonName,
-        predator_list: this.predatorList,
+        predator_list: this.allRecordsMode ? '' : this.predatorList,
         custom_terms: customTermsList,
+        all_records_mode: this.allRecordsMode,
       };
 
       // If resuming from a checkpoint, include resume params
