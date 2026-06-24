@@ -203,12 +203,31 @@
     <p class="text-[10px] text-slate-400 font-mono mt-2">If left empty, the backend's built-in keyword list is used automatically.</p>
   </div>
 
+  <!-- Load Checkpoint -->
+  <div class="bg-white rounded-xl shadow-sm border border-amber-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-rotate-right mr-1 text-amber-400"></i>Resume from Checkpoint <span class="text-slate-300 font-normal normal-case">(optional)</span></p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-3">Load a <code class="bg-slate-100 px-1 rounded font-mono text-xs">.inatminer</code> file to resume a previous run. All existing rows, verdicts, and predator list progress will be restored — only unprocessed taxa will be queried.</p>
+    <div class="flex items-center gap-3">
+      <label class="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-700 px-4 py-2.5 rounded-lg text-sm font-bold cursor-pointer transition-all">
+        <i class="fa-solid fa-folder-open"></i>Load .inatminer file
+        <input type="file" accept=".inatminer,.json" class="hidden" @change="loadCheckpointFile($event)">
+      </label>
+      <template x-if="checkpointLoaded">
+        <div class="flex items-center gap-2 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
+          <i class="fa-solid fa-check-circle text-amber-500"></i>
+          <span class="text-xs font-mono text-amber-700" x-text="checkpointLoaded"></span>
+          <button @click="clearCheckpoint()" class="ml-2 text-amber-400 hover:text-red-500 text-xs font-mono">&times; clear</button>
+        </div>
+      </template>
+    </div>
+  </div>
+
   <!-- Launch -->
   <div class="flex gap-3">
     <button @click="startJob()"
             :disabled="running || (!selectedTaxon && !manualTaxonId)"
             class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2">
-      <i class="fa-solid fa-play"></i>Start Mining
+      <i class="fa-solid fa-play"></i><span x-text="checkpointLoaded ? 'Resume Mining' : 'Start Mining'"></span>
     </button>
   </div>
 </div>
@@ -282,6 +301,11 @@
     <button @click="cancelJob()" x-show="running"
             class="bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
       <i class="fa-solid fa-stop"></i>Cancel
+    </button>
+    <button @click="saveCheckpoint()" x-show="rows.length>0"
+            class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
+            :title="'Save progress to .inatminer file (' + rows.length + ' records)'">
+      <i class="fa-solid fa-floppy-disk"></i>Save Checkpoint
     </button>
     <button @click="downloadCsv()" x-show="rows.length>0"
             class="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
@@ -597,6 +621,10 @@ document.addEventListener('alpine:init', () => {
     reviewSearch: '',
     lightbox: null,
 
+    // ── Checkpoint resume
+    checkpointLoaded: null,   // display string e.g. "423 rows · predator 1847/4589"
+    _checkpoint: null,        // parsed .inatminer object
+
     // ─────────────────────────────────────────────
     // COMPUTED-LIKE (via getters accessed in template)
     // ─────────────────────────────────────────────
@@ -696,6 +724,14 @@ document.addEventListener('alpine:init', () => {
         predator_list: this.predatorList,
         custom_terms: customTermsList,
       };
+
+      // If resuming from a checkpoint, include resume params
+      if (this._checkpoint) {
+        const cp = this._checkpoint;
+        body.resume_from_index = cp.predator_index_done ?? 0;
+        body.preloaded_rows = this.rows;   // already set in this.rows by loadCheckpointFile
+        body.skip_keyword_scan = !!(cp.keyword_scan_done ?? false);
+      }
 
       try {
         const r = await fetch(`${this.apiBase}/api/mine/start`, {
@@ -804,6 +840,108 @@ document.addEventListener('alpine:init', () => {
       if (!raw) return [];
       try { return JSON.parse(raw) || []; }
       catch(e) { return []; }
+    },
+
+    // ─────────────────────────────────────────────
+    // CHECKPOINT SAVE / LOAD
+    // ─────────────────────────────────────────────
+    async saveCheckpoint() {
+      // Fetch full checkpoint state from backend (includes current rows + progress)
+      let checkpoint;
+      if (this.jobId) {
+        try {
+          const r = await fetch(`${this.apiBase}/api/mine/${this.jobId}/checkpoint`);
+          checkpoint = await r.json();
+        } catch(e) {
+          // Backend unreachable — build from frontend state
+          checkpoint = null;
+        }
+      }
+
+      if (!checkpoint || checkpoint.error) {
+        // Build checkpoint from frontend state
+        checkpoint = {
+          job_id: this.jobId,
+          taxon_id: this.selectedTaxon?.id || parseInt(this.manualTaxonId) || null,
+          taxon_name: this.selectedTaxon?.name || this.manualTaxonName || 'Unknown',
+          predator_list: this.predatorList,
+          custom_terms: this.customTerms,
+          status: this.running ? 'running' : 'done',
+          rows: this.rows,
+          saved_at: new Date().toISOString(),
+        };
+      }
+
+      // Always merge in the frontend's review verdicts — they're the source of truth
+      const verdictMap = {};
+      for (const row of this.rows) verdictMap[row.id] = row.review;
+      for (const row of checkpoint.rows) {
+        if (verdictMap[row.id] !== undefined) row.review = verdictMap[row.id];
+      }
+
+      // Store the predator list and custom terms from frontend (backend may not have them verbatim)
+      checkpoint.predator_list = this.predatorList;
+      checkpoint.custom_terms = this.customTerms;
+
+      const json = JSON.stringify(checkpoint, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const ts = new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+      a.download = `inat_miner_checkpoint_${checkpoint.taxon_name || 'run'}_${ts}.inatminer`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    },
+
+    loadCheckpointFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const cp = JSON.parse(e.target.result);
+          this._checkpoint = cp;
+
+          // Restore config fields
+          if (cp.taxon_id) this.manualTaxonId = cp.taxon_id;
+          if (cp.taxon_name) this.manualTaxonName = cp.taxon_name;
+          if (cp.predator_list) this.predatorList = cp.predator_list;
+          if (cp.custom_terms) this.customTerms = cp.custom_terms;
+
+          // Restore rows with their verdicts
+          if (Array.isArray(cp.rows) && cp.rows.length > 0) {
+            this.rows = cp.rows;
+          }
+
+          // Figure out where we left off in the predator list
+          const totalPreds = this.predatorList.trim()
+            ? this.predatorList.trim().split(/[\n,;]+/).filter(s => s.trim()).length
+            : 0;
+          const donePreds = cp.predator_index_done ?? 0;
+          const rowCount = (cp.rows || []).length;
+
+          this.checkpointLoaded = `${rowCount} rows · predator ${donePreds}/${totalPreds} done · saved ${(cp.saved_at||'').slice(0,16).replace('T',' ')}`;
+
+          alert(`Checkpoint loaded!
+
+${rowCount} rows restored.
+Predator list will resume at #${donePreds + 1}.
+
+Adjust taxon/keywords if needed, then click Resume Mining.`);
+        } catch(err) {
+          alert('Failed to parse checkpoint file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      // Reset input so same file can be re-loaded
+      event.target.value = '';
+    },
+
+    clearCheckpoint() {
+      this._checkpoint = null;
+      this.checkpointLoaded = null;
     },
 
     // ─────────────────────────────────────────────
