@@ -807,31 +807,47 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ─────────────────────────────────────────────
-    // EXPORT — reads directly from this.rows, no indirection
+    // EXPORT
     // ─────────────────────────────────────────────
     downloadCsv() {
       if (!this.rows.length) { alert('No data to download.'); return; }
 
-      const cols = [
-        'id','taxon_queried','keyword','url','user','created_at','place',
-        'quality_grade','description','structured_fields','matching_tags',
-        'in_description','identifiers','photo_urls','review'
-      ];
+      const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
 
-      const escape = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+      const header = 'id,taxon_queried,keyword,url,user,created_at,place,quality_grade,description,structured_fields,matching_tags,in_description,identifiers,photo_urls,review';
 
-      const lines = [cols.join(',')];
-      for (const r of this.rows) {
-        const flat = { ...r };
-        try { flat.photo_urls = JSON.parse(flat.photo_urls || '[]').join('; '); } catch(e) {}
-        lines.push(cols.map(c => escape(flat[c])).join(','));
+      const lines = [header];
+      for (let i = 0; i < this.rows.length; i++) {
+        const r = this.rows[i];
+        console.log(`[export] row ${i} id=${r.id} review="${r.review}"`);
+        let photos = '';
+        try { photos = JSON.parse(r.photo_urls || '[]').join('; '); } catch(e) { photos = r.photo_urls || ''; }
+        lines.push([
+          esc(r.id),
+          esc(r.taxon_queried),
+          esc(r.keyword),
+          esc(r.url),
+          esc(r.user),
+          esc(r.created_at),
+          esc(r.place),
+          esc(r.quality_grade),
+          esc(r.description),
+          esc(r.structured_fields),
+          esc(r.matching_tags),
+          esc(r.in_description),
+          esc(r.identifiers),
+          esc(photos),
+          esc(r.review),
+        ].join(','));
       }
 
-      const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      const blob = new Blob([lines.join('\r\n')], { type: 'text/csv' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `inat_interactions_${this.jobId || 'export'}.csv`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(a.href);
     },
   }));
