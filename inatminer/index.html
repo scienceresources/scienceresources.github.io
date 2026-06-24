@@ -846,31 +846,40 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ─────────────────────────────────────────────
-    // EXPORT
+    // EXPORT — always client-side from this.rows so verdicts are guaranteed correct
     // ─────────────────────────────────────────────
     downloadCsv() {
-      if (this.jobId) {
-        window.open(`${this.apiBase}/api/mine/${this.jobId}/download`, '_blank');
-        return;
-      }
-      // Fallback: client-side CSV from rows array
       if (!this.rows.length) { alert('No data to download.'); return; }
-      const cols = Object.keys(this.rows[0]);
+
+      const cols = [
+        'id','taxon_queried','keyword','url','user','created_at','place',
+        'quality_grade','description','structured_fields','matching_tags',
+        'in_description','identifiers','photo_urls','review'
+      ];
+
+      const escape = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+
       const lines = [cols.join(',')];
       for (const r of this.rows) {
-        lines.push(cols.map(c => {
-          let v = r[c] ?? '';
-          if (c === 'photo_urls') {
-            try { v = JSON.parse(v).join('; '); } catch(e) {}
-          }
-          return '"' + String(v).replace(/"/g, '""') + '"';
-        }).join(','));
+        // Always read review from localStorage so it's definitely current
+        const saved = this.loadReviews();
+        const review = saved[r.id] || r.review || '';
+        const row = { ...r, review };
+
+        // Flatten photo_urls from JSON array to semicolon-separated string
+        let photos = row.photo_urls || '';
+        try { photos = JSON.parse(photos).join('; '); } catch(e) {}
+        row.photo_urls = photos;
+
+        lines.push(cols.map(c => escape(row[c])).join(','));
       }
+
       const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'inat_interactions.csv';
+      a.download = `inat_interactions_${this.jobId || 'export'}.csv`;
       a.click();
+      URL.revokeObjectURL(a.href);
     },
   }));
 });
