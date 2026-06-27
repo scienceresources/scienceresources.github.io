@@ -213,7 +213,7 @@
   <!-- Predator List (hidden in all-records mode) -->
   <div x-show="!allRecordsMode" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-list mr-1 text-emerald-400"></i>Predator / Parasite Taxon List <span class="text-slate-300 font-normal normal-case">(optional)</span></p>
-    <p class="text-sm text-slate-500 leading-relaxed mb-3">Paste your list of ~4,600 predator taxa — one per line, or comma/semicolon separated. Each will be looked up on iNaturalist and queried for host-bee observations.</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-3">Paste your list of ~4,600 predator taxa — one per line, or comma/semicolon separated. Each is looked up on iNaturalist and resolved to a common name (falling back genus → tribe → subfamily → family if the exact taxon has none), then that common name is searched against <em>Melissodes</em> observations only.</p>
     <textarea x-model="predatorList" rows="10"
               placeholder="Philanthus triangulum&#10;Triepeolus pectoralis&#10;Holonomada&#10;Misumena vatia&#10;…one per line or comma-separated"
               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-emerald-400 outline-none resize-y leading-relaxed"></textarea>
@@ -616,7 +616,7 @@
 </main>
 
 <footer class="border-t border-slate-200 bg-white mt-8 py-4 text-center text-[10px] text-slate-400 font-mono tracking-wider">
-  iNat Interaction Miner · Backend: Hugging Face Spaces · Frontend: GitHub Pages · <a href="https://www.inaturalist.org" target="_blank" class="text-emerald-500 hover:underline">iNaturalist API</a>
+  iNat Interaction Miner · CSV export is fully client-side — verdicts never touch the backend · <a href="https://www.inaturalist.org" target="_blank" class="text-emerald-500 hover:underline">iNaturalist API</a>
 </footer>
 
 <script>
@@ -852,14 +852,30 @@ document.addEventListener('alpine:init', () => {
         const r = await fetch(`${this.apiBase}/api/mine/${this.jobId}/rows`);
         const data = await r.json();
         if (!Array.isArray(data)) return;
-        // Build a map of existing verdicts so a backend refresh never wipes them
-        const existingVerdicts = {};
-        for (const row of this.rows) existingVerdicts[row.id] = row.review;
-        // Merge: keep verdict from memory if set, otherwise use whatever backend has
-        for (const row of data) {
-          if (existingVerdicts[row.id] !== undefined) row.review = existingVerdicts[row.id];
+
+        // Build a map of existing rows by id so we can preserve verdicts
+        // and avoid replacing the array reference (which would lose Alpine reactivity
+        // on objects that review cards are bound to).
+        const existingById = {};
+        for (const row of this.rows) existingById[row.id] = row;
+
+        const merged = [];
+        for (const incoming of data) {
+          const existing = existingById[incoming.id];
+          if (existing) {
+            // Row already known — update non-verdict fields but keep the verdict
+            // that was set in the UI (never let a backend fetch overwrite it).
+            incoming.review = existing.review;
+            // Mutate the existing object in-place so Alpine-bound card components
+            // keep their identity and don't re-render from scratch.
+            Object.assign(existing, incoming);
+            merged.push(existing);
+          } else {
+            // Brand-new row from the backend — just add it.
+            merged.push(incoming);
+          }
         }
-        this.rows = data;
+        this.rows = merged;
       } catch(e) {}
     },
 
@@ -876,7 +892,15 @@ document.addEventListener('alpine:init', () => {
     // setVerdict mutates the row object directly; downloadCsv reads it directly
     // ─────────────────────────────────────────────
     setVerdict(row, verdict) {
-      row.review = (row.review === verdict) ? '' : verdict;
+      // Always find the row in this.rows by id and mutate it directly.
+      // This guarantees the verdict lives in the canonical array that
+      // downloadCsv() reads — never in a detached object reference.
+      const canonical = this.rows.find(r => r.id === row.id);
+      if (canonical) {
+        canonical.review = (canonical.review === verdict) ? '' : verdict;
+        // Keep the passed-in row object in sync too (for card binding)
+        row.review = canonical.review;
+      }
     },
 
     safeParsePhotos(raw) {
