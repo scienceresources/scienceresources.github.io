@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBIF Interaction Miner</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  [x-cloak]{display:none!important}
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-track{background:#f1f5f9}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+  .tab-active{border-bottom:2px solid #2563eb;color:#1d4ed8!important;background:#eff6ff}
+  .tab-inactive{border-bottom:2px solid transparent}
+  .tab-inactive:hover{color:#334155;background:#f8fafc}
+  .suggest-item{padding:8px 14px;cursor:pointer;font-size:12px;transition:background 0.1s;border-bottom:1px solid #f1f5f9}
+  .suggest-item:hover{background:#eff6ff}
+  .suggest-item:last-child{border-bottom:none}
+  .fade-in{animation:fadeIn 0.25s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .terminal-line{font-family:'Courier New',monospace;font-size:11.5px;padding:1.5px 0;line-height:1.55;border-bottom:1px solid rgba(255,255,255,0.03)}
+  .terminal-line.info{color:#94a3b8}
+  .terminal-line.warn{color:#fbbf24}
+  .terminal-line.error{color:#f87171}
+  .terminal-line.checkpoint{color:#34d399}
+  .terminal-line.milestone{color:#93c5fd;font-weight:700;font-size:12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 1s linear infinite;display:inline-block}
+  @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
+  .pulse-dot{animation:pulse-dot 1.2s ease-in-out infinite;display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6}
+  .gbif-badge{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:white;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:0.1em;font-family:'Courier New',monospace}
+  .data-table{width:100%;border-collapse:collapse;font-size:11px}
+  .data-table th{background:#1e293b;color:#94a3b8;padding:9px 12px;text-align:left;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;border-bottom:1px solid #334155;position:sticky;top:0;z-index:5;font-family:'Courier New',monospace;white-space:nowrap}
+  .data-table td{padding:7px 12px;border-bottom:1px solid #f8fafc;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Courier New',monospace;font-size:10.5px}
+  .data-table tr:hover td{background:#eff6ff}
+  .review-card{background:white;border:2px solid #e2e8f0;border-radius:16px;overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s}
+  .review-card.verdict-yes{border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,0.12)}
+  .review-card.verdict-no{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,0.1)}
+  .review-card.verdict-ambiguous{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,0.1)}
+  .review-card.verdict-keep{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,0.1)}
+  .verdict-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;border:2px solid transparent;letter-spacing:0.04em}
+  .verdict-btn.yes{border-color:#22c55e;color:#16a34a;background:#f0fdf4}
+  .verdict-btn.yes:hover,.verdict-btn.yes.active{background:#22c55e;color:white}
+  .verdict-btn.no{border-color:#ef4444;color:#dc2626;background:#fef2f2}
+  .verdict-btn.no:hover,.verdict-btn.no.active{background:#ef4444;color:white}
+  .verdict-btn.ambiguous{border-color:#f59e0b;color:#d97706;background:#fffbeb}
+  .verdict-btn.ambiguous:hover,.verdict-btn.ambiguous.active{background:#f59e0b;color:white}
+  .verdict-btn.keep{border-color:#8b5cf6;color:#7c3aed;background:#f5f3ff}
+  .verdict-btn.keep:hover,.verdict-btn.keep.active{background:#8b5cf6;color:white}
+  .filter-btn{padding:4px 12px;border-radius:9999px;font-size:11px;font-weight:700;border:1.5px solid;cursor:pointer;transition:all 0.15s}
+  .filter-btn.all{border-color:#64748b;color:#64748b}
+  .filter-btn.all.on{background:#64748b;color:white}
+  .filter-btn.unreviewed{border-color:#0ea5e9;color:#0ea5e9}
+  .filter-btn.unreviewed.on{background:#0ea5e9;color:white}
+  .filter-btn.f-yes{border-color:#22c55e;color:#16a34a}
+  .filter-btn.f-yes.on{background:#22c55e;color:white}
+  .filter-btn.f-no{border-color:#ef4444;color:#dc2626}
+  .filter-btn.f-no.on{background:#ef4444;color:white}
+  .filter-btn.f-ambiguous{border-color:#f59e0b;color:#d97706}
+  .filter-btn.f-ambiguous.on{background:#f59e0b;color:white}
+  .filter-btn.f-keep{border-color:#8b5cf6;color:#7c3aed}
+  .filter-btn.f-keep.on{background:#8b5cf6;color:white}
+  .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-family:'Courier New',monospace}
+  .pill-specimen{background:#dbeafe;color:#1e40af}
+  .pill-observation{background:#dcfce7;color:#166534}
+  .pill-literature{background:#fef9c3;color:#92400e}
+  .pill-other{background:#f1f5f9;color:#475569}
+  @keyframes rowFlash{0%{background:#dbeafe}100%{background:transparent}}
+  .row-new td{animation:rowFlash 2s ease-out}
+  .stat-box{background:white;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;text-align:center;transition:all 0.2s}
+  .stat-box:hover{border-color:#2563eb;box-shadow:0 4px 20px rgba(37,99,235,0.08)}
+  .progress-bar{transition:width 0.4s ease}
+  .field-chip{display:inline-block;background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:9px;font-family:'Courier New',monospace;margin:1px;font-weight:600}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col" x-data="app">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-[500] shadow-sm">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+    <div class="flex items-center gap-3">
+      <div class="bg-blue-100 p-2 rounded-lg"><i class="fa-solid fa-database text-blue-600 text-xl"></i></div>
+      <div>
+        <h1 class="text-lg font-bold text-slate-900 leading-tight">GBIF Interaction Miner</h1>
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">GBIF · DarwinCore · occurrenceRemarks · fieldNotes · behavior</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="gbif-badge">.gbifminer</span>
+      <span class="text-[10px] text-slate-400 font-mono tracking-wider hidden sm:block">Natural Enemy Discovery via GBIF</span>
+    </div>
+  </div>
+  <div class="max-w-6xl mx-auto px-4 flex gap-1 flex-wrap">
+    <button @click="tab='setup'" :class="tab==='setup'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-sliders mr-1.5 opacity-70"></i>Setup</button>
+    <button @click="tab='run'" :class="tab==='run'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-terminal mr-1.5 opacity-70"></i>Run <span x-show="jobId && running" class="ml-1.5 bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">LIVE</span></button>
+    <button @click="tab='results'" :class="tab==='results'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-table mr-1.5 opacity-70"></i>Results <span x-show="rows.length>0" class="ml-1.5 bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full" x-text="rows.length"></span></button>
+    <button @click="tab='review'" :class="tab==='review'?'tab-active':'tab-inactive'" class="text-slate-500 px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-all"><i class="fa-solid fa-check-to-slot mr-1.5 opacity-70"></i>Review <span x-show="rows.length>0" class="ml-1.5 bg-slate-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full" x-text="reviewedCount+'/'+rows.length"></span></button>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-5 flex-1 w-full">
+
+<!-- ═══════════════ SETUP TAB ═══════════════ -->
+<div x-show="tab==='setup'" class="space-y-5 fade-in">
+
+  <!-- Backend URL -->
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+    <i class="fa-solid fa-server text-amber-500 mt-0.5 flex-shrink-0"></i>
+    <div class="flex-1">
+      <p class="text-xs font-bold text-amber-800 mb-1">Backend URL (Hugging Face Space)</p>
+      <p class="w-full p-2 bg-white border border-amber-300 rounded-lg text-xs font-mono text-slate-600" x-text="apiBase"></p>
+      <p class="text-[10px] text-amber-700 mt-1">Hardcoded to the GBIF Miner Space running <code>app.py</code>.</p>
+    </div>
+    <button @click="pingBackend()" :disabled="pinging"
+            class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0">
+      <i class="fa-solid text-[10px]" :class="pinging?'fa-circle-notch spin':'fa-plug'"></i>
+      <span x-text="pingStatus||'Test'"></span>
+    </button>
+  </div>
+
+  <!-- Target Taxon -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-1 mr-1 text-blue-400"></i>Target Host / Prey Taxon</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-4">The genus or species you're studying (e.g. <em>Melissodes</em>). GBIF occurrences will be filtered for interaction evidence mentioning this taxon as victim, host, or prey.</p>
+    <div class="relative mb-3">
+      <div class="flex gap-3">
+        <input x-model="taxonQuery" @input.debounce.350ms="searchTaxon()" @keydown.escape="taxonSuggestions=[]"
+               type="text" placeholder="e.g. Melissodes, Philanthus, Misumena vatia…"
+               class="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-400 outline-none">
+        <button @click="searchTaxon()" :disabled="taxonSearching"
+                class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+          <i class="fa-solid text-xs" :class="taxonSearching?'fa-circle-notch spin':'fa-search'"></i>Search
+        </button>
+      </div>
+      <div x-show="taxonSuggestions.length>0" x-cloak @click.away="taxonSuggestions=[]"
+           class="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+        <template x-for="s in taxonSuggestions" :key="s.key">
+          <div class="suggest-item" @click="selectTaxon(s)">
+            <span class="font-mono italic text-slate-800 font-semibold" x-text="s.name"></span>
+            <span class="text-slate-400 ml-2 text-[10px]" x-text="s.rank + (s.common_name?' · '+s.common_name:'') + (s.family?' · '+s.family:'')"></span>
+            <span class="text-slate-300 ml-2 text-[10px] font-mono" x-text="'GBIF: '+s.key"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+    <template x-if="selectedTaxon">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 fade-in">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-bug text-blue-600"></i>
+          </div>
+          <div>
+            <p class="font-bold italic text-slate-900 text-sm" x-text="selectedTaxon.name"></p>
+            <p class="text-[10px] text-slate-500 font-mono" x-text="'GBIF taxonKey: '+selectedTaxon.key+' · Rank: '+selectedTaxon.rank+(selectedTaxon.common_name?' · '+selectedTaxon.common_name:'')+(selectedTaxon.family?' · Family: '+selectedTaxon.family:'')"></p>
+          </div>
+          <button @click="selectedTaxon=null;taxonQuery=''" class="ml-auto text-slate-300 hover:text-slate-500 text-lg">&times;</button>
+        </div>
+      </div>
+    </template>
+    <!-- Manual override -->
+    <div class="mt-4 grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Manual Taxon Name</label>
+        <input x-model="manualTaxonName" type="text" placeholder="Melissodes"
+               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-400 outline-none">
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Manual GBIF taxonKey</label>
+        <input x-model="manualTaxonKey" type="number" placeholder="1340278"
+               class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-400 outline-none">
+        <p class="text-[9px] text-slate-400 mt-1 font-mono">Find on species.gbif.org → copy the number from the URL</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scan Mode -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"><i class="fa-solid fa-circle-2 mr-1 text-blue-400"></i>Scan Mode</p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-4">How to search GBIF for interaction records.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <button @click="allRecordsMode=false"
+              :class="!allRecordsMode ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'"
+              class="flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all cursor-pointer">
+        <div class="mt-0.5 w-9 h-9 flex-shrink-0 rounded-lg flex items-center justify-center"
+             :class="!allRecordsMode ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-500'">
+          <i class="fa-solid fa-list text-sm"></i>
+        </div>
+        <div>
+          <p class="font-bold text-sm text-slate-800">Predator List Mode</p>
+          <p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">Each taxon in your list is looked up on GBIF, resolved to a common name, and that name is searched against the target's GBIF occurrences. Precise — only where you tell it.</p>
+          <p class="text-[10px] text-blue-600 font-mono mt-1.5" x-show="!allRecordsMode"><i class="fa-solid fa-check mr-1"></i>Active</p>
+        </div>
+      </button>
+      <button @click="allRecordsMode=true"
+              :class="allRecordsMode ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-200' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'"
+              class="flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all cursor-pointer">
+        <div class="mt-0.5 w-9 h-9 flex-shrink-0 rounded-lg flex items-center justify-center"
+             :class="allRecordsMode ? 'bg-violet-500 text-white' : 'bg-slate-200 text-slate-500'">
+          <i class="fa-solid fa-globe text-sm"></i>
+        </div>
+        <div>
+          <p class="font-bold text-sm text-slate-800">All Records Mode</p>
+          <p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">Broad sweep — no list needed. Stream 1 scans the target's GBIF records for all interaction keywords. Stream 2 sweeps ALL of GBIF using compound queries (e.g. <em>"predator melissodes"</em>) to catch interactor specimens filed under enemy taxa.</p>
+          <p class="text-[10px] text-violet-600 font-mono mt-1.5" x-show="allRecordsMode"><i class="fa-solid fa-check mr-1"></i>Active</p>
+        </div>
+      </button>
+    </div>
+    <div x-show="allRecordsMode" x-cloak class="mt-3 bg-violet-50 border border-violet-200 rounded-lg px-4 py-3 flex items-start gap-2.5 fade-in">
+      <i class="fa-solid fa-circle-info text-violet-400 mt-0.5 flex-shrink-0"></i>
+      <div class="text-[11px] text-violet-700 leading-relaxed font-mono">
+        <strong>Stream 1:</strong> Searches <code>taxonKey=&lt;target&gt;</code> + each interaction keyword. Finds records where <em>the target organism</em> is the occurrence, with interaction evidence in remarks/notes.<br>
+        <strong>Stream 2:</strong> Searches all of GBIF with <code>q="&lt;interaction_term&gt; &lt;target_name&gt;"</code>. Finds enemy-organism records (spiders, wasps, etc.) whose remarks mention the target as prey/host. Checks <code>occurrenceRemarks</code>, <code>fieldNotes</code>, <code>behavior</code>, <code>associatedTaxa</code>, and 8 other DwC text fields.
+      </div>
+    </div>
+  </div>
+
+  <!-- Predator List -->
+  <div x-show="!allRecordsMode" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+      <i class="fa-solid fa-list mr-1 text-blue-400"></i>Predator / Parasite Taxon List
+      <span class="text-slate-300 font-normal normal-case">(optional)</span>
+    </p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-3">Paste your list of predator / parasite taxa — one per line, or comma/semicolon separated. Each name is looked up on the GBIF backbone, a common/vernacular name is resolved (falling back genus → family → order), and that name is searched against target occurrences in GBIF.</p>
+    <textarea x-model="predatorList" rows="10"
+              placeholder="Philanthus triangulum&#10;Triepeolus pectoralis&#10;Holonomada&#10;Misumena vatia&#10;Dasymutilla&#10;Bombylius major&#10;…one per line or comma-separated"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-y"></textarea>
+    <div class="flex justify-between items-center mt-2">
+      <p class="text-[10px] text-slate-400 font-mono"><span x-text="predatorListCount"></span> taxa in list</p>
+    </div>
+  </div>
+
+  <!-- Custom Keywords -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+      <i class="fa-solid fa-circle-3 mr-1 text-blue-400"></i>Custom Interaction Keywords
+      <span class="text-slate-300 font-normal normal-case">(optional — overrides defaults)</span>
+    </p>
+    <p class="text-sm text-slate-500 leading-relaxed mb-3">One keyword per line. Leave blank to use the built-in interaction term list (predation, parasitism, cleptoparasitism, etc.).</p>
+    <textarea x-model="customTerms" rows="5"
+              placeholder="Leave blank for built-in terms, or enter custom keywords one per line"
+              class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-400 outline-none resize-y"></textarea>
+    <button @click="loadPresetKeywords()" class="mt-2 text-[11px] text-blue-500 hover:text-blue-700 font-mono">
+      <i class="fa-solid fa-arrow-down-to-bracket mr-1"></i>Load built-in keyword list
+    </button>
+  </div>
+
+  <!-- Checkpoint resume -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+      <i class="fa-solid fa-circle-4 mr-1 text-blue-400"></i>Resume from Checkpoint
+      <span class="text-slate-300 font-normal normal-case">(optional)</span>
+    </p>
+    <div x-show="!checkpointLoaded">
+      <label class="flex items-center gap-3 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg p-3 hover:bg-blue-50 hover:border-blue-300 transition-all">
+        <i class="fa-solid fa-file-arrow-up text-slate-400 text-xl"></i>
+        <div>
+          <p class="text-sm font-bold text-slate-700">Load .gbifminer checkpoint file</p>
+          <p class="text-[10px] text-slate-400 font-mono">Restores rows, verdicts, and predator list progress from a previous session.</p>
+        </div>
+        <input type="file" accept=".gbifminer,.json" @change="loadCheckpointFile($event)" class="hidden">
+      </label>
+    </div>
+    <div x-show="checkpointLoaded" x-cloak class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-3 fade-in">
+      <i class="fa-solid fa-circle-check text-blue-500"></i>
+      <div class="flex-1">
+        <p class="text-xs font-bold text-blue-800">Checkpoint loaded</p>
+        <p class="text-[10px] text-blue-600 font-mono" x-text="checkpointLoaded"></p>
+      </div>
+      <button @click="clearCheckpoint()" class="text-blue-400 hover:text-blue-600 text-sm">&times;</button>
+    </div>
+  </div>
+
+  <!-- Start / Resume button -->
+  <div class="flex gap-3 flex-wrap">
+    <button @click="startJob()"
+            :disabled="!((selectedTaxon && selectedTaxon.key) || manualTaxonKey)"
+            class="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+      <i class="fa-solid fa-play"></i>
+      <span x-text="checkpointLoaded ? 'Resume Mining' : 'Start Mining'"></span>
+    </button>
+    <div x-show="!((selectedTaxon && selectedTaxon.key) || manualTaxonKey)" class="flex items-center text-xs text-slate-400 font-mono">
+      <i class="fa-solid fa-arrow-left mr-2"></i>Select a taxon first
+    </div>
+  </div>
+
+</div><!-- /setup tab -->
+
+<!-- ═══════════════ RUN TAB ═══════════════ -->
+<div x-show="tab==='run'" class="space-y-4 fade-in">
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-blue-600" x-text="rows.length"></p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Records Found</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-slate-700" x-text="doneTerms"></p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Keywords Scanned</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold text-slate-700" x-text="totalTerms"></p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Total Keywords</p>
+    </div>
+    <div class="stat-box">
+      <p class="text-2xl font-bold" :class="running?'text-blue-500':'text-slate-400'" x-text="running?'Running':'Idle'"></p>
+      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Status</p>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div x-show="jobId" class="bg-white rounded-xl border border-slate-200 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-bold text-slate-600">Progress</span>
+      <span class="text-xs font-mono text-slate-500" x-text="doneTerms+' / '+totalTerms+' keywords'"></span>
+    </div>
+    <div class="w-full bg-slate-100 rounded-full h-2">
+      <div class="progress-bar bg-blue-500 h-2 rounded-full"
+           :style="`width:${totalTerms>0?Math.round(doneTerms/totalTerms*100):0}%`"></div>
+    </div>
+  </div>
+
+  <!-- Terminal -->
+  <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-700">
+      <div class="flex items-center gap-2">
+        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+        <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+        <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+        <span class="text-slate-400 font-mono text-xs ml-2">gbif-miner — <span x-text="jobId||'no job'"></span></span>
+        <span x-show="running" class="pulse-dot ml-2"></span>
+      </div>
+      <button @click="logLines=[]" class="text-slate-500 hover:text-slate-300 text-xs font-mono">clear</button>
+    </div>
+    <div x-ref="terminal" class="h-80 overflow-y-auto p-4 space-y-0.5">
+      <template x-if="logLines.length===0">
+        <p class="terminal-line info">Waiting for job to start…</p>
+      </template>
+      <template x-for="(line,i) in logLines" :key="i">
+        <p class="terminal-line" :class="line.level" x-text="line.msg"></p>
+      </template>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="flex gap-3 flex-wrap">
+    <button @click="tab='results'" x-show="rows.length>0"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-table"></i>View Results (<span x-text="rows.length"></span>)
+    </button>
+    <button @click="tab='review'" x-show="rows.length>0"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-check-to-slot"></i>Start Reviewing
+    </button>
+    <button @click="cancelJob()" x-show="running"
+            class="bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-stop"></i>Cancel
+    </button>
+    <button @click="saveCheckpoint()" x-show="rows.length>0"
+            class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-floppy-disk"></i>Save Checkpoint
+    </button>
+    <button @click="downloadCsv()" x-show="rows.length>0"
+            class="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-download"></i>Download CSV
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════ RESULTS TAB ═══════════════ -->
+<div x-show="tab==='results'" class="space-y-4 fade-in">
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <h2 class="text-sm font-bold text-slate-700"><i class="fa-solid fa-table mr-1.5 text-blue-500"></i>Raw Results — <span x-text="rows.length"></span> records</h2>
+    <div class="flex gap-2">
+      <button @click="tab='review'" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
+        <i class="fa-solid fa-check-to-slot"></i>Review Cards
+      </button>
+      <button @click="downloadCsv()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
+        <i class="fa-solid fa-download"></i>CSV
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="overflow-auto max-h-[60vh]">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Observed Taxon</th>
+            <th>Keyword</th>
+            <th>Recorded By</th>
+            <th>Date</th>
+            <th>Country</th>
+            <th>Dataset</th>
+            <th>Basis</th>
+            <th>Hit Fields</th>
+            <th>Remarks Preview</th>
+            <th>Assoc. Taxa</th>
+            <th>Review</th>
+            <th>Link</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-if="rows.length===0">
+            <tr><td colspan="12" class="text-center py-10 text-slate-400 font-mono text-xs">No records yet. Run a search first.</td></tr>
+          </template>
+          <template x-for="r in rows" :key="r.id">
+            <tr>
+              <td class="font-semibold italic text-slate-700 max-w-[140px]" x-text="r.observed_taxon"></td>
+              <td x-text="r.keyword" class="max-w-[80px]"></td>
+              <td x-text="r.user" class="max-w-[90px]"></td>
+              <td x-text="r.created_at"></td>
+              <td x-text="r.country"></td>
+              <td x-text="r.dataset" class="max-w-[100px]"></td>
+              <td x-text="r.basis_of_record"></td>
+              <td x-text="r.hit_fields" class="max-w-[120px]"></td>
+              <td x-text="(r.preview_text||'').substring(0,80)+'…'" class="max-w-[200px]"></td>
+              <td x-text="r.associated_taxa" class="max-w-[100px]"></td>
+              <td>
+                <span x-show="r.review" class="pill"
+                      :class="r.review==='yes'?'bg-green-100 text-green-800':r.review==='no'?'bg-red-100 text-red-800':r.review==='keep'?'bg-purple-100 text-purple-800':'bg-yellow-100 text-yellow-800'"
+                      x-text="r.review"></span>
+              </td>
+              <td><a :href="r.url" target="_blank" class="text-blue-500 hover:text-blue-700"><i class="fa-solid fa-external-link text-[10px]"></i></a></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ REVIEW TAB ═══════════════ -->
+<div x-show="tab==='review'" class="space-y-4 fade-in">
+
+  <!-- Stats / filter bar -->
+  <div class="bg-white rounded-xl border border-slate-200 p-4">
+    <div class="flex flex-wrap gap-2 items-center mb-3">
+      <button @click="reviewFilter='all'" class="filter-btn all" :class="reviewFilter==='all'?'on':''">All (<span x-text="rows.length"></span>)</button>
+      <button @click="reviewFilter='unreviewed'" class="filter-btn unreviewed" :class="reviewFilter==='unreviewed'?'on':''">Unreviewed (<span x-text="unreviewedCount"></span>)</button>
+      <button @click="reviewFilter='yes'" class="filter-btn f-yes" :class="reviewFilter==='yes'?'on':''">✓ Yes (<span x-text="verdictCounts.yes||0"></span>)</button>
+      <button @click="reviewFilter='no'" class="filter-btn f-no" :class="reviewFilter==='no'?'on':''">✗ No (<span x-text="verdictCounts.no||0"></span>)</button>
+      <button @click="reviewFilter='ambiguous'" class="filter-btn f-ambiguous" :class="reviewFilter==='ambiguous'?'on':''">? Ambig. (<span x-text="verdictCounts.ambiguous||0"></span>)</button>
+      <button @click="reviewFilter='keep'" class="filter-btn f-keep" :class="reviewFilter==='keep'?'on':''">★ Keep (<span x-text="verdictCounts.keep||0"></span>)</button>
+    </div>
+    <input x-model="reviewSearch" type="text" placeholder="Search taxa, keywords, remarks, place…"
+           class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-400 outline-none">
+  </div>
+
+  <!-- Cards -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <template x-if="filteredReviewRows.length===0">
+      <div class="col-span-2 text-center py-16 text-slate-400">
+        <i class="fa-solid fa-inbox text-4xl mb-3 opacity-30"></i>
+        <p class="font-mono text-sm">No records match the current filter.</p>
+      </div>
+    </template>
+    <template x-for="r in filteredReviewRows" :key="r.id">
+      <div class="review-card" :class="r.review?'verdict-'+r.review:''">
+
+        <!-- Card header -->
+        <div class="px-5 py-3 border-b border-slate-100 flex items-start justify-between gap-3">
+          <div class="flex-1 min-w-0">
+            <p class="font-bold italic text-slate-900 text-sm truncate" x-text="r.observed_taxon"></p>
+            <p class="text-[10px] text-slate-400 font-mono mt-0.5">
+              GBIF <span x-text="r.id"></span> ·
+              <span x-text="r.created_at || 'no date'"></span> ·
+              <span x-text="r.country || r.place || 'no location'"></span>
+            </p>
+          </div>
+          <a :href="r.url" target="_blank"
+             class="text-blue-400 hover:text-blue-600 text-sm flex-shrink-0 mt-0.5">
+            <i class="fa-solid fa-external-link"></i>
+          </a>
+        </div>
+
+        <!-- Metadata row -->
+        <div class="px-5 py-2 flex flex-wrap gap-2 border-b border-slate-100 bg-slate-50/50">
+          <div>
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Keyword</span>
+            <span class="text-[11px] font-mono text-blue-700 font-bold" x-text="r.keyword"></span>
+          </div>
+          <div>
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Basis</span>
+            <span class="text-[11px] font-mono text-slate-600" x-text="r.basis_of_record || '—'"></span>
+          </div>
+          <div>
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Dataset</span>
+            <span class="text-[11px] font-mono text-slate-600 max-w-[180px] truncate block" x-text="r.dataset || '—'"></span>
+          </div>
+          <div>
+            <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Coords</span>
+            <span class="text-[11px] font-mono text-slate-500" x-text="r.coords || '—'"></span>
+          </div>
+        </div>
+
+        <!-- Hit fields chips -->
+        <div x-show="r.hit_fields" class="px-5 py-2 border-b border-slate-100">
+          <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Hit in DwC fields</span>
+          <template x-for="f in (r.hit_fields||'').split(' | ')" :key="f">
+            <span class="field-chip" x-text="f"></span>
+          </template>
+        </div>
+
+        <!-- Remarks text -->
+        <div class="px-5 py-3 space-y-2">
+          <template x-if="r.occurrence_remarks">
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">occurrenceRemarks</p>
+              <p class="text-xs text-slate-700 leading-relaxed font-mono bg-slate-50 rounded p-2 border border-slate-100" x-text="r.occurrence_remarks"></p>
+            </div>
+          </template>
+          <template x-if="r.field_notes && r.field_notes !== r.occurrence_remarks">
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">fieldNotes</p>
+              <p class="text-xs text-slate-700 leading-relaxed font-mono bg-slate-50 rounded p-2 border border-slate-100" x-text="r.field_notes"></p>
+            </div>
+          </template>
+          <template x-if="r.behavior">
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">behavior</p>
+              <p class="text-xs text-slate-700 leading-relaxed font-mono bg-slate-50 rounded p-2 border border-slate-100" x-text="r.behavior"></p>
+            </div>
+          </template>
+          <template x-if="r.associated_taxa">
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">associatedTaxa</p>
+              <p class="text-xs text-slate-600 font-mono bg-blue-50 rounded p-2 border border-blue-100" x-text="r.associated_taxa"></p>
+            </div>
+          </template>
+          <template x-if="!r.occurrence_remarks && !r.field_notes && !r.behavior && r.preview_text">
+            <div>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Text preview</p>
+              <p class="text-xs text-slate-700 leading-relaxed font-mono bg-slate-50 rounded p-2 border border-slate-100" x-text="r.preview_text"></p>
+            </div>
+          </template>
+        </div>
+
+        <!-- Verdict buttons -->
+        <div class="px-5 py-3 border-t border-slate-100 flex gap-2 flex-wrap">
+          <button @click="setVerdict(r,'yes')" class="verdict-btn yes flex-1" :class="r.review==='yes'?'active':''">
+            <i class="fa-solid fa-check"></i><span class="hidden sm:inline text-[9px]">Valid</span>
+          </button>
+          <button @click="setVerdict(r,'no')" class="verdict-btn no flex-1" :class="r.review==='no'?'active':''">
+            <i class="fa-solid fa-xmark"></i><span class="hidden sm:inline text-[9px]">Reject</span>
+          </button>
+          <button @click="setVerdict(r,'ambiguous')" class="verdict-btn ambiguous flex-1" :class="r.review==='ambiguous'?'active':''">
+            <i class="fa-solid fa-question"></i><span class="hidden sm:inline text-[9px]">Ambig.</span>
+          </button>
+          <button @click="setVerdict(r,'keep')" class="verdict-btn keep flex-1" :class="r.review==='keep'?'active':''">
+            <i class="fa-solid fa-star"></i><span class="hidden sm:inline text-[9px]">Keep</span>
+          </button>
+        </div>
+
+      </div>
+    </template>
+  </div>
+
+  <!-- Export -->
+  <div x-show="rows.length>0" class="flex gap-3 flex-wrap pt-2">
+    <button @click="downloadCsv()" class="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-download"></i>Download CSV (<span x-text="rows.length"></span> records)
+    </button>
+    <button @click="saveCheckpoint()" class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2">
+      <i class="fa-solid fa-floppy-disk"></i>Save Checkpoint
+    </button>
+  </div>
+
+</div>
+
+</main>
+
+<footer class="border-t border-slate-200 bg-white mt-8 py-4 text-center text-[10px] text-slate-400 font-mono tracking-wider">
+  GBIF Interaction Miner · Mines occurrenceRemarks, fieldNotes, behavior, associatedTaxa + 7 other DwC fields ·
+  <a href="https://www.gbif.org" target="_blank" class="text-blue-500 hover:underline">GBIF API</a> ·
+  CSV export is fully client-side — verdicts never touch the backend
+</footer>
+
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    // ── Nav
+    tab: 'setup',
+
+    // ── Config
+    apiBase: 'https://accountforscience-gbifminer.hf.space',
+
+    PRESET_KEYWORDS: [
+      'predat','prey','eaten','kill',
+      'parasit','cuckoo','cleptoparasit','kleptoparasit','inquiline',
+      'koinobiont','idiobiont','mite','phoret','ectoparasit','endoparasit',
+      'attack','captured','caught','stolen',
+      'host','nest','brood','larval',
+      'beewolf','bee wolf','velvet ant','crab spider','ambush bug',
+      'paralyz','stung','pounced','grabbed','ambush','hunt',
+    ],
+
+    // ── Taxon search
+    taxonQuery: '',
+    taxonSearching: false,
+    taxonSuggestions: [],
+    selectedTaxon: null,
+    manualTaxonName: '',
+    manualTaxonKey: '',
+
+    // ── Mode
+    predatorList: '',
+    customTerms: '',
+    allRecordsMode: false,
+
+    // ── Job state
+    jobId: null,
+    running: false,
+    doneTerms: 0,
+    totalTerms: 0,
+    logLines: [],
+    rows: [],
+    sseSource: null,
+    pollTimer: null,
+
+    // ── Review
+    reviewFilter: 'all',
+    reviewSearch: '',
+
+    // ── Checkpoint
+    checkpointLoaded: null,
+    _checkpoint: null,
+
+    // ── Ping
+    pinging: false,
+    pingStatus: '',
+
+    // ─────────────────────────────────────────────
+    // COMPUTED
+    // ─────────────────────────────────────────────
+    get predatorListCount() {
+      return this.predatorList.trim()
+        .split(/[\n,;]+/).map(s => s.trim()).filter(Boolean).length;
+    },
+    get reviewedCount() { return this.rows.filter(r => r.review).length; },
+    get unreviewedCount() { return this.rows.filter(r => !r.review).length; },
+    get verdictCounts() {
+      const c = { yes:0, no:0, ambiguous:0, keep:0 };
+      for (const r of this.rows) if (r.review) c[r.review] = (c[r.review]||0)+1;
+      return c;
+    },
+    get filteredReviewRows() {
+      let arr = this.rows;
+      if (this.reviewFilter === 'unreviewed') arr = arr.filter(r => !r.review);
+      else if (this.reviewFilter !== 'all') arr = arr.filter(r => r.review === this.reviewFilter);
+      if (this.reviewSearch.trim()) {
+        const q = this.reviewSearch.toLowerCase();
+        arr = arr.filter(r =>
+          (r.observed_taxon||'').toLowerCase().includes(q) ||
+          (r.keyword||'').toLowerCase().includes(q) ||
+          (r.user||'').toLowerCase().includes(q) ||
+          (r.place||'').toLowerCase().includes(q) ||
+          (r.country||'').toLowerCase().includes(q) ||
+          (r.occurrence_remarks||'').toLowerCase().includes(q) ||
+          (r.field_notes||'').toLowerCase().includes(q) ||
+          (r.behavior||'').toLowerCase().includes(q) ||
+          (r.associated_taxa||'').toLowerCase().includes(q) ||
+          (r.preview_text||'').toLowerCase().includes(q) ||
+          (r.dataset||'').toLowerCase().includes(q)
+        );
+      }
+      return arr;
+    },
+
+    // ─────────────────────────────────────────────
+    // BACKEND PING
+    // ─────────────────────────────────────────────
+    async pingBackend() {
+      if (!this.apiBase.trim()) { alert('Enter a backend URL first.'); return; }
+      this.pinging = true; this.pingStatus = '…';
+      try {
+        const r = await fetch(`${this.apiBase.trim()}/ping`, { signal: AbortSignal.timeout(8000) });
+        const d = await r.json();
+        this.pingStatus = d.status === 'ok' ? '✓ OK' : '⚠ Err';
+      } catch(e) {
+        this.pingStatus = '✗ Fail';
+      } finally {
+        this.pinging = false;
+        setTimeout(() => { this.pingStatus = ''; }, 4000);
+      }
+    },
+
+    // ─────────────────────────────────────────────
+    // KEYWORDS
+    // ─────────────────────────────────────────────
+    loadPresetKeywords() {
+      this.customTerms = this.PRESET_KEYWORDS.join('\n');
+    },
+
+    // ─────────────────────────────────────────────
+    // TAXON SEARCH
+    // ─────────────────────────────────────────────
+    async searchTaxon() {
+      const q = this.taxonQuery.trim();
+      if (!q) { this.taxonSuggestions = []; return; }
+      this.taxonSearching = true;
+      try {
+        // Try backend proxy first
+        if (this.apiBase.trim()) {
+          const r = await fetch(`${this.apiBase.trim()}/api/taxon/search?q=${encodeURIComponent(q)}`);
+          const data = await r.json();
+          if (Array.isArray(data)) { this.taxonSuggestions = data; return; }
+        }
+        // Fall back to GBIF directly
+        const r = await fetch(`https://api.gbif.org/v1/species/suggest?q=${encodeURIComponent(q)}&limit=10`);
+        const data = await r.json();
+        this.taxonSuggestions = (Array.isArray(data) ? data : []).map(t => ({
+          key: t.key,
+          name: t.canonicalName || t.scientificName || '',
+          rank: (t.rank || '').toLowerCase(),
+          common_name: t.vernacularName || '',
+          kingdom: t.kingdom || '',
+          family: t.family || '',
+        }));
+      } catch(e) {
+        this.taxonSuggestions = [];
+      } finally {
+        this.taxonSearching = false;
+      }
+    },
+
+    selectTaxon(s) {
+      this.selectedTaxon = s;
+      this.taxonQuery = s.name;
+      this.taxonSuggestions = [];
+    },
+
+    // ─────────────────────────────────────────────
+    // JOB MANAGEMENT
+    // ─────────────────────────────────────────────
+    async startJob() {
+      if (!this.apiBase.trim()) { alert('Enter the backend URL in Setup first.'); return; }
+      const taxonKey = this.selectedTaxon?.key || parseInt(this.manualTaxonKey) || 0;
+      const taxonName = this.selectedTaxon?.name || this.manualTaxonName || 'Unknown';
+      if (!taxonKey) { alert('Select or enter a GBIF taxon first.'); return; }
+
+      const customTermsList = this.customTerms.trim()
+        ? this.customTerms.split('\n').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      const body = {
+        taxon_key: taxonKey,
+        taxon_name: taxonName,
+        predator_list: this.allRecordsMode ? '' : this.predatorList,
+        custom_terms: customTermsList,
+        all_records_mode: this.allRecordsMode,
+      };
+
+      if (this._checkpoint) {
+        body.resume_from_index = this._checkpoint.predator_index_done ?? 0;
+        body.preloaded_rows = this.rows;
+        body.skip_keyword_scan = !!(this._checkpoint.keyword_scan_done ?? false);
+      }
+
+      try {
+        const r = await fetch(`${this.apiBase.trim()}/api/mine/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (data.error) { alert('Error: ' + data.error); return; }
+        this.jobId = data.job_id;
+        this.rows = [];
+        this.logLines = [];
+        this.running = true;
+        this.doneTerms = 0;
+        this.tab = 'run';
+        this.listenSSE();
+      } catch(e) {
+        alert('Could not reach backend: ' + e.message + '\n\nCheck the Backend URL in Setup.');
+      }
+    },
+
+    listenSSE() {
+      if (this.sseSource) this.sseSource.close();
+      const src = new EventSource(`${this.apiBase.trim()}/api/mine/${this.jobId}/stream`);
+      this.sseSource = src;
+
+      src.onmessage = (ev) => {
+        const d = JSON.parse(ev.data);
+
+        if (d.heartbeat) {
+          this.doneTerms = d.done_terms;
+          this.totalTerms = d.total_terms;
+          this.pollRows();
+          if (d.status === 'done') { this.running = false; src.close(); }
+          return;
+        }
+
+        if (d.msg) {
+          this.logLines.push({ msg: d.msg, level: d.level || 'info' });
+          if (this.logLines.length > 800) this.logLines.splice(0, 200);
+          this.$nextTick(() => {
+            const el = this.$refs.terminal;
+            if (el) el.scrollTop = el.scrollHeight;
+          });
+        }
+
+        if (d.done_terms !== undefined) this.doneTerms = d.done_terms;
+        if (d.total_terms !== undefined) this.totalTerms = d.total_terms;
+
+        if (d.status === 'done') {
+          this.running = false;
+          this.pollRows();
+          src.close();
+          clearInterval(this.pollTimer);
+        }
+      };
+
+      src.onerror = () => {
+        if (this.running) {
+          setTimeout(() => { if (this.running) this.pollRows(); }, 3000);
+        }
+      };
+
+      this.pollTimer = setInterval(() => {
+        if (this.running) this.pollRows();
+        else clearInterval(this.pollTimer);
+      }, 5000);
+    },
+
+    async pollRows() {
+      if (!this.jobId) return;
+      try {
+        const r = await fetch(`${this.apiBase.trim()}/api/mine/${this.jobId}/rows`);
+        const data = await r.json();
+        if (!Array.isArray(data)) return;
+
+        const existingById = {};
+        for (const row of this.rows) existingById[row.id] = row;
+
+        const merged = [];
+        for (const incoming of data) {
+          const existing = existingById[incoming.id];
+          if (existing) {
+            incoming.review = existing.review;
+            Object.assign(existing, incoming);
+            merged.push(existing);
+          } else {
+            merged.push(incoming);
+          }
+        }
+        this.rows = merged;
+      } catch(e) {}
+    },
+
+    async cancelJob() {
+      if (!this.jobId) return;
+      await fetch(`${this.apiBase.trim()}/api/mine/${this.jobId}/cancel`, { method: 'POST' });
+      this.running = false;
+      if (this.sseSource) this.sseSource.close();
+      clearInterval(this.pollTimer);
+    },
+
+    // ─────────────────────────────────────────────
+    // REVIEW
+    // ─────────────────────────────────────────────
+    setVerdict(row, verdict) {
+      const canonical = this.rows.find(r => r.id === row.id);
+      if (canonical) {
+        canonical.review = (canonical.review === verdict) ? '' : verdict;
+        row.review = canonical.review;
+      }
+    },
+
+    // ─────────────────────────────────────────────
+    // CHECKPOINT SAVE / LOAD
+    // ─────────────────────────────────────────────
+    async saveCheckpoint() {
+      let checkpoint;
+      if (this.jobId && this.apiBase.trim()) {
+        try {
+          const r = await fetch(`${this.apiBase.trim()}/api/mine/${this.jobId}/checkpoint`);
+          checkpoint = await r.json();
+        } catch(e) { checkpoint = null; }
+      }
+
+      if (!checkpoint || checkpoint.error) {
+        checkpoint = {
+          job_id: this.jobId,
+          taxon_key: this.selectedTaxon?.key || parseInt(this.manualTaxonKey) || null,
+          taxon_name: this.selectedTaxon?.name || this.manualTaxonName || 'Unknown',
+          predator_list: this.predatorList,
+          custom_terms: this.customTerms,
+          status: this.running ? 'running' : 'done',
+          rows: this.rows,
+          saved_at: new Date().toISOString(),
+        };
+      }
+
+      // Merge frontend verdicts (source of truth)
+      const verdictMap = {};
+      for (const row of this.rows) verdictMap[row.id] = row.review;
+      for (const row of (checkpoint.rows||[])) {
+        if (verdictMap[row.id] !== undefined) row.review = verdictMap[row.id];
+      }
+
+      checkpoint.predator_list = this.predatorList;
+      checkpoint.custom_terms  = this.customTerms;
+
+      const json = JSON.stringify(checkpoint, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const ts = new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+      const name = checkpoint.taxon_name || 'run';
+      a.download = `gbif_miner_${name}_${ts}.gbifminer`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    },
+
+    loadCheckpointFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const cp = JSON.parse(e.target.result);
+          this._checkpoint = cp;
+
+          if (cp.taxon_key) this.manualTaxonKey = cp.taxon_key;
+          if (cp.taxon_name) this.manualTaxonName = cp.taxon_name;
+          if (cp.predator_list) this.predatorList = cp.predator_list;
+          if (cp.custom_terms) this.customTerms = cp.custom_terms;
+          if (Array.isArray(cp.rows) && cp.rows.length > 0) this.rows = cp.rows;
+
+          const totalPreds = this.predatorList.trim()
+            ? this.predatorList.trim().split(/[\n,;]+/).filter(s => s.trim()).length : 0;
+          const donePreds = cp.predator_index_done ?? 0;
+          const rowCount  = (cp.rows||[]).length;
+
+          this.checkpointLoaded = `${rowCount} rows · predator ${donePreds}/${totalPreds} done · saved ${(cp.saved_at||'').slice(0,16).replace('T',' ')}`;
+
+          alert(`Checkpoint loaded!\n\n${rowCount} rows restored.\nPredator list will resume at #${donePreds+1}.\n\nAdjust taxon/keywords if needed, then click Resume Mining.`);
+        } catch(err) {
+          alert('Failed to parse checkpoint file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    },
+
+    clearCheckpoint() {
+      this._checkpoint = null;
+      this.checkpointLoaded = null;
+    },
+
+    // ─────────────────────────────────────────────
+    // EXPORT
+    // ─────────────────────────────────────────────
+    downloadCsv() {
+      if (!this.rows.length) { alert('No data to download.'); return; }
+
+      const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+
+      const COLS = [
+        'id','taxon_queried','observed_taxon','keyword','url',
+        'user','created_at','place','country','dataset','basis_of_record',
+        'occurrence_remarks','field_notes','behavior','associated_taxa',
+        'hit_fields','preview_text','coords','review'
+      ];
+
+      const lines = [COLS.join(',')];
+      for (const r of this.rows) {
+        lines.push(COLS.map(c => esc(r[c])).join(','));
+      }
+
+      const blob = new Blob([lines.join('\r\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `gbif_interactions_${this.jobId||'export'}.csv`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    },
+  }));
+});
+</script>
+</body>
+</html>
