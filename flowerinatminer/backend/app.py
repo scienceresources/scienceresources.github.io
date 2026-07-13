@@ -10,6 +10,8 @@ decisions and the fetched observation cache live entirely in the browser
 (localStorage) on the GitHub Pages side.
 """
 
+from datetime import datetime
+
 import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -19,6 +21,38 @@ CORS(app)  # allow the GitHub Pages origin (and anywhere else) to call this API
 
 INAT_API = "https://api.inaturalist.org/v1"
 PLANTAE_ID = 47126  # iNaturalist taxon ID for Plantae
+
+# Ranks (in coarse-to-fine order) that get their own column on CSV export.
+# iNat's ancestor list can include others (e.g. "complex", "section") but
+# these are the ones relevant to a flower's classification report.
+REPORT_RANKS = [
+    "kingdom", "phylum", "class", "order", "family",
+    "subfamily", "tribe", "subtribe", "genus", "species",
+    "subspecies", "variety", "form",
+]
+
+
+def format_observed_date(observed_on, observed_on_string):
+    """
+    Normalize an iNat observation date to 'D Mon YYYY' (e.g. '9 Aug 2025'),
+    always dropping any time-of-day component.
+
+    `observed_on` is iNat's clean YYYY-MM-DD date field; `observed_on_string`
+    is the raw user-entered string, which may carry a time and/or timezone
+    (e.g. "2025-08-09 2:30:00 PM PDT"). Either way we only keep the date.
+    """
+    raw = (observed_on or observed_on_string or "").strip()
+    if not raw:
+        return None
+
+    date_part = raw.split("T")[0].split(" ")[0]
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y"):
+        try:
+            dt = datetime.strptime(date_part, fmt)
+            return f"{dt.day} {dt.strftime('%b %Y')}"  # e.g. "9 Aug 2025"
+        except ValueError:
+            continue
+    return raw  # fallback for unparseable/partial dates — still no time
 
 
 @app.route("/api/taxon/search")
@@ -108,7 +142,7 @@ def observations():
             results.append({
                 "id": o.get("id"),
                 "uri": o.get("uri"),
-                "observed_on": o.get("observed_on_string") or o.get("observed_on"),
+                "observed_on": format_observed_date(o.get("observed_on"), o.get("observed_on_string")),
                 "place_guess": o.get("place_guess"),
                 "quality_grade": o.get("quality_grade"),
                 "taxon_name": taxon.get("name"),
@@ -127,12 +161,52 @@ def observations():
         return jsonify({"error": str(e)}), 502
 
 
+@app.route("/api/taxon/<int:taxon_id>")
+def taxon_detail(taxon_id):
+    """
+    Full taxonomic classification for a single taxon, used to build the
+    complete report for a picked flower: every rank from kingdom down
+    through the taxon itself (species, if that's what was picked; genus,
+    subtribe, tribe, subfamily, family, etc. — whatever iNat has on file).
+    """
+    try:
+        r = requests.get(f"{INAT_API}/taxa/{taxon_id}", timeout=10)
+        r.raise_for_status()
+        results = r.json().get("results") or []
+        if not results:
+            return jsonify({"error": "not found"}), 404
+        t = results[0]
+
+        def as_rank_entry(node):
+            return {
+                "id": node.get("id"),
+                "rank": node.get("rank"),
+                "name": node.get("name"),
+                "common_name": node.get("preferred_common_name") or "",
+            }
+
+        # iNat's "ancestors" list runs kingdom -> ... -> immediate parent;
+        # append the taxon itself so the report covers the full spectrum.
+        ancestry = [as_rank_entry(a) for a in t.get("ancestors", [])]
+        ancestry.append(as_rank_entry(t))
+
+        return jsonify({
+            "id": t.get("id"),
+            "name": t.get("name"),
+            "rank": t.get("rank"),
+            "common_name": t.get("preferred_common_name") or "",
+            "ancestry": ancestry,
+        })
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 502
+
+
 @app.route("/")
 def index():
     return jsonify({
         "service": "flowerinatminer backend",
         "status": "ok",
-        "endpoints": ["/api/taxon/search", "/api/observations", "/health", "/ping"],
+        "endpoints": ["/api/taxon/search", "/api/taxon/<id>", "/api/observations", "/health", "/ping"],
     })
 
 

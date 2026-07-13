@@ -181,6 +181,7 @@
             <option value="unreviewed">Unreviewed</option>
             <option value="target_yes">Marked: target ✓</option>
             <option value="target_no">Marked: not target ✗</option>
+            <option value="target_ambiguous">Marked: ambiguous ?</option>
             <option value="needs_flower">Target, needs flower/sex</option>
           </select>
 
@@ -238,7 +239,7 @@
 
               <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                 <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Is this <span x-text="taxon && taxon.name"></span>?</p>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-3 gap-2">
                   <button @click="setTarget(true)" class="toggle-btn py-2.5 rounded-lg text-sm font-bold border-2"
                           :class="review.isTarget===true ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-200 text-slate-500 hover:border-emerald-300'">
                     <i class="fa-solid fa-check mr-1"></i>Yes
@@ -247,10 +248,14 @@
                           :class="review.isTarget===false ? 'bg-red-500 border-red-500 text-white' : 'border-slate-200 text-slate-500 hover:border-red-300'">
                     <i class="fa-solid fa-xmark mr-1"></i>No
                   </button>
+                  <button @click="setTarget('ambiguous')" class="toggle-btn py-2.5 rounded-lg text-sm font-bold border-2"
+                          :class="review.isTarget==='ambiguous' ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-200 text-slate-500 hover:border-amber-300'">
+                    <i class="fa-solid fa-question mr-1"></i>Ambiguous
+                  </button>
                 </div>
               </div>
 
-              <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4" x-show="review.isTarget===true" x-cloak>
+              <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4" x-show="isTargetish" x-cloak>
 
                 <div>
                   <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Sex</p>
@@ -266,7 +271,7 @@
                 <div>
                   <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">On a flower?</p>
 
-                  <div x-show="!review.flower" class="relative">
+                  <div x-show="!review.flower && !review.pinnedDeadCaptured" class="relative">
                     <div x-show="topFrequentFlowers.length>0" class="mb-2">
                       <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Frequent</p>
                       <div class="flex flex-wrap gap-1.5">
@@ -296,22 +301,53 @@
                         </button>
                       </template>
                     </div>
-                    <button @click="setNotOnFlower()" class="mt-2 w-full text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-lg py-2">
-                      <i class="fa-solid fa-ban mr-1"></i>Not on a flower
-                    </button>
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                      <button @click="setNotOnFlower()" class="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-lg py-2">
+                        <i class="fa-solid fa-ban mr-1"></i>Not on a flower
+                      </button>
+                      <button @click="setPinnedDeadCaptured()" class="text-xs font-semibold text-amber-700 hover:text-amber-800 border border-amber-200 hover:bg-amber-50 rounded-lg py-2">
+                        <i class="fa-solid fa-thumbtack mr-1"></i>Pinned / dead / captured
+                      </button>
+                    </div>
                   </div>
 
-                  <div x-show="review.flower" x-cloak class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
-                    <div class="min-w-0 flex-1">
-                      <p class="text-xs font-bold text-slate-900 italic truncate" x-text="review.flower && review.flower.name"></p>
-                      <p class="text-[10px] text-slate-500 truncate" x-text="review.flower && review.flower.common_name || ''"></p>
+                  <div x-show="review.flower" x-cloak x-effect="review.flower && !(review.flower.ancestry && review.flower.ancestry.length) && ensureFlowerTaxonomy(review.flower.id)">
+                    <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+                      <div class="min-w-0 flex-1">
+                        <p class="text-xs font-bold text-slate-900 italic truncate" x-text="review.flower && review.flower.name"></p>
+                        <p class="text-[10px] text-slate-500 truncate" x-text="review.flower && review.flower.common_name || ''"></p>
+                      </div>
+                      <button @click="clearFlower()" class="text-slate-400 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <button @click="clearFlower()" class="text-slate-400 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
+
+                    <!-- Full taxonomic report: species (if picked) down/up through genus, subtribe, tribe, subfamily, family, and every rank iNat has on file -->
+                    <div x-show="review.flower && review.flower.ancestry && review.flower.ancestry.length" x-cloak
+                         class="bg-white border border-slate-200 rounded-lg mt-2 p-2.5 max-h-52 overflow-y-auto">
+                      <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">
+                        <i class="fa-solid fa-sitemap mr-1"></i>Full taxonomic report
+                      </p>
+                      <table class="w-full text-[11px]">
+                        <template x-for="a in (review.flower ? review.flower.ancestry : [])" :key="a.id">
+                          <tr class="border-b border-slate-100 last:border-0">
+                            <td class="py-1 pr-2 text-slate-400 capitalize whitespace-nowrap align-top" x-text="a.rank"></td>
+                            <td class="py-1 italic text-slate-800" x-text="a.name"></td>
+                          </tr>
+                        </template>
+                      </table>
+                    </div>
+                    <p x-show="!(review.flower && review.flower.ancestry && review.flower.ancestry.length)" x-cloak class="text-[10px] text-slate-400 mt-1.5">
+                      <i class="fa-solid fa-spinner fa-spin mr-1"></i>Loading taxonomic report…
+                    </p>
                   </div>
 
                   <div x-show="review.notOnFlower" x-cloak class="flex items-center gap-2 bg-slate-100 rounded-lg p-2.5 mt-2">
                     <p class="text-xs font-semibold text-slate-500 flex-1"><i class="fa-solid fa-ban mr-1"></i>Not on a flower</p>
                     <button @click="review.notOnFlower=false; saveReviews()" class="text-slate-400 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
+                  </div>
+
+                  <div x-show="review.pinnedDeadCaptured" x-cloak class="flex items-center gap-2 bg-amber-100 rounded-lg p-2.5 mt-2">
+                    <p class="text-xs font-semibold text-amber-700 flex-1"><i class="fa-solid fa-thumbtack mr-1"></i>Pinned / dead / captured</p>
+                    <button @click="review.pinnedDeadCaptured=false; saveReviews()" class="text-slate-400 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
                   </div>
                 </div>
               </div>
@@ -346,6 +382,7 @@ document.addEventListener('alpine:init', () => {
     // flower picker
     flowerQuery: '', flowerResults: [], showFlowerDropdown: false,
     frequentFlowers: [],
+    taxonomyCache: {}, // flower taxon id -> full ancestry report, so it's only fetched once per species
 
     // checkpoint
     checkpointMessage: '', checkpointError: false,
@@ -355,6 +392,7 @@ document.addEventListener('alpine:init', () => {
       this.observations = JSON.parse(localStorage.getItem('bfr_observations') || '[]');
       this.reviews = JSON.parse(localStorage.getItem('bfr_reviews') || '{}');
       this.frequentFlowers = JSON.parse(localStorage.getItem('bfr_frequent_flowers') || '[]');
+      this.taxonomyCache = JSON.parse(localStorage.getItem('bfr_taxonomy_cache') || '{}');
       const meta = JSON.parse(localStorage.getItem('bfr_fetch_meta') || '{}');
       this.fetchLastId = meta.last_id || 0;
       this.fetchTotal = meta.total_results || 0;
@@ -464,7 +502,8 @@ document.addEventListener('alpine:init', () => {
         if (this.filterMode === 'unreviewed') return rv.isTarget === undefined || rv.isTarget === null;
         if (this.filterMode === 'target_yes') return rv.isTarget === true;
         if (this.filterMode === 'target_no') return rv.isTarget === false;
-        if (this.filterMode === 'needs_flower') return rv.isTarget === true && !rv.sex && !rv.flower && !rv.notOnFlower;
+        if (this.filterMode === 'target_ambiguous') return rv.isTarget === 'ambiguous';
+        if (this.filterMode === 'needs_flower') return (rv.isTarget === true || rv.isTarget === 'ambiguous') && !rv.sex && !rv.flower && !rv.notOnFlower && !rv.pinnedDeadCaptured;
         return true;
       });
     },
@@ -477,7 +516,7 @@ document.addEventListener('alpine:init', () => {
     },
     get review() {
       const rec = this.currentRecord; if (!rec) return {};
-      if (!this.reviews[rec.id]) this.reviews[rec.id] = {isTarget: null, sex: null, flower: null, notOnFlower: false};
+      if (!this.reviews[rec.id]) this.reviews[rec.id] = {isTarget: null, sex: null, flower: null, notOnFlower: false, pinnedDeadCaptured: false};
       return this.reviews[rec.id];
     },
     clampIndex() {
@@ -509,11 +548,19 @@ document.addEventListener('alpine:init', () => {
       const rec = this.currentRecord; if (!rec) return;
       const rv = this.review;
       rv.isTarget = val;
-      if (val === false) { rv.sex = null; rv.flower = null; rv.notOnFlower = false; }
+      if (val === false) { rv.sex = null; rv.flower = null; rv.notOnFlower = false; rv.pinnedDeadCaptured = false; }
       this.saveReviews();
     },
+    // true for a firm "yes" or an "ambiguous" ID — either way there's still
+    // useful sex/flower info worth recording, so the detail panel stays open
+    get isTargetish() {
+      return this.review.isTarget === true || this.review.isTarget === 'ambiguous';
+    },
     setNotOnFlower() {
-      this.review.notOnFlower = true; this.review.flower = null; this.saveReviews();
+      this.review.notOnFlower = true; this.review.flower = null; this.review.pinnedDeadCaptured = false; this.saveReviews();
+    },
+    setPinnedDeadCaptured() {
+      this.review.pinnedDeadCaptured = true; this.review.flower = null; this.review.notOnFlower = false; this.saveReviews();
     },
     clearFlower() {
       this.review.flower = null; this.saveReviews();
@@ -532,9 +579,32 @@ document.addEventListener('alpine:init', () => {
       } catch (e) { this.flowerResults = []; }
     },
     pickFlower(f) {
-      this.review.flower = f; this.review.notOnFlower = false; this.saveReviews();
+      this.review.flower = f; this.review.notOnFlower = false; this.review.pinnedDeadCaptured = false; this.saveReviews();
       this.trackFrequentFlower(f);
       this.resetFlowerSearch();
+      this.ensureFlowerTaxonomy(f.id);
+    },
+    // Fetches the full kingdom -> ... -> species (or genus/tribe/etc, whatever
+    // rank was picked) classification for a flower taxon, once per taxon id.
+    async ensureFlowerTaxonomy(taxonId) {
+      if (this.taxonomyCache[taxonId]) {
+        if (this.review.flower && this.review.flower.id === taxonId) {
+          this.review.flower.ancestry = this.taxonomyCache[taxonId].ancestry;
+          this.saveReviews();
+        }
+        return;
+      }
+      try {
+        const r = await fetch(this.apiUrl('/api/taxon/' + taxonId));
+        const data = await r.json();
+        if (data.error) return;
+        this.taxonomyCache[taxonId] = data;
+        localStorage.setItem('bfr_taxonomy_cache', JSON.stringify(this.taxonomyCache));
+        if (this.review.flower && this.review.flower.id === taxonId) {
+          this.review.flower.ancestry = data.ancestry;
+          this.saveReviews();
+        }
+      } catch (e) { /* silent — the "Loading…" state just stays until retried */ }
     },
     trackFrequentFlower(f) {
       const existing = this.frequentFlowers.find(x => x.id === f.id);
@@ -551,17 +621,41 @@ document.addEventListener('alpine:init', () => {
     },
 
     // ---------- export ----------
+    // Fixed rank columns pulled out of a flower's full ancestry report, for
+    // easy spreadsheet filtering/sorting (in addition to the full report).
+    flowerRankColumns: ['kingdom','phylum','class','order','family','subfamily','tribe','subtribe','genus','species','subspecies','variety','form'],
+    extractRank(ancestry, rank) {
+      if (!ancestry) return '';
+      const hit = ancestry.find(a => a.rank === rank);
+      return hit ? hit.name : '';
+    },
     exportCSV() {
-      const rows = [['obs_id','iNat_uri','observed_on','place_guess','iNat_taxon_name','is_target','sex','flower_name','flower_common_name','not_on_flower']];
+      const rankCols = this.flowerRankColumns;
+      const header = [
+        'obs_id','iNat_uri','observed_on','place_guess','iNat_taxon_name',
+        'is_target','sex','not_on_flower','pinned_dead_captured',
+        'flower_name','flower_common_name',
+        ...rankCols.map(r => 'flower_' + r),
+        'flower_full_taxonomic_report',
+      ];
+      const rows = [header];
       for (const o of this.observations) {
         const rv = this.reviews[o.id] || {};
+        const ancestry = rv.flower ? rv.flower.ancestry : null;
+        const rankValues = rankCols.map(r => this.extractRank(ancestry, r));
+        const fullReport = ancestry
+          ? ancestry.map(a => `${a.rank}: ${a.name}`).join(' > ')
+          : '';
         rows.push([
           o.id, o.uri, o.observed_on || '', o.place_guess || '', o.taxon_name || '',
-          rv.isTarget === true ? 'yes' : (rv.isTarget === false ? 'no' : ''),
+          rv.isTarget === true ? 'yes' : (rv.isTarget === false ? 'no' : (rv.isTarget === 'ambiguous' ? 'ambiguous' : '')),
           rv.sex || '',
+          rv.notOnFlower ? 'yes' : '',
+          rv.pinnedDeadCaptured ? 'yes' : '',
           rv.flower ? rv.flower.name : '',
           rv.flower ? (rv.flower.common_name || '') : '',
-          rv.notOnFlower ? 'yes' : ''
+          ...rankValues,
+          fullReport,
         ]);
       }
       const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -582,6 +676,7 @@ document.addEventListener('alpine:init', () => {
         observations: this.observations,
         reviews: this.reviews,
         frequentFlowers: this.frequentFlowers,
+        taxonomyCache: this.taxonomyCache,
         fetchMeta: {last_id: this.fetchLastId, total_results: this.fetchTotal},
       };
       const blob = new Blob([JSON.stringify(checkpoint)], {type: 'application/json'});
@@ -621,12 +716,14 @@ document.addEventListener('alpine:init', () => {
         this.observations = data.observations || [];
         this.reviews = data.reviews || {};
         this.frequentFlowers = data.frequentFlowers || [];
+        this.taxonomyCache = data.taxonomyCache || {};
         this.fetchLastId = (data.fetchMeta && data.fetchMeta.last_id) || 0;
         this.fetchTotal = (data.fetchMeta && data.fetchMeta.total_results) || 0;
 
         if (this.taxon) localStorage.setItem('bfr_taxon', JSON.stringify(this.taxon));
         this.saveObservations(); this.saveReviews(); this.saveMeta();
         localStorage.setItem('bfr_frequent_flowers', JSON.stringify(this.frequentFlowers));
+        localStorage.setItem('bfr_taxonomy_cache', JSON.stringify(this.taxonomyCache));
 
         this.currentIndex = 0; this.filterMode = 'all';
         this.checkpointError = false;
