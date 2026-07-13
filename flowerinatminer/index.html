@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bee-Flower Association Reviewer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  [x-cloak]{display:none!important}
+  .tab-active{background:#0f172a;color:#fff}
+  .tab-inactive{background:transparent;color:#64748b}
+  .toggle-btn{transition:all .12s}
+  .thumb{cursor:pointer;opacity:.55;transition:opacity .12s,transform .12s}
+  .thumb:hover{opacity:.85}
+  .thumb.active{opacity:1;box-shadow:0 0 0 2px #059669}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col" x-data="app" x-init="init()">
+
+<!-- Header -->
+<header class="bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between shadow-sm sticky top-0 z-30">
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+      <i class="fa-solid fa-spa"></i>
+    </div>
+    <div>
+      <h1 class="text-base font-bold text-slate-900 leading-tight">Bee-Flower Reviewer</h1>
+      <p class="text-[11px] text-slate-400 font-mono leading-tight" x-text="taxon ? ('taxon: '+taxon.name) : 'no taxon selected'"></p>
+    </div>
+  </div>
+  <nav class="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+    <button @click="tab='setup'" :class="tab==='setup'?'tab-active':'tab-inactive'" class="px-4 py-2 text-sm font-semibold rounded-md transition-all">
+      <i class="fa-solid fa-sliders mr-1.5 opacity-70"></i>Setup
+    </button>
+    <button @click="tab='review'" :class="tab==='review'?'tab-active':'tab-inactive'" class="px-4 py-2 text-sm font-semibold rounded-md transition-all flex items-center">
+      <i class="fa-solid fa-magnifying-glass mr-1.5 opacity-70"></i>Review
+      <span x-show="observations.length>0" class="ml-2 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full" x-text="reviewedCount+'/'+observations.length"></span>
+    </button>
+  </nav>
+</header>
+
+<main class="flex-1 w-full max-w-5xl mx-auto p-5">
+
+  <!-- ============ SETUP TAB ============ -->
+  <section x-show="tab==='setup'" x-cloak class="space-y-5">
+
+    <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+      <h2 class="text-sm font-bold text-slate-900 mb-1">Target taxon</h2>
+      <p class="text-xs text-slate-500 mb-3">Search iNaturalist for the bee taxon you want to pull observations for.</p>
+
+      <div class="relative">
+        <input type="text" x-model="taxonQuery" @input.debounce.350ms="searchTaxon()"
+               @focus="showTaxonDropdown = true"
+               placeholder="e.g. Melissodes"
+               class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-emerald-400 outline-none">
+        <div x-show="showTaxonDropdown && taxonResults.length>0" x-cloak @click.outside="showTaxonDropdown=false"
+             class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+          <template x-for="t in taxonResults" :key="t.id">
+            <button @click="pickTaxon(t)" class="w-full flex items-center gap-3 p-2.5 hover:bg-emerald-50 text-left border-b border-slate-100 last:border-0">
+              <img :src="t.thumb || 'https://placehold.co/40x40?text=%20'" class="w-9 h-9 rounded object-cover bg-slate-100 flex-shrink-0">
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-slate-800 italic truncate" x-text="t.name"></p>
+                <p class="text-[11px] text-slate-400 truncate" x-text="(t.common_name||'')+'  ·  '+t.rank"></p>
+              </div>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <div x-show="taxon" x-cloak class="mt-3 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+        <img :src="taxon && taxon.thumb || 'https://placehold.co/40x40?text=%20'" class="w-10 h-10 rounded object-cover bg-white flex-shrink-0">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-bold text-slate-900 italic" x-text="taxon && taxon.name"></p>
+          <p class="text-[11px] text-slate-500" x-text="(taxon && taxon.common_name)||''"></p>
+        </div>
+        <button @click="clearTaxon()" class="text-slate-400 hover:text-red-500 px-2"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+      <h2 class="text-sm font-bold text-slate-900 mb-1">Fetch observations</h2>
+      <p class="text-xs text-slate-500 mb-3">
+        Pulls every photo-having observation for this taxon from iNaturalist. Safe to stop and resume — already-loaded
+        records are kept and only new ones are fetched.
+      </p>
+
+      <div class="flex items-center gap-2 mb-3">
+        <button @click="fetchObservations()" :disabled="!taxon || fetching"
+                class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-5 py-3 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid" :class="fetching ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'"></i>
+          <span x-text="fetching ? 'Fetching…' : (observations.length>0 ? 'Fetch new observations' : 'Fetch observations')"></span>
+        </button>
+        <button x-show="fetching" @click="stopFetch=true" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-3 rounded-lg text-sm font-semibold">
+          Stop
+        </button>
+      </div>
+
+      <div x-show="fetching || observations.length>0" class="space-y-1.5">
+        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+          <div class="bg-emerald-500 h-2 transition-all" :style="'width:'+progressPct+'%'"></div>
+        </div>
+        <p class="text-[11px] text-slate-400 font-mono" x-text="observations.length+' loaded'+(fetchTotal ? (' of ~'+fetchTotal+' on iNat') : '')"></p>
+      </div>
+
+      <p x-show="fetchError" x-text="fetchError" class="text-xs text-red-500 mt-2"></p>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm" x-show="observations.length>0">
+      <h2 class="text-sm font-bold text-slate-900 mb-3">Dataset</h2>
+      <div class="grid grid-cols-3 gap-3 text-center mb-4">
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xl font-bold text-slate-900" x-text="observations.length"></p>
+          <p class="text-[10px] text-slate-400 uppercase tracking-wide">loaded</p>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xl font-bold text-emerald-600" x-text="reviewedCount"></p>
+          <p class="text-[10px] text-slate-400 uppercase tracking-wide">reviewed</p>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-3">
+          <p class="text-xl font-bold text-slate-900" x-text="observations.length-reviewedCount"></p>
+          <p class="text-[10px] text-slate-400 uppercase tracking-wide">remaining</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button @click="tab='review'" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-lg text-sm font-bold">
+          <i class="fa-solid fa-magnifying-glass mr-1.5"></i>Start reviewing
+        </button>
+        <button @click="exportCSV()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-semibold">
+          <i class="fa-solid fa-download mr-1.5"></i>Export CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-red-100 p-5 shadow-sm" x-show="observations.length>0">
+      <h2 class="text-sm font-bold text-red-500 mb-2">Danger zone</h2>
+      <button @click="resetAll()" class="text-xs font-semibold text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-2 rounded-lg">
+        <i class="fa-solid fa-trash mr-1.5"></i>Clear all data (observations + reviews)
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ REVIEW TAB ============ -->
+  <section x-show="tab==='review'" x-cloak>
+
+    <template x-if="observations.length===0">
+      <div class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400">
+        <i class="fa-solid fa-inbox text-3xl mb-3"></i>
+        <p class="text-sm">No observations loaded yet. Go to <button @click="tab='setup'" class="text-emerald-600 font-semibold underline">Setup</button> to fetch some.</p>
+      </div>
+    </template>
+
+    <template x-if="observations.length>0">
+      <div>
+        <!-- Filter / nav bar -->
+        <div class="bg-white rounded-xl border border-slate-200 p-3 mb-4 shadow-sm flex flex-wrap items-center gap-3">
+          <select x-model="filterMode" @change="clampIndex()" class="bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold px-2.5 py-2 outline-none">
+            <option value="all">All records</option>
+            <option value="unreviewed">Unreviewed</option>
+            <option value="target_yes">Marked: target ✓</option>
+            <option value="target_no">Marked: not target ✗</option>
+            <option value="needs_flower">Target, needs flower/sex</option>
+          </select>
+
+          <div class="flex items-center gap-1.5 ml-auto">
+            <button @click="prevRecord()" :disabled="filteredIndices.length===0" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-600"><i class="fa-solid fa-chevron-left"></i></button>
+            <span class="text-xs font-mono text-slate-500 w-20 text-center" x-text="filteredIndices.length ? (posInFilter+' / '+filteredIndices.length) : '0 / 0'"></span>
+            <button @click="nextRecord()" :disabled="filteredIndices.length===0" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-600"><i class="fa-solid fa-chevron-right"></i></button>
+          </div>
+          <button @click="jumpFirstUnreviewed()" class="text-xs font-semibold text-emerald-600 hover:text-emerald-800">
+            <i class="fa-solid fa-forward-step mr-1"></i>Next unreviewed
+          </button>
+        </div>
+
+        <template x-if="!currentRecord">
+          <div class="bg-white rounded-xl border border-slate-200 p-10 text-center text-slate-400 text-sm">
+            Nothing matches this filter. <button @click="filterMode='all'" class="text-emerald-600 underline">Show all</button>
+          </div>
+        </template>
+
+        <template x-if="currentRecord">
+          <div class="grid md:grid-cols-5 gap-5">
+
+            <!-- Photo column -->
+            <div class="md:col-span-3 bg-slate-900 rounded-xl overflow-hidden shadow-sm flex flex-col">
+              <div class="flex-1 flex items-center justify-center bg-slate-900 min-h-[340px]">
+                <img :src="currentRecord.photos[activePhoto] || 'https://placehold.co/500x400?text=No+photo'"
+                     class="max-h-[440px] w-full object-contain">
+              </div>
+              <div class="flex gap-2 p-2 bg-slate-800 overflow-x-auto" x-show="currentRecord.photos.length>1">
+                <template x-for="(p,i) in currentRecord.photos" :key="i">
+                  <img :src="p" @click="activePhoto=i" class="thumb w-14 h-14 object-cover rounded flex-shrink-0" :class="activePhoto===i && 'active'">
+                </template>
+              </div>
+            </div>
+
+            <!-- Meta + decision column -->
+            <div class="md:col-span-2 space-y-4">
+
+              <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-sm space-y-1.5">
+                <p class="font-bold text-slate-900 italic" x-text="currentRecord.taxon_name"></p>
+                <p class="text-xs text-slate-400" x-text="currentRecord.taxon_common_name||''"></p>
+                <p class="text-xs text-slate-500"><i class="fa-solid fa-calendar-day w-4 opacity-50"></i> <span x-text="currentRecord.observed_on||'unknown date'"></span></p>
+                <p class="text-xs text-slate-500"><i class="fa-solid fa-location-dot w-4 opacity-50"></i> <span x-text="currentRecord.place_guess||'unknown location'"></span></p>
+                <a :href="currentRecord.uri" target="_blank" class="text-xs text-emerald-600 hover:underline inline-flex items-center gap-1 pt-1">
+                  View on iNaturalist <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                </a>
+              </div>
+
+              <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Is this <span x-text="taxon && taxon.name"></span>?</p>
+                <div class="grid grid-cols-2 gap-2">
+                  <button @click="setTarget(true)" class="toggle-btn py-2.5 rounded-lg text-sm font-bold border-2"
+                          :class="review.isTarget===true ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-200 text-slate-500 hover:border-emerald-300'">
+                    <i class="fa-solid fa-check mr-1"></i>Yes
+                  </button>
+                  <button @click="setTarget(false)" class="toggle-btn py-2.5 rounded-lg text-sm font-bold border-2"
+                          :class="review.isTarget===false ? 'bg-red-500 border-red-500 text-white' : 'border-slate-200 text-slate-500 hover:border-red-300'">
+                    <i class="fa-solid fa-xmark mr-1"></i>No
+                  </button>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4" x-show="review.isTarget===true" x-cloak>
+
+                <div>
+                  <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Sex</p>
+                  <div class="grid grid-cols-3 gap-2">
+                    <template x-for="opt in ['female','male','unknown']" :key="opt">
+                      <button @click="review.sex = opt; saveReviews()" class="toggle-btn py-2 rounded-lg text-xs font-bold border-2 capitalize"
+                              :class="review.sex===opt ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-400'"
+                              x-text="opt"></button>
+                    </template>
+                  </div>
+                </div>
+
+                <div>
+                  <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">On a flower?</p>
+
+                  <div x-show="!review.flower" class="relative">
+                    <input type="text" x-model="flowerQuery" @input.debounce.350ms="searchFlower()"
+                           @focus="showFlowerDropdown=true"
+                           placeholder="Search plant name…"
+                           class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
+                    <div x-show="showFlowerDropdown && flowerResults.length>0" x-cloak @click.outside="showFlowerDropdown=false"
+                         class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <template x-for="f in flowerResults" :key="f.id">
+                        <button @click="pickFlower(f)" class="w-full flex items-center gap-3 p-2 hover:bg-emerald-50 text-left border-b border-slate-100 last:border-0">
+                          <img :src="f.thumb || 'https://placehold.co/32x32?text=%20'" class="w-8 h-8 rounded object-cover bg-slate-100 flex-shrink-0">
+                          <div class="min-w-0">
+                            <p class="text-xs font-semibold text-slate-800 italic truncate" x-text="f.name"></p>
+                            <p class="text-[10px] text-slate-400 truncate" x-text="f.common_name||''"></p>
+                          </div>
+                        </button>
+                      </template>
+                    </div>
+                    <button @click="setNotOnFlower()" class="mt-2 w-full text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-lg py-2">
+                      <i class="fa-solid fa-ban mr-1"></i>Not on a flower
+                    </button>
+                  </div>
+
+                  <div x-show="review.flower" x-cloak class="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+                    <div class="min-w-0 flex-1">
+                      <p class="text-xs font-bold text-slate-900 italic truncate" x-text="review.flower && review.flower.name"></p>
+                      <p class="text-[10px] text-slate-500 truncate" x-text="review.flower && review.flower.common_name || ''"></p>
+                    </div>
+                    <button @click="clearFlower()" class="text-slate-400 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
+                  </div>
+
+                  <div x-show="review.notOnFlower" x-cloak class="flex items-center gap-2 bg-slate-100 rounded-lg p-2.5 mt-2">
+                    <p class="text-xs font-semibold text-slate-500 flex-1"><i class="fa-solid fa-ban mr-1"></i>Not on a flower</p>
+                    <button @click="review.notOnFlower=false; saveReviews()" class="text-slate-400 hover:text-red-500 px-1"><i class="fa-solid fa-xmark"></i></button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+  </section>
+</main>
+
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.data('app', () => ({
+    tab: 'setup',
+
+    // setup / taxon
+    taxonQuery: '', taxonResults: [], showTaxonDropdown: false,
+    taxon: null,
+
+    // fetching
+    observations: [], fetching: false, stopFetch: false,
+    fetchTotal: 0, fetchLastId: 0, fetchError: '',
+
+    // review state
+    reviews: {}, filterMode: 'all', currentIndex: 0, activePhoto: 0,
+
+    // flower picker
+    flowerQuery: '', flowerResults: [], showFlowerDropdown: false,
+
+    init() {
+      this.taxon = JSON.parse(localStorage.getItem('bfr_taxon') || 'null');
+      this.observations = JSON.parse(localStorage.getItem('bfr_observations') || '[]');
+      this.reviews = JSON.parse(localStorage.getItem('bfr_reviews') || '{}');
+      const meta = JSON.parse(localStorage.getItem('bfr_fetch_meta') || '{}');
+      this.fetchLastId = meta.last_id || 0;
+      this.fetchTotal = meta.total_results || 0;
+    },
+
+    // ---------- persistence ----------
+    saveObservations() { localStorage.setItem('bfr_observations', JSON.stringify(this.observations)); },
+    saveReviews() { localStorage.setItem('bfr_reviews', JSON.stringify(this.reviews)); },
+    saveMeta() { localStorage.setItem('bfr_fetch_meta', JSON.stringify({last_id: this.fetchLastId, total_results: this.fetchTotal})); },
+
+    // ---------- taxon search ----------
+    async searchTaxon() {
+      if (!this.taxonQuery.trim()) { this.taxonResults = []; return; }
+      try {
+        const r = await fetch('/api/taxon/search?q=' + encodeURIComponent(this.taxonQuery));
+        this.taxonResults = await r.json();
+        this.showTaxonDropdown = true;
+      } catch (e) { this.taxonResults = []; }
+    },
+    pickTaxon(t) {
+      const changingTaxon = this.taxon && this.taxon.id !== t.id;
+      if (changingTaxon && this.observations.length > 0) {
+        if (!confirm('Switching taxon will clear the currently loaded observations and reviews. Continue?')) return;
+        this.observations = []; this.reviews = {}; this.fetchLastId = 0; this.fetchTotal = 0;
+        this.saveObservations(); this.saveReviews(); this.saveMeta();
+      }
+      this.taxon = t;
+      localStorage.setItem('bfr_taxon', JSON.stringify(t));
+      this.taxonQuery = ''; this.taxonResults = []; this.showTaxonDropdown = false;
+    },
+    clearTaxon() {
+      this.taxon = null; localStorage.removeItem('bfr_taxon');
+    },
+
+    // ---------- observation fetching ----------
+    get progressPct() {
+      if (!this.fetchTotal) return this.fetching ? 5 : 0;
+      return Math.min(100, Math.round(this.observations.length / this.fetchTotal * 100));
+    },
+    async fetchObservations() {
+      if (!this.taxon) return;
+      this.fetching = true; this.stopFetch = false; this.fetchError = '';
+      const seen = new Set(this.observations.map(o => o.id));
+      try {
+        while (!this.stopFetch) {
+          const url = `/api/observations?taxon_id=${this.taxon.id}&id_above=${this.fetchLastId}&per_page=200`;
+          const r = await fetch(url);
+          const data = await r.json();
+          if (data.error) { this.fetchError = data.error; break; }
+
+          for (const rec of data.results) {
+            if (!seen.has(rec.id)) { seen.add(rec.id); this.observations.push(rec); }
+          }
+          this.fetchLastId = data.last_id;
+          this.fetchTotal = data.total_results;
+          this.saveObservations(); this.saveMeta();
+
+          if (!data.has_more) break;
+        }
+      } catch (e) {
+        this.fetchError = 'Network error while fetching — you can safely retry, progress is saved.';
+      }
+      this.fetching = false;
+    },
+
+    // ---------- dataset stats ----------
+    get reviewedCount() {
+      return Object.values(this.reviews).filter(r => r.isTarget === true || r.isTarget === false).length;
+    },
+
+    // ---------- filtering / navigation ----------
+    get filteredIndices() {
+      return this.observations.map((o, i) => i).filter(i => {
+        const o = this.observations[i]; const rv = this.reviews[o.id] || {};
+        if (this.filterMode === 'unreviewed') return rv.isTarget === undefined || rv.isTarget === null;
+        if (this.filterMode === 'target_yes') return rv.isTarget === true;
+        if (this.filterMode === 'target_no') return rv.isTarget === false;
+        if (this.filterMode === 'needs_flower') return rv.isTarget === true && !rv.sex && !rv.flower && !rv.notOnFlower;
+        return true;
+      });
+    },
+    get posInFilter() {
+      const p = this.filteredIndices.indexOf(this.currentIndex);
+      return p === -1 ? 0 : p + 1;
+    },
+    get currentRecord() {
+      return this.observations[this.currentIndex] || null;
+    },
+    get review() {
+      const rec = this.currentRecord; if (!rec) return {};
+      if (!this.reviews[rec.id]) this.reviews[rec.id] = {isTarget: null, sex: null, flower: null, notOnFlower: false};
+      return this.reviews[rec.id];
+    },
+    clampIndex() {
+      const idxs = this.filteredIndices;
+      if (idxs.length === 0) return;
+      if (!idxs.includes(this.currentIndex)) this.currentIndex = idxs[0];
+      this.activePhoto = 0;
+    },
+    nextRecord() {
+      const idxs = this.filteredIndices; if (idxs.length === 0) return;
+      const p = idxs.indexOf(this.currentIndex);
+      this.currentIndex = idxs[(p + 1) % idxs.length];
+      this.activePhoto = 0; this.resetFlowerSearch();
+    },
+    prevRecord() {
+      const idxs = this.filteredIndices; if (idxs.length === 0) return;
+      const p = idxs.indexOf(this.currentIndex);
+      this.currentIndex = idxs[(p - 1 + idxs.length) % idxs.length];
+      this.activePhoto = 0; this.resetFlowerSearch();
+    },
+    jumpFirstUnreviewed() {
+      this.filterMode = 'unreviewed';
+      const idxs = this.filteredIndices;
+      if (idxs.length) { this.currentIndex = idxs[0]; this.activePhoto = 0; }
+    },
+
+    // ---------- decisions ----------
+    setTarget(val) {
+      const rec = this.currentRecord; if (!rec) return;
+      const rv = this.review;
+      rv.isTarget = val;
+      if (val === false) { rv.sex = null; rv.flower = null; rv.notOnFlower = false; }
+      this.saveReviews();
+    },
+    setNotOnFlower() {
+      this.review.notOnFlower = true; this.review.flower = null; this.saveReviews();
+    },
+    clearFlower() {
+      this.review.flower = null; this.saveReviews();
+    },
+    resetFlowerSearch() {
+      this.flowerQuery = ''; this.flowerResults = []; this.showFlowerDropdown = false;
+    },
+
+    // ---------- flower search ----------
+    async searchFlower() {
+      if (!this.flowerQuery.trim()) { this.flowerResults = []; return; }
+      try {
+        const r = await fetch('/api/taxon/search?plants=1&q=' + encodeURIComponent(this.flowerQuery));
+        this.flowerResults = await r.json();
+        this.showFlowerDropdown = true;
+      } catch (e) { this.flowerResults = []; }
+    },
+    pickFlower(f) {
+      this.review.flower = f; this.review.notOnFlower = false; this.saveReviews();
+      this.resetFlowerSearch();
+    },
+
+    // ---------- export ----------
+    exportCSV() {
+      const rows = [['obs_id','iNat_uri','observed_on','place_guess','iNat_taxon_name','is_target','sex','flower_name','flower_common_name','not_on_flower']];
+      for (const o of this.observations) {
+        const rv = this.reviews[o.id] || {};
+        rows.push([
+          o.id, o.uri, o.observed_on || '', o.place_guess || '', o.taxon_name || '',
+          rv.isTarget === true ? 'yes' : (rv.isTarget === false ? 'no' : ''),
+          rv.sex || '',
+          rv.flower ? rv.flower.name : '',
+          rv.flower ? (rv.flower.common_name || '') : '',
+          rv.notOnFlower ? 'yes' : ''
+        ]);
+      }
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type: 'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `bee_flower_review_${(this.taxon && this.taxon.name || 'export').replace(/\s+/g,'_')}.csv`;
+      a.click();
+    },
+
+    resetAll() {
+      if (!confirm('This clears every loaded observation and every review decision. This cannot be undone. Continue?')) return;
+      this.observations = []; this.reviews = {}; this.fetchLastId = 0; this.fetchTotal = 0;
+      this.saveObservations(); this.saveReviews(); this.saveMeta();
+      this.currentIndex = 0;
+    },
+  }));
+});
+</script>
+</body>
+</html>
