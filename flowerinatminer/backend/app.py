@@ -1,19 +1,21 @@
 """
-Bee-Flower Association Reviewer — Flask backend.
+Bee-Flower Association Reviewer — Flask backend (API only).
 
-This backend holds no state between requests. It only proxies two
-iNaturalist endpoints (taxon autocomplete + observation search) so the
-frontend avoids CORS headaches and can keep API keys / rate-limit
-handling server-side. All review/classification decisions and the
-fetched observation cache live entirely in the browser (localStorage).
+The frontend (index.html) is deployed separately on GitHub Pages, so this
+service holds no HTML/static assets — it's a pure JSON API reachable
+cross-origin. It holds no state between requests either: it only proxies
+two iNaturalist endpoints (taxon autocomplete + observation search) so the
+frontend avoids CORS/rate-limit handling itself. All review/classification
+decisions and the fetched observation cache live entirely in the browser
+(localStorage) on the GitHub Pages side.
 """
 
 import requests
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder=".", static_url_path="")
-CORS(app)
+app = Flask(__name__)
+CORS(app)  # allow the GitHub Pages origin (and anywhere else) to call this API
 
 INAT_API = "https://api.inaturalist.org/v1"
 PLANTAE_ID = 47126  # iNaturalist taxon ID for Plantae
@@ -87,6 +89,11 @@ def observations():
 
     try:
         r = requests.get(f"{INAT_API}/observations", params=params, timeout=20)
+        if r.status_code == 429:
+            return jsonify({
+                "error": "rate_limited",
+                "retry_after": r.headers.get("Retry-After", "5"),
+            }), 429
         r.raise_for_status()
         data = r.json()
 
@@ -122,7 +129,11 @@ def observations():
 
 @app.route("/")
 def index():
-    return send_from_directory(".", "index.html")
+    return jsonify({
+        "service": "flowerinatminer backend",
+        "status": "ok",
+        "endpoints": ["/api/taxon/search", "/api/observations", "/health", "/ping"],
+    })
 
 
 @app.route("/health")

@@ -48,6 +48,26 @@
   <!-- ============ SETUP TAB ============ -->
   <section x-show="tab==='setup'" x-cloak class="space-y-5">
 
+    <div class="bg-white rounded-xl border p-5 shadow-sm" :class="apiBase ? 'border-slate-200' : 'border-amber-300 bg-amber-50'">
+      <h2 class="text-sm font-bold text-slate-900 mb-1">Backend API URL</h2>
+      <p class="text-xs text-slate-500 mb-3">
+        The Render backend, e.g. <code class="bg-slate-100 px-1 rounded font-mono">https://flowerinatminer-backend.onrender.com</code>.
+        Leave blank only if this page is served by that same Flask app.
+      </p>
+      <div class="flex items-center gap-2">
+        <input type="text" x-model="apiBaseDraft" @keydown.enter="saveApiBase()"
+               placeholder="https://your-backend.onrender.com"
+               class="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-emerald-400 outline-none">
+        <button @click="saveApiBase()" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-lg text-sm font-bold">Save</button>
+      </div>
+      <p x-show="apiBase" class="text-[11px] text-emerald-600 font-mono mt-2">
+        <i class="fa-solid fa-check mr-1"></i>Using <span x-text="apiBase"></span>
+      </p>
+      <p x-show="!apiBase" class="text-[11px] text-amber-600 mt-2">
+        <i class="fa-solid fa-triangle-exclamation mr-1"></i>Not set yet — taxon search and fetching won't work until you save a backend URL.
+      </p>
+    </div>
+
     <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
       <h2 class="text-sm font-bold text-slate-900 mb-1">Target taxon</h2>
       <p class="text-xs text-slate-500 mb-3">Search iNaturalist for the bee taxon you want to pull observations for.</p>
@@ -57,7 +77,7 @@
                @focus="showTaxonDropdown = true"
                placeholder="e.g. Melissodes"
                class="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-emerald-400 outline-none">
-        <div x-show="showTaxonDropdown && taxonResults.length>0" x-cloak @click.outside="showTaxonDropdown=false"
+        <div x-show="showTaxonDropdown && taxonResults.length>0" x-cloak @click.away="showTaxonDropdown=false"
              class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
           <template x-for="t in taxonResults" :key="t.id">
             <button @click="pickTaxon(t)" class="w-full flex items-center gap-3 p-2.5 hover:bg-emerald-50 text-left border-b border-slate-100 last:border-0">
@@ -245,7 +265,7 @@
                            @focus="showFlowerDropdown=true"
                            placeholder="Search plant name…"
                            class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
-                    <div x-show="showFlowerDropdown && flowerResults.length>0" x-cloak @click.outside="showFlowerDropdown=false"
+                    <div x-show="showFlowerDropdown && flowerResults.length>0" x-cloak @click.away="showFlowerDropdown=false"
                          class="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       <template x-for="f in flowerResults" :key="f.id">
                         <button @click="pickFlower(f)" class="w-full flex items-center gap-3 p-2 hover:bg-emerald-50 text-left border-b border-slate-100 last:border-0">
@@ -290,6 +310,9 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('app', () => ({
     tab: 'setup',
 
+    // backend connection
+    apiBase: '', apiBaseDraft: '',
+
     // setup / taxon
     taxonQuery: '', taxonResults: [], showTaxonDropdown: false,
     taxon: null,
@@ -305,6 +328,8 @@ document.addEventListener('alpine:init', () => {
     flowerQuery: '', flowerResults: [], showFlowerDropdown: false,
 
     init() {
+      this.apiBase = localStorage.getItem('bfr_api_base') || '';
+      this.apiBaseDraft = this.apiBase;
       this.taxon = JSON.parse(localStorage.getItem('bfr_taxon') || 'null');
       this.observations = JSON.parse(localStorage.getItem('bfr_observations') || '[]');
       this.reviews = JSON.parse(localStorage.getItem('bfr_reviews') || '{}');
@@ -312,6 +337,12 @@ document.addEventListener('alpine:init', () => {
       this.fetchLastId = meta.last_id || 0;
       this.fetchTotal = meta.total_results || 0;
     },
+
+    saveApiBase() {
+      this.apiBase = this.apiBaseDraft.trim().replace(/\/+$/, ''); // strip trailing slash
+      localStorage.setItem('bfr_api_base', this.apiBase);
+    },
+    apiUrl(path) { return this.apiBase + path; },
 
     // ---------- persistence ----------
     saveObservations() { localStorage.setItem('bfr_observations', JSON.stringify(this.observations)); },
@@ -321,8 +352,9 @@ document.addEventListener('alpine:init', () => {
     // ---------- taxon search ----------
     async searchTaxon() {
       if (!this.taxonQuery.trim()) { this.taxonResults = []; return; }
+      if (!this.apiBase) { this.showTaxonDropdown = false; return; }
       try {
-        const r = await fetch('/api/taxon/search?q=' + encodeURIComponent(this.taxonQuery));
+        const r = await fetch(this.apiUrl('/api/taxon/search?q=' + encodeURIComponent(this.taxonQuery)));
         this.taxonResults = await r.json();
         this.showTaxonDropdown = true;
       } catch (e) { this.taxonResults = []; }
@@ -349,26 +381,57 @@ document.addEventListener('alpine:init', () => {
     },
     async fetchObservations() {
       if (!this.taxon) return;
+      if (!this.apiBase) { this.fetchError = 'Set the Backend API URL above first.'; return; }
       this.fetching = true; this.stopFetch = false; this.fetchError = '';
       const seen = new Set(this.observations.map(o => o.id));
-      try {
-        while (!this.stopFetch) {
-          const url = `/api/observations?taxon_id=${this.taxon.id}&id_above=${this.fetchLastId}&per_page=200`;
-          const r = await fetch(url);
-          const data = await r.json();
-          if (data.error) { this.fetchError = data.error; break; }
+      const sleep = ms => new Promise(res => setTimeout(res, ms));
+      let consecutiveFailures = 0;
 
-          for (const rec of data.results) {
-            if (!seen.has(rec.id)) { seen.add(rec.id); this.observations.push(rec); }
-          }
-          this.fetchLastId = data.last_id;
-          this.fetchTotal = data.total_results;
-          this.saveObservations(); this.saveMeta();
-
-          if (!data.has_more) break;
+      while (!this.stopFetch) {
+        const url = this.apiUrl(`/api/observations?taxon_id=${this.taxon.id}&id_above=${this.fetchLastId}&per_page=200`);
+        let r, data;
+        try {
+          r = await fetch(url);
+          data = await r.json();
+        } catch (e) {
+          // network hiccup — back off and retry the SAME page, don't advance id_above
+          consecutiveFailures++;
+          this.fetchError = `Network error — retrying (attempt ${consecutiveFailures})…`;
+          if (consecutiveFailures > 8) { this.fetchError = 'Repeated network errors — stopped. Progress is saved; click Fetch to resume.'; break; }
+          await sleep(Math.min(2000 * consecutiveFailures, 20000));
+          continue;
         }
-      } catch (e) {
-        this.fetchError = 'Network error while fetching — you can safely retry, progress is saved.';
+
+        if (r.status === 429 || data.error === 'rate_limited') {
+          // iNat rate limit — back off and retry the SAME page, don't advance id_above
+          consecutiveFailures++;
+          const wait = Math.min(2000 * Math.pow(1.6, consecutiveFailures), 30000);
+          this.fetchError = `iNaturalist rate limit hit — pausing ${Math.round(wait/1000)}s before retrying…`;
+          await sleep(wait);
+          continue;
+        }
+
+        if (data.error) {
+          this.fetchError = 'Error: ' + data.error + ' — you can safely click Fetch again, progress is saved.';
+          break;
+        }
+
+        consecutiveFailures = 0;
+        this.fetchError = '';
+
+        for (const rec of data.results) {
+          if (!seen.has(rec.id)) { seen.add(rec.id); this.observations.push(rec); }
+        }
+        this.fetchLastId = data.last_id;
+        this.fetchTotal = data.total_results;
+        this.saveObservations(); this.saveMeta();
+
+        // Only stop once iNat itself says there's no more — this guarantees
+        // every single observation gets pulled, not just the first page(s).
+        if (!data.has_more) break;
+
+        // Pace requests to stay well under iNat's rate limits on large fetches.
+        await sleep(350);
       }
       this.fetching = false;
     },
@@ -446,8 +509,9 @@ document.addEventListener('alpine:init', () => {
     // ---------- flower search ----------
     async searchFlower() {
       if (!this.flowerQuery.trim()) { this.flowerResults = []; return; }
+      if (!this.apiBase) { this.showFlowerDropdown = false; return; }
       try {
-        const r = await fetch('/api/taxon/search?plants=1&q=' + encodeURIComponent(this.flowerQuery));
+        const r = await fetch(this.apiUrl('/api/taxon/search?plants=1&q=' + encodeURIComponent(this.flowerQuery)));
         this.flowerResults = await r.json();
         this.showFlowerDropdown = true;
       } catch (e) { this.flowerResults = []; }
