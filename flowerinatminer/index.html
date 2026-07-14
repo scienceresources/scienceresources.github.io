@@ -381,7 +381,6 @@ document.addEventListener('alpine:init', () => {
 
     // flower picker
     flowerQuery: '', flowerResults: [], showFlowerDropdown: false,
-    frequentFlowers: [],
     taxonomyCache: {}, // flower taxon id -> full ancestry report, so it's only fetched once per species
 
     // checkpoint
@@ -391,8 +390,8 @@ document.addEventListener('alpine:init', () => {
       this.taxon = JSON.parse(localStorage.getItem('bfr_taxon') || 'null');
       this.observations = JSON.parse(localStorage.getItem('bfr_observations') || '[]');
       this.reviews = JSON.parse(localStorage.getItem('bfr_reviews') || '{}');
-      this.frequentFlowers = JSON.parse(localStorage.getItem('bfr_frequent_flowers') || '[]');
       this.taxonomyCache = JSON.parse(localStorage.getItem('bfr_taxonomy_cache') || '{}');
+      localStorage.removeItem('bfr_frequent_flowers'); // legacy stale-counter key, no longer used
       const meta = JSON.parse(localStorage.getItem('bfr_fetch_meta') || '{}');
       this.fetchLastId = meta.last_id || 0;
       this.fetchTotal = meta.total_results || 0;
@@ -580,7 +579,6 @@ document.addEventListener('alpine:init', () => {
     },
     pickFlower(f) {
       this.review.flower = f; this.review.notOnFlower = false; this.review.pinnedDeadCaptured = false; this.saveReviews();
-      this.trackFrequentFlower(f);
       this.resetFlowerSearch();
       this.ensureFlowerTaxonomy(f.id);
     },
@@ -606,18 +604,22 @@ document.addEventListener('alpine:init', () => {
         }
       } catch (e) { /* silent — the "Loading…" state just stays until retried */ }
     },
-    trackFrequentFlower(f) {
-      const existing = this.frequentFlowers.find(x => x.id === f.id);
-      if (existing) {
-        existing.count++;
-        existing.name = f.name; existing.common_name = f.common_name; existing.thumb = f.thumb;
-      } else {
-        this.frequentFlowers.push({id: f.id, name: f.name, common_name: f.common_name, thumb: f.thumb, count: 1});
-      }
-      localStorage.setItem('bfr_frequent_flowers', JSON.stringify(this.frequentFlowers));
-    },
+    // Derived live from the current taxon's reviews (not a separately
+    // persisted counter) so this always reflects what's actually been
+    // picked in the current dataset, not leftovers from a prior taxon
+    // or checkpoint.
     get topFrequentFlowers() {
-      return [...this.frequentFlowers].sort((a, b) => b.count - a.count).slice(0, 8);
+      const counts = {};
+      for (const rv of Object.values(this.reviews)) {
+        const f = rv && rv.flower;
+        if (!f || f.id == null) continue;
+        if (counts[f.id]) {
+          counts[f.id].count++;
+        } else {
+          counts[f.id] = {id: f.id, name: f.name, common_name: f.common_name, thumb: f.thumb, count: 1};
+        }
+      }
+      return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 8);
     },
 
     // ---------- export ----------
@@ -675,7 +677,6 @@ document.addEventListener('alpine:init', () => {
         taxon: this.taxon,
         observations: this.observations,
         reviews: this.reviews,
-        frequentFlowers: this.frequentFlowers,
         taxonomyCache: this.taxonomyCache,
         fetchMeta: {last_id: this.fetchLastId, total_results: this.fetchTotal},
       };
@@ -715,14 +716,12 @@ document.addEventListener('alpine:init', () => {
         this.taxon = data.taxon || null;
         this.observations = data.observations || [];
         this.reviews = data.reviews || {};
-        this.frequentFlowers = data.frequentFlowers || [];
         this.taxonomyCache = data.taxonomyCache || {};
         this.fetchLastId = (data.fetchMeta && data.fetchMeta.last_id) || 0;
         this.fetchTotal = (data.fetchMeta && data.fetchMeta.total_results) || 0;
 
         if (this.taxon) localStorage.setItem('bfr_taxon', JSON.stringify(this.taxon));
         this.saveObservations(); this.saveReviews(); this.saveMeta();
-        localStorage.setItem('bfr_frequent_flowers', JSON.stringify(this.frequentFlowers));
         localStorage.setItem('bfr_taxonomy_cache', JSON.stringify(this.taxonomyCache));
 
         this.currentIndex = 0; this.filterMode = 'all';
