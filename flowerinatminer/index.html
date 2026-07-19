@@ -261,30 +261,41 @@
                   <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Sex</p>
                   <div class="grid grid-cols-2 gap-2">
                     <template x-for="opt in ['female','male','mating','unknown']" :key="opt">
-                      <button @click="review.sex = opt; if (opt !== 'female') review.forageType = null; saveReviews()" class="toggle-btn py-2 rounded-lg text-xs font-bold border-2 capitalize"
+                      <button @click="review.sex = opt; if (opt !== 'female') { review.forageType = null; review.scopaePollen = null; } if (opt === 'mating') { review.behavior = null; review.forageType = null; } saveReviews()" class="toggle-btn py-2 rounded-lg text-xs font-bold border-2 capitalize"
                               :class="review.sex===opt ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-400'"
                               x-text="opt"></button>
                     </template>
                   </div>
                 </div>
 
-                <div>
+                <div x-show="review.sex !== 'mating'" x-cloak>
                   <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Behavior</p>
-                  <div class="grid grid-cols-3 gap-2">
-                    <template x-for="opt in ['foraging','resting','unknown']" :key="opt">
-                      <button @click="review.behavior = opt; if (opt !== 'foraging' || review.sex !== 'female') review.forageType = null; saveReviews()" class="toggle-btn py-2 rounded-lg text-xs font-bold border-2 capitalize"
+                  <div class="grid grid-cols-2 gap-2">
+                    <template x-for="opt in ['definitely foraging','likely foraging','resting','unknown']" :key="opt">
+                      <button @click="review.behavior = opt; if (!opt.includes('foraging') || review.sex !== 'female') review.forageType = null; saveReviews()" class="toggle-btn py-2 rounded-lg text-xs font-bold border-2 capitalize"
                               :class="review.behavior===opt ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-400'"
                               x-text="opt"></button>
                     </template>
                   </div>
                 </div>
 
-                <div x-show="review.behavior==='foraging' && review.sex==='female'" x-cloak>
+                <div x-show="review.behavior && review.behavior.includes('foraging') && review.sex==='female'" x-cloak>
                   <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Foraging for</p>
                   <div class="grid grid-cols-3 gap-2">
                     <template x-for="opt in ['nectaring','pollen','both']" :key="opt">
                       <button @click="review.forageType = opt; saveReviews()" class="toggle-btn py-2 rounded-lg text-xs font-bold border-2 capitalize"
                               :class="review.forageType===opt ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-400'"
+                              x-text="opt"></button>
+                    </template>
+                  </div>
+                </div>
+
+                <div x-show="review.sex==='female'" x-cloak>
+                  <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Pollen in scopae?</p>
+                  <div class="grid grid-cols-3 gap-2">
+                    <template x-for="opt in ['yes','no','unknown']" :key="opt">
+                      <button @click="review.scopaePollen = opt; saveReviews()" class="toggle-btn py-2 rounded-lg text-xs font-bold border-2 capitalize"
+                              :class="review.scopaePollen===opt ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-400'"
                               x-text="opt"></button>
                     </template>
                   </div>
@@ -537,7 +548,7 @@ document.addEventListener('alpine:init', () => {
     },
     get review() {
       const rec = this.currentRecord; if (!rec) return {};
-      if (!this.reviews[rec.id]) this.reviews[rec.id] = {isTarget: null, sex: null, behavior: null, forageType: null, flower: null, notOnFlower: false, pinnedDeadCaptured: false};
+      if (!this.reviews[rec.id]) this.reviews[rec.id] = {isTarget: null, sex: null, behavior: null, forageType: null, scopaePollen: null, flower: null, notOnFlower: false, pinnedDeadCaptured: false};
       return this.reviews[rec.id];
     },
     clampIndex() {
@@ -569,7 +580,7 @@ document.addEventListener('alpine:init', () => {
       const rec = this.currentRecord; if (!rec) return;
       const rv = this.review;
       rv.isTarget = val;
-      if (val === false) { rv.sex = null; rv.behavior = null; rv.forageType = null; rv.flower = null; rv.notOnFlower = false; rv.pinnedDeadCaptured = false; }
+      if (val === false) { rv.sex = null; rv.behavior = null; rv.forageType = null; rv.scopaePollen = null; rv.flower = null; rv.notOnFlower = false; rv.pinnedDeadCaptured = false; }
       this.saveReviews();
     },
     // true for a firm "yes" or an "ambiguous" ID — either way there's still
@@ -657,7 +668,7 @@ document.addEventListener('alpine:init', () => {
       const rankCols = this.flowerRankColumns;
       const header = [
         'obs_id','iNat_uri','observed_on','place_guess','iNat_taxon_name',
-        'is_target','sex','behavior','forage_type','not_on_flower','pinned_dead_captured',
+        'is_target','sex','behavior','forage_type','scopae_pollen','not_on_flower','pinned_dead_captured',
         'flower_name','flower_common_name',
         ...rankCols.map(r => 'flower_' + r),
         'flower_full_taxonomic_report',
@@ -676,6 +687,7 @@ document.addEventListener('alpine:init', () => {
           rv.sex || '',
           rv.behavior || '',
           rv.forageType || '',
+          rv.scopaePollen || '',
           rv.notOnFlower ? 'yes' : '',
           rv.pinnedDeadCaptured ? 'yes' : '',
           rv.flower ? rv.flower.name : '',
