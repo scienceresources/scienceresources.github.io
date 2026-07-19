@@ -288,13 +288,16 @@
 
                 <div x-show="review.behavior && review.behavior.includes('foraging') && review.sex==='female'" x-cloak>
                   <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Foraging for</p>
-                  <div class="grid grid-cols-3 gap-2">
-                    <template x-for="opt in ['nectaring','pollen','both']" :key="opt">
+                  <div class="grid grid-cols-2 gap-2">
+                    <template x-for="opt in ['nectaring','pollen','both','nectaring, likely pollen too']" :key="opt">
                       <button @click="review.forageType = opt; saveReviews()" class="toggle-btn py-2 rounded-lg text-xs font-bold border-2 capitalize"
                               :class="review.forageType===opt ? 'bg-slate-900 border-slate-900 text-white' : 'border-slate-200 text-slate-500 hover:border-slate-400'"
                               x-text="opt"></button>
                     </template>
                   </div>
+                  <p x-show="review.forageType==='nectaring, likely pollen too'" class="text-[10px] text-slate-400 mt-1.5">
+                    Nectaring confirmed; pollen collection appears likely but isn't certain from the photo.
+                  </p>
                 </div>
 
                 <div x-show="review.sex==='female'" x-cloak>
